@@ -2,7 +2,7 @@ import Navbar from "./components/Navbar";
 
 export default function Home() {
   return (
-    <div className="page-wrap">
+    <div className="min-h-screen">
       <Navbar />
     </div>
   );
