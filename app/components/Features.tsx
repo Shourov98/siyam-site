@@ -8,6 +8,8 @@ const channels = [
 const featureRows = [
   "Real-time inventory synchronization across channels",
   "Hands-on support to scale",
+  "Real-time inventory syncing",
+  "Automated order routing",
 ];
 
 export default function Features() {
@@ -53,8 +55,8 @@ export default function Features() {
       <div className="mx-auto w-full max-w-[1320px] px-6 py-18 sm:px-10 lg:px-16 lg:py-24">
         <div className="max-w-[760px]">
           <h2 className="text-2xl font-semibold leading-[1.25] text-[#556278] sm:text-3xl lg:text-5xl">
-            Beyond simple connections, it's about orchestrating your entire
-            ecosystem. Command Center isn't just syncing inventory; it is
+            Beyond simple connections, it&apos;s about orchestrating your entire
+            ecosystem. Command Center isn&apos;t just syncing inventory; it is
             redefining how merchants sell, ship, and scale.
           </h2>
 
