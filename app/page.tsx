@@ -2,6 +2,7 @@ import CoreModules from "./components/CoreModules";
 import Features from "./components/Features";
 import Hero from "./components/Hero";
 import Navbar from "./components/Navbar";
+import TestimonialSection from "./components/TestimonialSection";
 
 export default function Home() {
   return (
@@ -10,6 +11,7 @@ export default function Home() {
       <Hero />
       <Features />
       <CoreModules />
+      <TestimonialSection />
     </div>
   );
 }
