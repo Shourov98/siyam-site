@@ -63,20 +63,20 @@ export default function CoreModules() {
                       {item.icon}
                     </div>
 
-                    <h3 className="text-[42px] font-semibold leading-tight text-[#1f2940] transition-colors group-hover:text-white">
+                    <h3 className="text-[34px] font-semibold leading-tight text-[#1f2940] transition-colors group-hover:text-white">
                       {item.title}
                     </h3>
 
-                    <p className="mt-4 max-w-[430px] text-[33px] leading-[1.45] text-[#6b7892] transition-colors group-hover:text-[#ced8ea]">
+                    <p className="mt-4 max-w-[430px] text-[26px] leading-[1.45] text-[#6b7892] transition-colors group-hover:text-[#ced8ea]">
                       {item.description}
                     </p>
                   </>
                 ) : (
                   <div className="my-auto">
-                    <h3 className="text-[42px] font-semibold leading-tight text-[#2fd1c8] group-hover:text-[#2fd1c8]">
+                    <h3 className="text-[34px] font-semibold leading-tight text-[#2fd1c8] group-hover:text-[#2fd1c8]">
                       {item.title}
                     </h3>
-                    <button className="mt-7 border border-[#2fd1c8] px-9 py-4 text-[30px] font-semibold tracking-wide text-[#2fd1c8] transition hover:bg-[#2fd1c8] hover:text-[#153354]">
+                    <button className="mt-7 border border-[#2fd1c8] px-9 py-4 text-[24px] font-semibold tracking-wide text-[#2fd1c8] transition hover:bg-[#2fd1c8] hover:text-[#153354]">
                       {item.button}
                     </button>
                   </div>
