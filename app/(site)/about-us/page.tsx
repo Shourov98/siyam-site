@@ -2,6 +2,7 @@ import AboutUsCarousel from "../components/AboutUsCarousel";
 import AboutUsPerksSection from "../components/AboutUsPerksSection";
 import AboutUsPropertiesSection from "../components/AboutUsPropertiesSection";
 import AboutUsTopHeading from "../components/AboutUsTopHeading";
+import AboutUsJourneySection from "../components/AboutUsJourneySection";
 
 export default function AboutUsPage() {
   return (
@@ -10,6 +11,7 @@ export default function AboutUsPage() {
       <AboutUsCarousel />
       <AboutUsPropertiesSection />
       <AboutUsPerksSection />
+      <AboutUsJourneySection />
     </main>
   );
 }
