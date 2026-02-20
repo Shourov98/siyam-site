@@ -50,8 +50,10 @@ export default function PricingSection() {
             return (
               <article
                 key={plan.name}
-                className={`relative rounded-[22px] px-8 py-9 shadow-sm ${
-                  featured ? "bg-[#243a69] text-white lg:scale-[1.02]" : "bg-[#eef0f3] text-[#1a2236]"
+                className={`group relative rounded-[22px] border px-8 py-9 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
+                  featured
+                    ? "border-[#2e4b83] bg-[#243a69] text-white lg:scale-[1.02]"
+                    : "border-[#e3e7ee] bg-[#eef0f3] text-[#1a2236] hover:border-[#cfd7e5]"
                 }`}
               >
                 {featured ? (
@@ -85,10 +87,10 @@ export default function PricingSection() {
 
                 <button
                   type="button"
-                  className={`mt-9 w-full rounded-full px-8 py-3.5 text-xl font-semibold transition ${
+                  className={`mt-9 w-full rounded-full px-8 py-3.5 text-xl font-semibold transition-all duration-300 ${
                     featured
-                      ? "bg-white text-[#2b354a] hover:bg-[#edf2fb]"
-                      : "bg-white text-[#3a4356] hover:bg-[#f8fbff]"
+                      ? "bg-white text-[#2b354a] group-hover:bg-[#e9f0fc] hover:shadow-lg"
+                      : "bg-white text-[#3a4356] group-hover:bg-[#f8fbff] hover:shadow-md"
                   }`}
                 >
                   {plan.cta}
