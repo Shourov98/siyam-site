@@ -70,7 +70,7 @@ export default function Hero() {
         <div className="relative flex items-center justify-center lg:justify-end">
           <div className="pointer-events-none absolute h-[74%] w-[74%] rounded-full bg-[#2fd1c8]/30 blur-3xl" />
           <Image
-            src="/hero.png"
+            src="/hero.svg"
             alt="Marketplace overview dashboard"
             width={900}
             height={620}
