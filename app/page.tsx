@@ -2,6 +2,7 @@ import CoreModules from "./components/CoreModules";
 import Features from "./components/Features";
 import Hero from "./components/Hero";
 import Navbar from "./components/Navbar";
+import PricingSection from "./components/PricingSection";
 import TestimonialSection from "./components/TestimonialSection";
 
 export default function Home() {
@@ -12,6 +13,7 @@ export default function Home() {
       <Features />
       <CoreModules />
       <TestimonialSection />
+      <PricingSection />
     </div>
   );
 }
