@@ -32,18 +32,21 @@ export default function Navbar() {
         <Link className={navLinkClass} href="/faq">
           FAQ
         </Link>
+        <Link className={navLinkClass} href="/privacy-policy">
+          Privacy Policy
+        </Link>
       </nav>
 
       <div className="flex items-center gap-[18px]">
-        <a className={navLinkClass} href="#">
+        <Link className={navLinkClass} href="/login">
           Sign In
-        </a>
-        <a
+        </Link>
+        <Link
           className="whitespace-nowrap rounded-[6px] bg-[#132446] px-[22px] py-4 text-[23px] leading-none font-semibold text-[#2fd1c8] no-underline shadow-[0_4px_12px_rgba(11,20,40,0.18)] max-[1180px]:text-[18px]"
-          href="#"
+          href="/signup"
         >
           Start Free Trial
-        </a>
+        </Link>
       </div>
     </header>
   );
