@@ -4,6 +4,7 @@ import AboutUsPropertiesSection from "../components/AboutUsPropertiesSection";
 import AboutUsTopHeading from "../components/AboutUsTopHeading";
 import AboutUsJourneySection from "../components/AboutUsJourneySection";
 import AboutUsConstructingCoherenceSection from "../components/AboutUsConstructingCoherenceSection";
+import AboutUsFaqSection from "../components/AboutUsFaqSection";
 
 export default function AboutUsPage() {
   return (
@@ -14,6 +15,7 @@ export default function AboutUsPage() {
       <AboutUsPerksSection />
       <AboutUsJourneySection />
       <AboutUsConstructingCoherenceSection />
+      <AboutUsFaqSection />
     </main>
   );
 }
