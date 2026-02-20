@@ -25,8 +25,9 @@ export default function SignupPage() {
               type="text"
               name="firstName"
               autoComplete="given-name"
+              autoFocus
               placeholder="Jane"
-              className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:h-16 sm:text-xl"
+              className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] transition focus:border-[#32cbc6] focus:outline-none focus:ring-2 focus:ring-[#32cbc6]/25 sm:h-16 sm:text-xl"
             />
           </div>
           <div>
@@ -38,7 +39,7 @@ export default function SignupPage() {
               name="lastName"
               autoComplete="family-name"
               placeholder="Doe"
-              className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:h-16 sm:text-xl"
+              className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] transition focus:border-[#32cbc6] focus:outline-none focus:ring-2 focus:ring-[#32cbc6]/25 sm:h-16 sm:text-xl"
             />
           </div>
         </div>
@@ -52,7 +53,7 @@ export default function SignupPage() {
             name="email"
             autoComplete="email"
             placeholder="jane@example.com"
-            className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:h-16 sm:text-xl"
+            className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] transition focus:border-[#32cbc6] focus:outline-none focus:ring-2 focus:ring-[#32cbc6]/25 sm:h-16 sm:text-xl"
           />
         </div>
 
@@ -70,7 +71,7 @@ export default function SignupPage() {
             name="password"
             autoComplete="new-password"
             placeholder="•••••••••"
-            className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:h-16 sm:text-xl"
+            className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] transition focus:border-[#32cbc6] focus:outline-none focus:ring-2 focus:ring-[#32cbc6]/25 sm:h-16 sm:text-xl"
           />
         </div>
 

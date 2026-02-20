@@ -52,12 +52,13 @@ export default function LoginPage() {
           <label className="text-xs font-semibold tracking-[0.08em] text-[#8b93a2] sm:text-sm">
             EMAIL ADDRESS
           </label>
-          <div className="mt-2 flex h-14 items-center border border-[#e3e7ed] bg-[#eef1f5] px-4 sm:h-16">
+          <div className="mt-2 flex h-14 items-center border border-[#e3e7ed] bg-[#eef1f5] px-4 transition focus-within:border-[#32cbc6] focus-within:ring-2 focus-within:ring-[#32cbc6]/25 sm:h-16">
             <Mail className="mr-2 h-5 w-5 text-[#b4bcc8]" />
             <input
               type="email"
               name="email"
               autoComplete="email"
+              autoFocus
               placeholder="jane@example.com"
               className="w-full bg-transparent text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:text-xl"
             />
@@ -78,7 +79,7 @@ export default function LoginPage() {
             name="password"
             autoComplete="current-password"
             placeholder="•••••••••"
-            className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:h-16 sm:text-xl"
+            className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] transition focus:border-[#32cbc6] focus:outline-none focus:ring-2 focus:ring-[#32cbc6]/25 sm:h-16 sm:text-xl"
           />
         </div>
 

@@ -108,7 +108,7 @@ export default function AuthShell({ children }: AuthShellProps) {
           <div className="absolute inset-0 bg-[linear-gradient(130deg,rgba(255,255,255,0.02)_0%,rgba(255,255,255,0)_45%)]" />
           <div
             className="pointer-events-none absolute right-[16%] top-[16%] h-24 w-24 rounded-full blur-2xl"
-            style={{ backgroundColor: "#1d8ca2", opacity: 0.18 }}
+            style={{ backgroundColor: "#2dcfda", opacity: 0.34 }}
           />
 
           {slides.map((slide, index) => (
