@@ -1,4 +1,5 @@
 import CoreModules from "./components/CoreModules";
+import Footer from "./components/Footer";
 import Features from "./components/Features";
 import Hero from "./components/Hero";
 import Navbar from "./components/Navbar";
@@ -14,6 +15,7 @@ export default function Home() {
       <CoreModules />
       <TestimonialSection />
       <PricingSection />
+      <Footer />
     </div>
   );
 }
