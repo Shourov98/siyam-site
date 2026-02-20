@@ -3,6 +3,7 @@ import AboutUsPerksSection from "../components/AboutUsPerksSection";
 import AboutUsPropertiesSection from "../components/AboutUsPropertiesSection";
 import AboutUsTopHeading from "../components/AboutUsTopHeading";
 import AboutUsJourneySection from "../components/AboutUsJourneySection";
+import AboutUsConstructingCoherenceSection from "../components/AboutUsConstructingCoherenceSection";
 
 export default function AboutUsPage() {
   return (
@@ -12,6 +13,7 @@ export default function AboutUsPage() {
       <AboutUsPropertiesSection />
       <AboutUsPerksSection />
       <AboutUsJourneySection />
+      <AboutUsConstructingCoherenceSection />
     </main>
   );
 }

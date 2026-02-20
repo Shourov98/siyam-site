@@ -33,7 +33,7 @@ export default function AboutUsJourneySection() {
   return (
     <section className="bg-[#f3f4f6] px-6 py-20 sm:px-10 lg:px-16 lg:py-24">
       <div className="mx-auto w-full max-w-[980px]">
-        <h2 className="text-center text-4xl font-extrabold tracking-[-0.02em] text-[#111b34] sm:text-5xl">
+        <h2 className="text-center text-3xl font-extrabold tracking-[-0.02em] text-[#111b34] sm:text-4xl">
           Our Journey of Growth
         </h2>
 
@@ -51,14 +51,14 @@ export default function AboutUsJourneySection() {
                   }`}
                 />
 
-                <p className="text-[38px] font-semibold leading-none tracking-[-0.02em] text-[#1a243b] sm:text-[40px]">
+                <p className="text-[28px] font-semibold leading-none tracking-[-0.02em] text-[#1a243b] sm:text-[32px]">
                   {item.year}
                 </p>
-                <h3 className="mt-3 text-[28px] font-semibold leading-tight text-[#4a596f] sm:text-[30px]">
+                <h3 className="mt-3 text-[22px] font-semibold leading-tight text-[#4a596f] sm:text-[24px]">
                   {item.title}
                 </h3>
 
-                <ul className="mt-5 space-y-2 text-[22px] leading-[1.55] text-[#62748f] sm:text-[24px]">
+                <ul className="mt-5 space-y-2 text-[16px] leading-[1.55] text-[#62748f] sm:text-[18px]">
                   {item.points.map((point) => (
                     <li key={point}>{point}</li>
                   ))}
