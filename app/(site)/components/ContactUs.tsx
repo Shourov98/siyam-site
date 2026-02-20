@@ -3,7 +3,7 @@ import { Clock3, Headset, Mail, MessageCircleMore, MoveRight } from "lucide-reac
 export default function ContactUs() {
   return (
     <section className="bg-[linear-gradient(180deg,#eaf5f5_0%,#f3f4f6_34%)] px-6 py-14 sm:px-10 lg:px-16 lg:py-18">
-      <div className="mx-auto w-full max-w-[1200px]">
+      <div className="mx-auto w-full lg:w-[80%]">
         <div className="text-center">
           <h1 className="text-5xl font-bold text-[#24479b] sm:text-6xl">Get in Touch</h1>
           <p className="mt-4 text-xl text-[#5e6b80] sm:text-2xl">
