@@ -21,17 +21,25 @@ export default function SignupPage() {
             <label className="text-xs font-semibold tracking-[0.08em] text-[#8b93a2] sm:text-sm">
               FIRST NAME
             </label>
-            <div className="mt-2 flex h-14 items-center border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#b4bcc8] sm:h-16 sm:text-xl">
-              Jane
-            </div>
+            <input
+              type="text"
+              name="firstName"
+              autoComplete="given-name"
+              placeholder="Jane"
+              className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:h-16 sm:text-xl"
+            />
           </div>
           <div>
             <label className="text-xs font-semibold tracking-[0.08em] text-[#8b93a2] sm:text-sm">
               LAST NAME
             </label>
-            <div className="mt-2 flex h-14 items-center border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#b4bcc8] sm:h-16 sm:text-xl">
-              Doe
-            </div>
+            <input
+              type="text"
+              name="lastName"
+              autoComplete="family-name"
+              placeholder="Doe"
+              className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:h-16 sm:text-xl"
+            />
           </div>
         </div>
 
@@ -39,9 +47,13 @@ export default function SignupPage() {
           <label className="text-xs font-semibold tracking-[0.08em] text-[#8b93a2] sm:text-sm">
             EMAIL ADDRESS
           </label>
-          <div className="mt-2 flex h-14 items-center border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#b4bcc8] sm:h-16 sm:text-xl">
-            jane@example.com
-          </div>
+          <input
+            type="email"
+            name="email"
+            autoComplete="email"
+            placeholder="jane@example.com"
+            className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:h-16 sm:text-xl"
+          />
         </div>
 
         <div>
@@ -53,9 +65,13 @@ export default function SignupPage() {
               STRONG
             </span>
           </div>
-          <div className="mt-2 flex h-14 items-center border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#b4bcc8] sm:h-16 sm:text-xl">
-            •••••••••
-          </div>
+          <input
+            type="password"
+            name="password"
+            autoComplete="new-password"
+            placeholder="•••••••••"
+            className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:h-16 sm:text-xl"
+          />
         </div>
 
         <div className="mt-2 flex items-center justify-between text-sm sm:text-base">

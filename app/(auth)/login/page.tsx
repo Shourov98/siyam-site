@@ -52,8 +52,15 @@ export default function LoginPage() {
           <label className="text-xs font-semibold tracking-[0.08em] text-[#8b93a2] sm:text-sm">
             EMAIL ADDRESS
           </label>
-          <div className="mt-2 flex h-14 items-center border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#b4bcc8] sm:h-16 sm:text-xl">
-            <Mail className="mr-2 h-5 w-5" /> jane@example.com
+          <div className="mt-2 flex h-14 items-center border border-[#e3e7ed] bg-[#eef1f5] px-4 sm:h-16">
+            <Mail className="mr-2 h-5 w-5 text-[#b4bcc8]" />
+            <input
+              type="email"
+              name="email"
+              autoComplete="email"
+              placeholder="jane@example.com"
+              className="w-full bg-transparent text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:text-xl"
+            />
           </div>
         </div>
 
@@ -66,9 +73,13 @@ export default function LoginPage() {
               STRONG
             </span>
           </div>
-          <div className="mt-2 flex h-14 items-center border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#b4bcc8] sm:h-16 sm:text-xl">
-            •••••••••
-          </div>
+          <input
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            placeholder="•••••••••"
+            className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] focus:outline-none sm:h-16 sm:text-xl"
+          />
         </div>
 
         <div className="mt-2 flex items-center justify-between text-sm sm:text-base">
