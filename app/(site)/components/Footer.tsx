@@ -5,10 +5,14 @@ import {
   Facebook,
   Link as LinkIcon,
 } from "lucide-react";
+import Link from "next/link";
 
 const productLinks = ["Features", "Integrations", "Pricing", "Roadmap"];
 const resourceLinks = ["Blog", "Help Center", "API Documentation", "Community"];
-const legalLinks = ["Privacy Policy", "Terms of Service"];
+const legalLinks = [
+  { label: "Privacy Policy", href: "/privacy-policy" },
+  { label: "Terms of Service", href: "#" },
+];
 
 export default function Footer() {
   return (
@@ -99,10 +103,10 @@ export default function Footer() {
               <h4 className="text-xl font-semibold text-[#eef3fb] sm:text-2xl">Legal</h4>
               <ul className="mt-5 space-y-2.5">
                 {legalLinks.map((item) => (
-                  <li key={item}>
-                    <a href="#" className="text-base transition hover:text-[#56c7c6] sm:text-lg">
-                      {item}
-                    </a>
+                  <li key={item.label}>
+                    <Link href={item.href} className="text-base transition hover:text-[#56c7c6] sm:text-lg">
+                      {item.label}
+                    </Link>
                   </li>
                 ))}
               </ul>
