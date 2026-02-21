@@ -1,6 +1,18 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export default function Navbar() {
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   const navItems = [
     { label: "Home", href: "/" },
     { label: "Integrations", href: "/integrations" },
@@ -14,7 +26,13 @@ export default function Navbar() {
     "text-[18px] leading-none font-medium text-[#171b2c] no-underline transition-colors duration-200 hover:text-[#2dc2bd] max-[1180px]:text-[15px]";
 
   return (
-    <header className="flex w-full items-center justify-between gap-6 border-b border-[#dcdde1] bg-[#ececed] px-16 py-2.5 min-[1181px]:min-h-[72px] max-[1180px]:flex-wrap max-[1180px]:justify-center max-[1180px]:px-5 max-[1180px]:py-4">
+    <header
+      className={`sticky top-0 z-50 flex w-full items-center justify-between gap-6 px-16 py-2.5 transition-colors duration-300 min-[1181px]:min-h-[72px] max-[1180px]:flex-wrap max-[1180px]:justify-center max-[1180px]:px-5 max-[1180px]:py-4 ${
+        isScrolled
+          ? "border-b border-white/60 bg-white/70 backdrop-blur-xl supports-[backdrop-filter]:bg-white/55"
+          : "border-b border-[#dcdde1] bg-white"
+      }`}
+    >
       <Link
         className="leading-none font-bold tracking-[-0.02em] text-[#2dc2bd] text-[24px] max-[1180px]:text-[17px]"
         href="/"
