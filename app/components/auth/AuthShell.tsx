@@ -104,11 +104,14 @@ export default function AuthShell({ children }: AuthShellProps) {
           {children}
         </section>
 
-        <section className="relative hidden w-1/2 overflow-hidden bg-[radial-gradient(circle_at_52%_60%,rgba(76,109,178,0.5)_0%,rgba(34,52,99,0.9)_48%,#16264a_100%)] lg:block">
-          <div className="absolute inset-0 bg-[linear-gradient(130deg,rgba(255,255,255,0.02)_0%,rgba(255,255,255,0)_45%)]" />
+        <section className="relative hidden w-1/2 overflow-hidden bg-[#16264a] lg:block">
           <div
-            className="pointer-events-none absolute right-[16%] top-[16%] h-24 w-24 rounded-full blur-2xl"
-            style={{ backgroundColor: "#2dcfda", opacity: 0.34 }}
+            className="pointer-events-none absolute left-[50%] top-[58%] h-120 w-120 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
+            style={{ backgroundColor: "#1d8ca2", opacity: 0.30 }}
+          />
+          <div
+            className="pointer-events-none absolute right-[16%] top-[16%] h-16 w-16 rounded-full blur-lg"
+            style={{ backgroundColor: "#1d8ca2", opacity: 0.16 }}
           />
 
           {slides.map((slide, index) => (
