@@ -1,4 +1,4 @@
-import Image from "next/image";
+import DashboardHeroGraphic from "../components/DashboardHeroGraphic";
 
 const walletCards = [
   {
@@ -33,14 +33,7 @@ export default function DashboardPage() {
     <section className="px-4 py-5 md:px-8 md:py-8">
       <div className="rounded-2xl border border-[#d5deec] bg-white p-4 shadow-[0_20px_50px_-40px_rgba(22,35,70,0.6)] md:p-6">
         <div className="overflow-hidden rounded-2xl border border-[#183054] bg-[#071228]">
-          <Image
-            alt="Revenue hero visualization"
-            className="h-auto w-full"
-            height={560}
-            priority
-            src="/dashboard-hero.svg"
-            width={1200}
-          />
+          <DashboardHeroGraphic />
         </div>
 
         <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

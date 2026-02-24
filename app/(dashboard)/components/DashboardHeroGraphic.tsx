@@ -1,0 +1,164 @@
+type PlatformCard = {
+  platform: string;
+  status: string;
+  tone: "amazon" | "tiktok" | "ebay";
+  className: string;
+};
+
+const platformCards: PlatformCard[] = [
+  {
+    platform: "Amazon",
+    status: "Syncing...",
+    tone: "amazon",
+    className: "right-[10.5%] top-[11.5%] w-[28%] min-w-[164px] md:right-[13%] md:top-[11.8%] md:w-[24%]",
+  },
+  {
+    platform: "TikTok Shop",
+    status: "Live",
+    tone: "tiktok",
+    className: "bottom-[9.5%] left-[11.5%] w-[28%] min-w-[168px] md:bottom-[12.4%] md:left-[12%] md:w-[24%]",
+  },
+  {
+    platform: "eBay",
+    status: "Optimized",
+    tone: "ebay",
+    className: "bottom-[9.3%] right-[10.5%] w-[28%] min-w-[164px] md:bottom-[12.3%] md:right-[13%] md:w-[24%]",
+  },
+];
+
+function LogoChip({ tone }: { tone: PlatformCard["tone"] }) {
+  if (tone === "amazon") {
+    return (
+      <div className="grid h-[42px] w-[42px] place-items-center rounded-xl bg-[#f4f5f7] text-[38px] font-black leading-none text-[#212327]">
+        a
+      </div>
+    );
+  }
+
+  if (tone === "tiktok") {
+    return (
+      <div className="grid h-[42px] w-[42px] place-items-center rounded-xl bg-black text-[24px] font-bold text-white">
+        ♪
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid h-[42px] w-[42px] place-items-center rounded-xl bg-[#f4f5f7] text-base font-extrabold tracking-tight">
+      <span>
+        <span className="text-[#f44336]">e</span>
+        <span className="text-[#1e88e5]">b</span>
+        <span className="text-[#fbc02d]">a</span>
+        <span className="text-[#43a047]">y</span>
+      </span>
+    </div>
+  );
+}
+
+function PlatformCardItem({ platform, status, tone, className }: PlatformCard) {
+  return (
+    <article
+      className={`absolute z-20 rounded-[16px] border border-cyan-100/16 bg-[linear-gradient(145deg,rgba(23,44,66,0.95),rgba(18,34,53,0.92))] px-3 py-3 shadow-[0_24px_80px_-52px_rgba(0,0,0,0.95)] backdrop-blur-sm ${className}`}
+    >
+      <div className="flex items-center gap-2.5">
+        <LogoChip tone={tone} />
+        <div>
+          <p className="text-[17px] font-semibold leading-none text-white/92 md:text-[16px]">{platform}</p>
+          <p className="mt-1 text-[13px] leading-none text-[#22d3ee] md:text-[12px]">● {status}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function CenterOverview() {
+  const rows = [
+    { name: "Amazon", amount: "$4.2k", mark: "a", dot: "#111827", row: "bg-cyan-200/25" },
+    { name: "TikTok", amount: "$3.8k", mark: "♪", dot: "#020617", row: "bg-cyan-100/14" },
+    { name: "eBay", amount: "$2.1k", mark: "e", dot: "#ec4899", row: "bg-cyan-100/12" },
+  ];
+
+  return (
+    <section className="absolute left-1/2 top-1/2 z-20 h-[210px] w-[210px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/60 bg-[radial-gradient(circle_at_40%_35%,rgba(126,240,232,0.95),rgba(72,209,201,0.9)_45%,rgba(53,186,189,0.82)_72%,rgba(49,168,178,0.75)_100%)] p-3 shadow-[0_0_180px_18px_rgba(45,233,230,0.56)] md:h-[240px] md:w-[240px] md:p-4">
+      <div className="absolute inset-3 rounded-full border border-cyan-50/22 border-dashed" />
+      <div className="relative h-full rounded-full border border-cyan-50/22 p-4 text-center md:p-5">
+        <div className="flex items-center justify-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#4f46e5]" />
+          <p className="text-[10px] font-semibold text-[#01374b]">Overview</p>
+          <span className="rounded-full bg-[#baf7bf] px-2 py-0.5 text-[9px] font-semibold text-[#0e7332]">Live</span>
+        </div>
+        <p className="mt-1.5 text-[8px] font-bold uppercase tracking-[0.1em] text-[#136071]">Total Sales</p>
+        <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-[#136071]">Today</p>
+        <p className="mt-1 text-[30px] font-black leading-none text-[#07253d] md:text-[34px]">$12,450.00</p>
+        <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.1em] text-[#14758d]">+7.8% vs yesterday</p>
+
+        <div className="mx-auto mt-3 flex w-full max-w-[150px] flex-col gap-1 md:max-w-[164px]">
+          {rows.map((row) => (
+            <div className={`flex items-center justify-between rounded-md border border-white/25 px-2 py-1 ${row.row}`} key={row.name}>
+              <div className="flex items-center gap-2">
+                <span
+                  className="grid h-3.5 w-3.5 place-items-center rounded-full text-[9px] font-bold text-white"
+                  style={{ backgroundColor: row.dot }}
+                >
+                  {row.mark}
+                </span>
+                <div>
+                  <p className="text-[8px] font-semibold text-[#0b3450]">{row.name}</p>
+                  <p className="text-[7px] text-[#1c657f]">Inventory</p>
+                </div>
+              </div>
+              <p className="text-[8px] font-bold text-[#0c3751]">{row.amount}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default function DashboardHeroGraphic() {
+  return (
+    <div className="relative h-[320px] w-full overflow-hidden bg-[radial-gradient(ellipse_at_52%_52%,rgba(37,203,209,0.42)_0%,rgba(6,49,83,0.76)_47%,#040d2a_100%)] md:h-[500px]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(40,247,240,0.23)_0%,rgba(21,143,170,0.06)_39%,rgba(0,0,0,0)_68%)]" />
+      <div className="absolute left-1/2 top-1/2 h-[490px] w-[490px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300/7 blur-[84px]" />
+
+      <div className="absolute left-[50%] top-[51.5%] z-[5] h-px w-[41%] -translate-x-[47%] -translate-y-[50%] rotate-[319deg] border-t border-dashed border-cyan-400/55" />
+      <div className="absolute bottom-[25.5%] left-[24%] z-[5] h-px w-[29%] rotate-[139deg] border-t border-dashed border-cyan-400/55" />
+      <div className="absolute bottom-[24.8%] right-[21%] z-[5] h-px w-[29%] rotate-[42deg] border-t border-dashed border-cyan-400/55" />
+
+      <span className="absolute left-[36.7%] top-[30.7%] z-30 rounded-sm border border-lime-500/35 bg-[#153c40]/65 px-1.5 py-0.5 text-[8px] font-semibold tracking-[0.06em] text-[#9bf68e]">
+        API_OK
+      </span>
+
+      <PlatformCardItem {...platformCards[0]} />
+      <PlatformCardItem {...platformCards[1]} />
+      <PlatformCardItem {...platformCards[2]} />
+
+      <span className="absolute right-[8.2%] top-[11.1%] z-30 rotate-[-6deg] rounded-lg bg-[#27d8ff] px-2.5 py-1 text-[13px] font-bold leading-none text-[#052038] shadow-[0_8px_26px_-16px_rgba(39,216,255,0.95)] md:right-[10.7%] md:top-[9.8%] md:text-[12px]">
+        Orders: +12%
+      </span>
+
+      <span className="absolute left-[58.5%] top-[11.3%] z-30 rounded-full border border-[#2ab6ff] bg-[#071a38]/95 px-3 py-1 text-[12px] font-semibold leading-none text-[#19cbff] md:left-[58.6%] md:top-[11.1%] md:text-[11px]">
+        New Order: #8430
+      </span>
+
+      <span className="absolute left-[12.4%] top-[67.5%] z-30 rounded-full bg-[#22c7c2] px-3 py-1 text-[13px] font-semibold leading-none text-[#03253d] md:left-[12.9%] md:top-[67.2%] md:text-[12px]">
+        New Order: #8432
+      </span>
+
+      <span className="absolute right-[25.2%] top-[70.7%] z-30 rounded-full border border-[#2d78ff] bg-[#081736]/95 px-3 py-1 text-[12px] font-semibold leading-none text-[#60b6ff] md:right-[26.2%] md:top-[70.3%] md:text-[11px]">
+        New Order: #8431
+      </span>
+
+      <span className="absolute bottom-[7.1%] left-[33.2%] z-30 -rotate-[2.5deg] rounded-lg bg-[#b9f56e] px-2.5 py-1 text-[13px] font-bold leading-none text-[#193205] shadow-[0_10px_24px_-16px_rgba(185,245,110,0.95)] md:bottom-[6.6%] md:left-[34.2%] md:text-[12px]">
+        Stock: 842
+      </span>
+
+      <span className="absolute bottom-[20.8%] right-[8.4%] z-30 rounded-lg border border-cyan-400/45 bg-[#17313e]/88 px-2.5 py-1 text-[13px] font-bold leading-none text-white/95 md:bottom-[20.4%] md:right-[10.8%] md:text-[12px]">
+        SKU-99 Updated
+      </span>
+
+      <CenterOverview />
+    </div>
+  );
+}
