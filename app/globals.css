@@ -76,7 +76,7 @@ p {
   78%,
   100% {
     opacity: 0;
-    transform: translate(265px, -188px) scale(0.72);
+    transform: translate(290px, -188px) scale(0.72);
   }
 }
 
