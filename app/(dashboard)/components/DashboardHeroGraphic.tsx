@@ -1,8 +1,57 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
 type PlatformCard = {
   platform: string;
   status: string;
   tone: "amazon" | "tiktok" | "ebay";
   className: string;
+};
+
+type ChannelKey = "amazon" | "tiktok" | "ebay";
+
+type ChannelMetric = {
+  name: "Amazon" | "TikTok" | "eBay";
+  mark: string;
+  dot: string;
+  row: string;
+  startAmount: number;
+  endAmount: number;
+};
+
+const ANIMATION_DURATION_MS = 4200;
+const ORDER_ANIMATION_DELAYS: Record<ChannelKey, number> = {
+  amazon: 0,
+  tiktok: 1200,
+  ebay: 2400,
+};
+
+const CHANNEL_METRICS: Record<ChannelKey, ChannelMetric> = {
+  amazon: {
+    name: "Amazon",
+    mark: "a",
+    dot: "#111827",
+    row: "bg-cyan-200/25",
+    startAmount: 4000,
+    endAmount: 4200,
+  },
+  tiktok: {
+    name: "TikTok",
+    mark: "♪",
+    dot: "#020617",
+    row: "bg-cyan-100/14",
+    startAmount: 3650,
+    endAmount: 3800,
+  },
+  ebay: {
+    name: "eBay",
+    mark: "e",
+    dot: "#ec4899",
+    row: "bg-cyan-100/12",
+    startAmount: 2000,
+    endAmount: 2100,
+  },
 };
 
 const platformCards: PlatformCard[] = [
@@ -79,15 +128,40 @@ function PlatformCardItem({ platform, status, tone, className }: PlatformCard) {
   );
 }
 
-function CenterOverview() {
-  const rows = [
-    { name: "Amazon", amount: "$4.2k", mark: "a", dot: "#111827", row: "bg-cyan-200/25" },
-    { name: "TikTok", amount: "$3.8k", mark: "♪", dot: "#020617", row: "bg-cyan-100/14" },
-    { name: "eBay", amount: "$2.1k", mark: "e", dot: "#ec4899", row: "bg-cyan-100/12" },
-  ];
+function formatCompactDollar(amount: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 1,
+    notation: "compact",
+  })
+    .format(amount)
+    .replace("K", "k");
+}
+
+function formatMoney(amount: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function CenterOverview({ amounts, total }: { amounts: Record<ChannelKey, number>; total: number }) {
+  const rows = (Object.keys(CHANNEL_METRICS) as ChannelKey[]).map((key) => {
+    const channel = CHANNEL_METRICS[key];
+    return {
+      name: channel.name,
+      amount: formatCompactDollar(amounts[key]),
+      mark: channel.mark,
+      dot: channel.dot,
+      row: channel.row,
+    };
+  });
 
   return (
-    <section className="absolute left-1/2 top-1/2 z-20 h-[290px] w-[290px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/75 bg-[radial-gradient(circle_at_40%_35%,rgba(170,255,246,1),rgba(97,234,225,0.95)_40%,rgba(45,206,214,0.9)_68%,rgba(28,175,190,0.86)_100%)] p-4 shadow-[0_0_320px_58px_rgba(70,246,241,0.84)] md:h-[350px] md:w-[350px] md:p-5">
+    <section className="glowball-shadow-pulse absolute left-1/2 top-1/2 z-20 h-[290px] w-[290px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/75 bg-[radial-gradient(circle_at_40%_35%,rgba(170,255,246,1),rgba(97,234,225,0.95)_40%,rgba(45,206,214,0.9)_68%,rgba(28,175,190,0.86)_100%)] p-4 md:h-[350px] md:w-[350px] md:p-5">
       <div className="absolute inset-3 rounded-full border border-cyan-50/22 border-dashed" />
       <div className="relative h-full rounded-full border border-cyan-50/22 p-4 text-center md:p-5">
         <div className="flex items-center justify-center gap-2">
@@ -97,7 +171,7 @@ function CenterOverview() {
         </div>
         <p className="mt-1.5 text-[8px] font-bold uppercase tracking-[0.1em] text-[#136071]">Total Sales</p>
         <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-[#136071]">Today</p>
-        <p className="mt-1 text-[30px] font-black leading-none text-[#07253d] md:text-[34px]">$12,450.00</p>
+        <p className="mt-1 text-[30px] font-black leading-none text-[#07253d] md:text-[34px]">{formatMoney(total)}</p>
         <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.1em] text-[#14758d]">+7.8% vs yesterday</p>
 
         <div className="mx-auto mt-3 flex w-full max-w-[150px] flex-col gap-1 md:max-w-[164px]">
@@ -125,10 +199,44 @@ function CenterOverview() {
 }
 
 export default function DashboardHeroGraphic() {
+  const initialAmounts = useMemo(
+    () =>
+      (Object.keys(CHANNEL_METRICS) as ChannelKey[]).reduce(
+        (acc, key) => {
+          acc[key] = CHANNEL_METRICS[key].startAmount;
+          return acc;
+        },
+        {} as Record<ChannelKey, number>,
+      ),
+    [],
+  );
+
+  const [amounts, setAmounts] = useState<Record<ChannelKey, number>>(initialAmounts);
+
+  useEffect(() => {
+    const timers = (Object.keys(CHANNEL_METRICS) as ChannelKey[]).map((key) =>
+      window.setTimeout(() => {
+        setAmounts((previous) => ({
+          ...previous,
+          [key]: CHANNEL_METRICS[key].endAmount,
+        }));
+      }, ORDER_ANIMATION_DELAYS[key] + ANIMATION_DURATION_MS),
+    );
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
+
+  const total = useMemo(
+    () => Object.values(amounts).reduce((sum, value) => sum + value, 0),
+    [amounts],
+  );
+
   return (
     <div className="relative h-[440px] w-full overflow-hidden bg-[radial-gradient(ellipse_at_52%_52%,rgba(50,228,232,0.56)_0%,rgba(8,64,106,0.8)_45%,#040d2a_100%)] md:h-[660px]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(60,255,245,0.34)_0%,rgba(24,172,196,0.1)_41%,rgba(0,0,0,0)_72%)]" />
-      <div className="absolute left-1/2 top-1/2 h-[860px] w-[860px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300/24 blur-[128px]" />
+      <div className="glow-outside-pulse absolute left-1/2 top-1/2 h-[860px] w-[860px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300/24 blur-[128px]" />
 
       <div className="absolute left-[56%] top-[38%] z-[5] h-px w-[20%] -rotate-[41deg] border-t border-dashed border-cyan-400/60" />
       <div className="absolute left-[23%] top-[63%] z-[5] h-px w-[20%] rotate-[139deg] border-t border-dashed border-cyan-400/60" />
@@ -162,7 +270,7 @@ export default function DashboardHeroGraphic() {
         SKU-99 Updated
       </span>
 
-      <CenterOverview />
+      <CenterOverview amounts={amounts} total={total} />
     </div>
   );
 }

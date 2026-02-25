@@ -13,7 +13,12 @@ function ConnectApplicationsSlide() {
     <>
       <div className="relative w-full max-w-[760px]">
         <div className="relative mx-auto h-[460px] w-full">
-          <Image src="/Margin.svg" alt="Connected marketplaces illustration" fill className="object-contain" />
+          <Image
+            src="/Margin.svg"
+            alt="Connected marketplaces illustration"
+            fill
+            className="object-contain"
+          />
         </div>
       </div>
 
@@ -51,8 +56,12 @@ function RealTimeSyncSlide() {
               □
             </span>
             <div className="flex-1">
-              <p className="text-base font-semibold text-[#d8e2f5] xl:text-lg">New Sale: Amazon</p>
-              <p className="text-sm text-[#9baacf] xl:text-[15px]">Order #AMZ-8821</p>
+              <p className="text-base font-semibold text-[#d8e2f5] xl:text-lg">
+                New Sale: Amazon
+              </p>
+              <p className="text-sm text-[#9baacf] xl:text-[15px]">
+                Order #AMZ-8821
+              </p>
             </div>
             <p className="text-[12px] text-[#8d9cbf]">MPN</p>
           </div>
@@ -65,7 +74,9 @@ function RealTimeSyncSlide() {
               <p className="text-base font-semibold text-[#d8e2f5] xl:text-lg">
                 Inventory Updated: TikTok
               </p>
-              <p className="text-sm text-[#9baacf] xl:text-[15px]">SKU-992 Re-synced</p>
+              <p className="text-sm text-[#9baacf] xl:text-[15px]">
+                SKU-992 Re-synced
+              </p>
             </div>
             <p className="text-[12px] text-[#8d9cbf]">1s ago</p>
           </div>
@@ -84,7 +95,10 @@ function RealTimeSyncSlide() {
   );
 }
 
-const slides = [<ConnectApplicationsSlide key="connect" />, <RealTimeSyncSlide key="sync" />];
+const slides = [
+  <ConnectApplicationsSlide key="connect" />,
+  <RealTimeSyncSlide key="sync" />,
+];
 
 export default function AuthShell({ children }: AuthShellProps) {
   const [activeSlide, setActiveSlide] = useState(0);
@@ -92,7 +106,7 @@ export default function AuthShell({ children }: AuthShellProps) {
   useEffect(() => {
     const timer = window.setInterval(() => {
       setActiveSlide((prev) => (prev + 1) % slides.length);
-    }, 4000);
+    }, 6000);
 
     return () => window.clearInterval(timer);
   }, []);
@@ -107,17 +121,17 @@ export default function AuthShell({ children }: AuthShellProps) {
         <section className="relative hidden w-1/2 overflow-hidden bg-[#16264a] lg:block">
           <div
             className="pointer-events-none absolute left-[50%] top-[58%] h-120 w-120 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl"
-            style={{ backgroundColor: "#1d8ca2", opacity: 0.30 }}
+            style={{ backgroundColor: "#1d8ca2", opacity: 0.3 }}
           />
-          <div
+          {/* <div
             className="pointer-events-none absolute right-[16%] top-[16%] h-16 w-16 rounded-full blur-lg"
             style={{ backgroundColor: "#1d8ca2", opacity: 0.16 }}
-          />
+          /> */}
 
           {slides.map((slide, index) => (
             <div
               key={index}
-              className={`absolute inset-0 transition-opacity duration-700 ${
+              className={`absolute inset-0 transition-opacity duration-[4000ms] ease-in-out ${
                 index === activeSlide ? "opacity-100" : "opacity-0"
               }`}
             >
