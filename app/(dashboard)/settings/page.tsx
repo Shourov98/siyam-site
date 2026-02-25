@@ -37,7 +37,7 @@ const settingsItems: SettingsItem[] = [
     id: "support",
     title: "Help & Support",
     description: "Get technical assistance or contact support",
-    href: "/support",
+    href: "/settings/support",
   },
 ];
 

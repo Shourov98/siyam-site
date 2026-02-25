@@ -38,13 +38,13 @@ export default function AboutUsJourneySection() {
         </h2>
 
         <div className="relative mt-16 pl-14 sm:pl-20">
-          <div className="absolute left-[17px] top-2 bottom-2 w-px bg-[#cfdae7] sm:left-[23px]" />
+          <div className="absolute bottom-2 left-8 top-2 w-px bg-[#cfdae7] sm:left-12" />
 
           <div className="space-y-14 sm:space-y-16">
             {journeyItems.map((item) => (
               <article key={item.year} className="relative">
                 <span
-                  className={`absolute left-[-40px] top-[2px] h-4 w-4 rounded-full border-2 sm:left-[-48px] ${
+                  className={`absolute left-[-32px] top-0.5 h-4 w-4 rounded-full border-2 sm:left-[-40px] ${
                     item.active
                       ? "border-[#f3f4f6] bg-[#38cbc7]"
                       : "border-[#f3f4f6] bg-[#c1ccdb]"
