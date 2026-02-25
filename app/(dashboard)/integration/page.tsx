@@ -74,7 +74,7 @@ export default function IntegrationPage() {
             <Moon className="h-4 w-4" />
           </button>
 
-          <div className="mx-auto max-w-3xl pt-16 text-center">
+          <div className="mx-auto max-w-3xl pt-16 text-center" data-tour="integration-intro">
             <h1 className="text-5xl font-semibold tracking-tight text-[#25344d]">Connect your sales channels</h1>
             <p className="mt-4 text-2xl leading-relaxed text-[#8ea0bf]">
               Select the platforms you want to manage. We&apos;ll sync your inventory and orders automatically.
@@ -89,7 +89,7 @@ export default function IntegrationPage() {
           </div>
 
           <div className="mt-10 grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,0.75fr)_minmax(0,0.75fr)]">
-            <article className="relative overflow-hidden rounded-3xl border border-[#dbe2ee] bg-white p-5 shadow-[0_14px_30px_-24px_rgba(17,31,56,0.85)] md:p-6">
+            <article className="relative overflow-hidden rounded-3xl border border-[#dbe2ee] bg-white p-5 shadow-[0_14px_30px_-24px_rgba(17,31,56,0.85)] md:p-6" data-tour="marketplace-card">
               <div className="pointer-events-none absolute -right-20 -top-24 h-80 w-80 rounded-full bg-[#edf2fa]" />
               <div className="relative z-10">
                 <div className="mb-4 flex items-start justify-between">

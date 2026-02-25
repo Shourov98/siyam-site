@@ -33,7 +33,7 @@ export default function IdentityVerificationPage() {
           </div>
         </div>
 
-        <article className="relative mx-auto mt-6 max-w-4xl rounded-2xl border border-[#e0e7f2] bg-[#f8fafd] p-6">
+        <article className="relative mx-auto mt-6 max-w-4xl rounded-2xl border border-[#e0e7f2] bg-[#f8fafd] p-6" data-tour="identity-final">
           <span className="absolute right-4 top-3 inline-flex items-center gap-1 text-xs text-[#8ea0bf]">
             <Lock className="h-3.5 w-3.5" /> Secure Connection
           </span>

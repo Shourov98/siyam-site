@@ -47,7 +47,7 @@ export default function IntegrationBankingPage() {
           <p className="mt-4 text-xl leading-relaxed text-[#8ea0bf]">Where should we send your payouts? We need this to process your earnings.</p>
         </div>
 
-        <div className="relative mx-auto mt-10 flex max-w-3xl items-center justify-between">
+        <div className="relative mx-auto mt-10 flex max-w-3xl items-center justify-between" data-tour="banking-progress">
           <div className="absolute left-0 right-0 top-5 h-px bg-[#dce4f1]" />
           <Step icon={<ShoppingBag className="h-4 w-4" />} label="Identity" state="completed" />
           <Step icon={<Building2 className="h-4 w-4" />} label="Banking" state="active" />

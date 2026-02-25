@@ -28,6 +28,20 @@ const navItems = [
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
+  const handleNavClick = (
+    _event: React.MouseEvent<HTMLAnchorElement>,
+    href: string,
+  ) => {
+    if (href === "/integration") {
+      window.sessionStorage.setItem("integration-shepherd-enabled", "1");
+      window.sessionStorage.setItem("integration-shepherd-stage", "1");
+      window.dispatchEvent(new Event("integration-shepherd:start"));
+      return;
+    }
+
+    window.sessionStorage.removeItem("integration-shepherd-enabled");
+    window.sessionStorage.removeItem("integration-shepherd-stage");
+  };
 
   return (
     <>
@@ -47,6 +61,8 @@ export default function DashboardSidebar() {
                 <li key={label}>
                   <Link
                     href={href}
+                    onClick={(event) => handleNavClick(event, href)}
+                    data-tour={href === "/integration" ? "nav-integration" : undefined}
                     className={`group flex w-full flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium transition ${
                       isActive
                         ? "bg-[#1f2e53] text-[#58e7f2]"

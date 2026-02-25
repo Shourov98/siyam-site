@@ -1,7 +1,8 @@
 "use client";
 
 import { CircleHelp, MessageCircle, Minimize2, Paperclip, Search, SendHorizontal, UploadCloud, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { FileText, Image as ImageIcon, LoaderCircle } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 
 type TicketStatus = "Resolved" | "Pending" | "Active" | "Closed";
 
@@ -18,6 +19,14 @@ type ChatMessage = {
   author: "Sarah" | "You";
   time: string;
   text: string;
+};
+
+type ResolveEvidence = {
+  id: string;
+  fileName: string;
+  fileSizeLabel: string;
+  progress: number;
+  type: "pdf" | "image";
 };
 
 const initialTickets: Ticket[] = [
@@ -48,6 +57,11 @@ export default function SupportPage() {
   const [query, setQuery] = useState("");
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
+  const [activeResolveTicket, setActiveResolveTicket] = useState<Ticket | null>(null);
+  const [resolveMessage, setResolveMessage] = useState("");
+  const [resolveFiles, setResolveFiles] = useState<ResolveEvidence[]>([]);
+  const [isSubmittingResolve, setIsSubmittingResolve] = useState(false);
+  const evidenceInputRef = useRef<HTMLInputElement | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     { id: "1", author: "Sarah", time: "10:02 AM", text: "Hi there! How can I help you with your order today?" },
     { id: "2", author: "You", time: "10:03 AM", text: "I'm having trouble finding the invoice for last month." },
@@ -65,6 +79,68 @@ export default function SupportPage() {
 
   const resolveTicket = (id: string) => {
     setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, status: "Resolved" } : t)));
+  };
+
+  const formatFileSizeLabel = (sizeBytes: number) => {
+    if (sizeBytes >= 1024 * 1024) {
+      return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    if (sizeBytes >= 1024) {
+      return `${(sizeBytes / 1024).toFixed(1)} KB`;
+    }
+
+    return `${sizeBytes} B`;
+  };
+
+  const openResolveModal = (ticket: Ticket) => {
+    setActiveResolveTicket(ticket);
+    setResolveMessage("");
+    setResolveFiles([]);
+  };
+
+  const closeResolveModal = () => {
+    if (isSubmittingResolve) {
+      return;
+    }
+
+    setActiveResolveTicket(null);
+    setResolveMessage("");
+    setResolveFiles([]);
+  };
+
+  const addEvidenceFiles = (files: FileList | null) => {
+    if (!files?.length) {
+      return;
+    }
+
+    const picked: ResolveEvidence[] = Array.from(files).map((file, index) => ({
+      id: `${file.name}-${file.lastModified}-${index}`,
+      fileName: file.name,
+      fileSizeLabel: formatFileSizeLabel(file.size),
+      progress: index === files.length - 1 ? 45 : 100,
+      type: file.type === "application/pdf" ? "pdf" : "image",
+    }));
+
+    setResolveFiles((prev) => [...prev, ...picked]);
+  };
+
+  const removeEvidenceFile = (id: string) => {
+    setResolveFiles((prev) => prev.filter((file) => file.id !== id));
+  };
+
+  const submitResolveResponse = () => {
+    if (!activeResolveTicket || !resolveMessage.trim()) {
+      return;
+    }
+
+    setIsSubmittingResolve(true);
+
+    window.setTimeout(() => {
+      resolveTicket(activeResolveTicket.id);
+      setIsSubmittingResolve(false);
+      closeResolveModal();
+    }, 450);
   };
 
   const sendChatMessage = () => {
@@ -96,8 +172,8 @@ export default function SupportPage() {
       <section className="px-4 py-5 md:px-8 md:py-8">
         <div className="space-y-4">
         <header className="rounded-xl border border-[#2c3b61] bg-[#1b2748] px-5 py-5 text-white">
-          <h1 className="text-2xl font-semibold">Support Center</h1>
-          <p className="mt-1 text-sm text-[#a9b8d6]">How can we help you today?</p>
+          <h1 className="text-2xl font-semibold">Disputes & Cases</h1>
+          <p className="mt-1 text-sm text-[#a9b8d6]">Track active dispute cases and submit responses for resolution.</p>
         </header>
 
         <article className="rounded-xl border border-[#2c3b61] bg-[#1b2748] p-4 text-white md:p-5">
@@ -196,12 +272,12 @@ export default function SupportPage() {
                         </button>
                         <button
                           className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                            ticket.status === "Pending" || ticket.status === "Closed"
+                            ticket.status !== "Active"
                               ? "border border-[#d5dcea] bg-[#f7f9fd] text-[#9caac4]"
                               : "bg-[#35d3ce] text-white"
                           }`}
-                          disabled={ticket.status === "Pending" || ticket.status === "Closed"}
-                          onClick={() => resolveTicket(ticket.id)}
+                          disabled={ticket.status !== "Active"}
+                          onClick={() => openResolveModal(ticket)}
                           type="button"
                         >
                           Resolve
@@ -304,6 +380,124 @@ export default function SupportPage() {
             <p className="mt-2 text-center text-xs text-[#9cadc8]">Powered by SupportFlow</p>
           </footer>
         </aside>
+      ) : null}
+
+      {activeResolveTicket ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#020816]/60 px-4 py-6">
+          <article className="w-full max-w-5xl overflow-hidden rounded-2xl border border-[#364973] bg-[#18284d] shadow-[0_45px_120px_-35px_rgba(6,15,36,0.95)]">
+            <header className="flex items-start justify-between border-b border-[#4c5f87] px-6 py-4 text-white">
+              <div>
+                <h2 className="text-[34px] font-semibold leading-none">Submit Dispute Response</h2>
+                <p className="mt-2 text-[26px] text-[#aebddb]">
+                  Case {activeResolveTicket.ticketId} - {activeResolveTicket.subject}
+                </p>
+              </div>
+              <button className="mt-1 text-[#9fb0d0] transition hover:text-white" onClick={closeResolveModal} type="button">
+                <X className="h-6 w-6" />
+              </button>
+            </header>
+
+            <div className="space-y-6 px-6 py-5">
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[33px] font-semibold text-[#d9e4fb]">Response Message</p>
+                  <button
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#e6ebf2] px-4 py-2 text-sm font-semibold text-[#4d5f81]"
+                    type="button"
+                  >
+                    Load Template...
+                  </button>
+                </div>
+
+                <div className="overflow-hidden rounded-xl border border-[#8ca0c8] bg-white">
+                  <div className="flex h-9 items-center gap-3 bg-[#243a67] px-3 text-sm font-semibold text-[#d8e4fb]">
+                    <button type="button">B</button>
+                    <button className="italic" type="button">I</button>
+                    <button type="button">☰</button>
+                    <button type="button">◉</button>
+                  </div>
+                  <textarea
+                    className="h-44 w-full resize-none px-4 py-3 text-lg text-[#2c3f5f] outline-none placeholder:text-[#7688a8]"
+                    maxLength={2000}
+                    onChange={(event) => setResolveMessage(event.target.value)}
+                    placeholder="Please provide details about the transaction and why the claim should be rejected or accepted..."
+                    value={resolveMessage}
+                  />
+                </div>
+                <p className="mt-2 text-right text-sm text-[#c3d0ea]">{resolveMessage.length}/2000 characters</p>
+              </div>
+
+              <div>
+                <p className="mb-3 text-[33px] font-semibold text-[#d9e4fb]">Evidence Upload</p>
+                <input
+                  accept=".jpg,.jpeg,.png,.pdf"
+                  className="hidden"
+                  multiple
+                  onChange={(event) => addEvidenceFiles(event.target.files)}
+                  ref={evidenceInputRef}
+                  type="file"
+                />
+                <button
+                  className="w-full rounded-xl border border-dashed border-[#8da4cc] bg-[#f5f7fb] px-5 py-12 text-center"
+                  onClick={() => evidenceInputRef.current?.click()}
+                  type="button"
+                >
+                  <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#35d3ce] text-[#123a50]">
+                    <UploadCloud className="h-6 w-6" />
+                  </span>
+                  <p className="text-2xl font-semibold text-[#4a5f83]">Click to upload</p>
+                  <p className="mt-1 text-sm text-[#97a9c8]">Supported: JPG, PNG, PDF (Max 10MB)</p>
+                </button>
+
+                <div className="mt-3 space-y-2">
+                  {resolveFiles.map((file) => (
+                    <div className="flex items-center justify-between rounded-xl bg-[#f5f7fb] px-4 py-3" key={file.id}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${file.type === "pdf" ? "bg-[#ffd8e8] text-[#dc4e95]" : "bg-[#d6f6f5] text-[#34c9c6]"}`}>
+                          {file.type === "pdf" ? <FileText className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-lg font-semibold text-[#4a5f83]">{file.fileName}</p>
+                          <p className="text-sm text-[#94a6c5]">
+                            {file.fileSizeLabel} • {file.progress >= 100 ? "Uploaded just now" : `Uploading ${file.progress}%`}
+                          </p>
+                          {file.progress < 100 ? (
+                            <div className="mt-1 h-1.5 w-52 rounded-full bg-[#dbe4f2]">
+                              <div className="h-full rounded-full bg-[#34cbc7]" style={{ width: `${file.progress}%` }} />
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <button className="text-[#9db0cf] transition hover:text-[#4f6387]" onClick={() => removeEvidenceFile(file.id)} type="button">
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <footer className="flex items-center justify-between bg-[#263b67] px-6 py-5">
+              <button className="rounded-xl px-4 py-2 text-2xl font-semibold text-[#cad7ef] transition hover:text-white" onClick={closeResolveModal} type="button">
+                Cancel
+              </button>
+              <div className="flex items-center gap-3">
+                <button className="rounded-xl border border-[#7388b1] px-5 py-2 text-xl font-semibold text-[#dbe7ff]" type="button">
+                  Save Draft
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#35d3ce] px-6 py-2 text-xl font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isSubmittingResolve || !resolveMessage.trim()}
+                  onClick={submitResolveResponse}
+                  type="button"
+                >
+                  {isSubmittingResolve ? <LoaderCircle className="h-5 w-5 animate-spin" /> : null}
+                  Submit Response
+                </button>
+              </div>
+            </footer>
+          </article>
+        </div>
       ) : null}
     </>
   );

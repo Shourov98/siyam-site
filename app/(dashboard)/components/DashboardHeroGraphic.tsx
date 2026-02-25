@@ -59,22 +59,19 @@ const platformCards: PlatformCard[] = [
     platform: "Amazon",
     status: "Syncing...",
     tone: "amazon",
-    className:
-      "right-[8.8%] top-[10.2%] md:right-[12.2%] md:top-[10.7%]",
+    className: "right-[8.8%] top-[10.2%] md:right-[12.2%] md:top-[10.7%]",
   },
   {
     platform: "TikTok Shop",
     status: "Live",
     tone: "tiktok",
-    className:
-      "bottom-[9.8%] left-[10.2%] md:bottom-[11.4%] md:left-[11.8%]",
+    className: "bottom-[9.8%] left-[10.2%] md:bottom-[11.4%] md:left-[11.8%]",
   },
   {
     platform: "eBay",
     status: "Optimized",
     tone: "ebay",
-    className:
-      "bottom-[9.8%] right-[8.8%] md:bottom-[11.4%] md:right-[12.2%]",
+    className: "bottom-[9.8%] right-[8.8%] md:bottom-[11.4%] md:right-[12.2%]",
   },
 ];
 
@@ -115,8 +112,12 @@ function PlatformCardItem({ platform, status, tone, className }: PlatformCard) {
       <div className="flex items-center gap-2.5">
         <LogoChip tone={tone} />
         <div>
-          <p className="text-[22px] font-semibold leading-none text-white/92 md:text-[16px]">{platform}</p>
-          <p className="mt-1 text-[18px] leading-none text-[#22d3ee] md:text-[12px]">● {status}</p>
+          <p className="text-[22px] font-semibold leading-none text-white/92 md:text-[16px]">
+            {platform}
+          </p>
+          <p className="mt-1 text-[18px] leading-none text-[#22d3ee] md:text-[12px]">
+            ● {status}
+          </p>
         </div>
       </div>
       {tone === "tiktok" ? (
@@ -148,7 +149,13 @@ function formatMoney(amount: number) {
   }).format(amount);
 }
 
-function CenterOverview({ amounts, total }: { amounts: Record<ChannelKey, number>; total: number }) {
+function CenterOverview({
+  amounts,
+  total,
+}: {
+  amounts: Record<ChannelKey, number>;
+  total: number;
+}) {
   const rows = (Object.keys(CHANNEL_METRICS) as ChannelKey[]).map((key) => {
     const channel = CHANNEL_METRICS[key];
     return {
@@ -167,16 +174,29 @@ function CenterOverview({ amounts, total }: { amounts: Record<ChannelKey, number
         <div className="flex items-center justify-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-[#4f46e5]" />
           <p className="text-[10px] font-semibold text-[#01374b]">Overview</p>
-          <span className="rounded-full bg-[#baf7bf] px-2 py-0.5 text-[9px] font-semibold text-[#0e7332]">Live</span>
+          <span className="rounded-full bg-[#baf7bf] px-2 py-0.5 text-[9px] font-semibold text-[#0e7332]">
+            Live
+          </span>
         </div>
-        <p className="mt-1.5 text-[8px] font-bold uppercase tracking-[0.1em] text-[#136071]">Total Sales</p>
-        <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-[#136071]">Today</p>
-        <p className="mt-1 text-[30px] font-black leading-none text-[#07253d] md:text-[34px]">{formatMoney(total)}</p>
-        <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.1em] text-[#14758d]">+7.8% vs yesterday</p>
+        <p className="mt-1.5 text-[8px] font-bold uppercase tracking-[0.1em] text-[#136071]">
+          Total Sales
+        </p>
+        <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-[#136071]">
+          Today
+        </p>
+        <p className="mt-1 text-[30px] font-black leading-none text-[#07253d] md:text-[34px]">
+          {formatMoney(total)}
+        </p>
+        <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.1em] text-[#14758d]">
+          +7.8% vs yesterday
+        </p>
 
         <div className="mx-auto mt-3 flex w-full max-w-[150px] flex-col gap-1 md:max-w-[164px]">
           {rows.map((row) => (
-            <div className={`flex items-center justify-between rounded-md border border-white/25 px-2 py-1 ${row.row}`} key={row.name}>
+            <div
+              className={`flex items-center justify-between rounded-md border border-white/25 px-2 py-1 ${row.row}`}
+              key={row.name}
+            >
               <div className="flex items-center gap-2">
                 <span
                   className="grid h-3.5 w-3.5 place-items-center rounded-full text-[9px] font-bold text-white"
@@ -185,11 +205,15 @@ function CenterOverview({ amounts, total }: { amounts: Record<ChannelKey, number
                   {row.mark}
                 </span>
                 <div>
-                  <p className="text-[8px] font-semibold text-[#0b3450]">{row.name}</p>
+                  <p className="text-[8px] font-semibold text-[#0b3450]">
+                    {row.name}
+                  </p>
                   <p className="text-[7px] text-[#1c657f]">Inventory</p>
                 </div>
               </div>
-              <p className="text-[8px] font-bold text-[#0c3751]">{row.amount}</p>
+              <p className="text-[8px] font-bold text-[#0c3751]">
+                {row.amount}
+              </p>
             </div>
           ))}
         </div>
@@ -211,7 +235,8 @@ export default function DashboardHeroGraphic() {
     [],
   );
 
-  const [amounts, setAmounts] = useState<Record<ChannelKey, number>>(initialAmounts);
+  const [amounts, setAmounts] =
+    useState<Record<ChannelKey, number>>(initialAmounts);
 
   useEffect(() => {
     const timers = (Object.keys(CHANNEL_METRICS) as ChannelKey[]).map((key) =>
@@ -242,7 +267,7 @@ export default function DashboardHeroGraphic() {
       <div className="absolute left-[23%] top-[63%] z-[5] h-px w-[20%] rotate-[139deg] border-t border-dashed border-cyan-400/60" />
       <div className="absolute left-[53%] top-[67%] z-[5] h-px w-[20%] rotate-[40deg] border-t border-dashed border-cyan-400/60" />
 
-      <span className="absolute left-[36.7%] top-[30.7%] z-30 rounded-sm border border-lime-500/35 bg-[#153c40]/65 px-1.5 py-0.5 text-[8px] font-semibold tracking-[0.06em] text-[#9bf68e]">
+      <span className="absolute left-[36.7%] top-[30.7%] z-30 rounded-sm border border-lime-500/35 bg-[#020617]/65 px-1.5 py-0.5 text-[8px] font-semibold tracking-[0.06em] text-[#9bf68e]">
         API_OK
       </span>
 

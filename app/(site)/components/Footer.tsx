@@ -16,12 +16,17 @@ const legalLinks = [
 
 export default function Footer() {
   return (
-    <footer className="bg-[#223867] px-6 py-14 text-[#8f9bb1] sm:px-10 lg:px-16 lg:py-16">
+    <footer className="bg-[#22355D] px-6 py-14 text-[#8f9bb1] sm:px-10 lg:px-16 lg:py-16">
       <div className="mx-auto w-full max-w-[1400px]">
         <div className="grid gap-14 lg:grid-cols-2">
           <div>
-            <h2 className="text-2xl font-bold text-[#2fd1c8] sm:text-3xl">CommandCtr</h2>
-            <LinkIcon className="mt-8 h-6 w-6 text-[#e2e9f7]" strokeWidth={2.2} />
+            <h2 className="text-2xl font-bold text-[#2fd1c8] sm:text-3xl">
+              CommandCtr
+            </h2>
+            <LinkIcon
+              className="mt-8 h-6 w-6 text-[#e2e9f7]"
+              strokeWidth={2.2}
+            />
             <address className="mt-7 not-italic text-lg leading-[1.6] text-[#d5deec] sm:text-xl">
               12th Floor
               <br />
@@ -31,14 +36,18 @@ export default function Footer() {
               <br />
               CA 94103
             </address>
-            <p className="mt-8 text-base text-[#71809f] sm:text-lg">Command Center Platforms © 2026</p>
+            <p className="mt-8 text-base text-[#71809f] sm:text-lg">
+              Command Center Platforms © 2026
+            </p>
           </div>
 
           <div>
             <h3 className="max-w-[700px] text-3xl font-medium leading-[1.1] text-[#f3f6fc] sm:text-4xl">
               Unifying Commerce That Moves Us Forward.
             </h3>
-            <p className="mt-10 text-xl text-[#dfe6f4] sm:text-2xl">Sign up for our email list</p>
+            <p className="mt-10 text-xl text-[#dfe6f4] sm:text-2xl">
+              Sign up for our email list
+            </p>
 
             <div className="mt-8">
               <label htmlFor="footer-email" className="sr-only">
@@ -74,11 +83,16 @@ export default function Footer() {
         <div className="mt-14 border-t border-[#344b76] pt-10">
           <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <h4 className="text-xl font-semibold text-[#eef3fb] sm:text-2xl">Product</h4>
+              <h4 className="text-xl font-semibold text-[#eef3fb] sm:text-2xl">
+                Product
+              </h4>
               <ul className="mt-5 space-y-2.5">
                 {productLinks.map((item) => (
                   <li key={item}>
-                    <a href="#" className="text-base transition hover:text-[#56c7c6] sm:text-lg">
+                    <a
+                      href="#"
+                      className="text-base transition hover:text-[#56c7c6] sm:text-lg"
+                    >
                       {item}
                     </a>
                   </li>
@@ -87,11 +101,16 @@ export default function Footer() {
             </div>
 
             <div>
-              <h4 className="text-xl font-semibold text-[#eef3fb] sm:text-2xl">Resources</h4>
+              <h4 className="text-xl font-semibold text-[#eef3fb] sm:text-2xl">
+                Resources
+              </h4>
               <ul className="mt-5 space-y-2.5">
                 {resourceLinks.map((item) => (
                   <li key={item}>
-                    <a href="#" className="text-base transition hover:text-[#56c7c6] sm:text-lg">
+                    <a
+                      href="#"
+                      className="text-base transition hover:text-[#56c7c6] sm:text-lg"
+                    >
                       {item}
                     </a>
                   </li>
@@ -100,11 +119,16 @@ export default function Footer() {
             </div>
 
             <div>
-              <h4 className="text-xl font-semibold text-[#eef3fb] sm:text-2xl">Legal</h4>
+              <h4 className="text-xl font-semibold text-[#eef3fb] sm:text-2xl">
+                Legal
+              </h4>
               <ul className="mt-5 space-y-2.5">
                 {legalLinks.map((item) => (
                   <li key={item.label}>
-                    <Link href={item.href} className="text-base transition hover:text-[#56c7c6] sm:text-lg">
+                    <Link
+                      href={item.href}
+                      className="text-base transition hover:text-[#56c7c6] sm:text-lg"
+                    >
                       {item.label}
                     </Link>
                   </li>
@@ -115,15 +139,29 @@ export default function Footer() {
         </div>
 
         <div className="mt-12 flex flex-wrap items-center justify-between gap-6 border-t border-[#2d8c9c] pt-8">
-          <p className="text-sm text-[#8c99b1] sm:text-base">© 2026 BusinessOS Inc. All rights reserved.</p>
+          <p className="text-sm text-[#8c99b1] sm:text-base">
+            © 2026 BusinessOS Inc. All rights reserved.
+          </p>
           <div className="flex items-center gap-5 text-[#9ba7bf]">
-            <a href="#" aria-label="Facebook" className="transition hover:text-[#56c7c6]">
+            <a
+              href="#"
+              aria-label="Facebook"
+              className="transition hover:text-[#56c7c6]"
+            >
               <Facebook className="h-7 w-7" />
             </a>
-            <a href="#" aria-label="YouTube" className="transition hover:text-[#56c7c6]">
+            <a
+              href="#"
+              aria-label="YouTube"
+              className="transition hover:text-[#56c7c6]"
+            >
               <CirclePlay className="h-7 w-7" />
             </a>
-            <a href="#" aria-label="Email" className="transition hover:text-[#56c7c6]">
+            <a
+              href="#"
+              aria-label="Email"
+              className="transition hover:text-[#56c7c6]"
+            >
               <AtSign className="h-7 w-7" />
             </a>
           </div>

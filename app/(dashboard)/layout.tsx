@@ -1,4 +1,5 @@
 import DashboardSidebar from "./components/DashboardSidebar";
+import IntegrationShepherdTour from "./components/IntegrationShepherdTour";
 
 export default function DashboardLayout({
   children,
@@ -11,6 +12,7 @@ export default function DashboardLayout({
         <DashboardSidebar />
         <main className="min-w-0 flex-1">{children}</main>
       </div>
+      <IntegrationShepherdTour />
     </div>
   );
 }
