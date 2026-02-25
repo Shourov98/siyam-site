@@ -10,19 +10,22 @@ const platformCards: PlatformCard[] = [
     platform: "Amazon",
     status: "Syncing...",
     tone: "amazon",
-    className: "right-[10.5%] top-[11.5%] w-[28%] min-w-[164px] md:right-[13%] md:top-[11.8%] md:w-[24%]",
+    className:
+      "right-[8.8%] top-[10.2%] md:right-[12.2%] md:top-[10.7%]",
   },
   {
     platform: "TikTok Shop",
     status: "Live",
     tone: "tiktok",
-    className: "bottom-[9.5%] left-[11.5%] w-[28%] min-w-[168px] md:bottom-[12.4%] md:left-[12%] md:w-[24%]",
+    className:
+      "bottom-[9.8%] left-[7%] md:bottom-[11.4%] md:left-[8.2%]",
   },
   {
     platform: "eBay",
     status: "Optimized",
     tone: "ebay",
-    className: "bottom-[9.3%] right-[10.5%] w-[28%] min-w-[164px] md:bottom-[12.3%] md:right-[13%] md:w-[24%]",
+    className:
+      "bottom-[9.8%] right-[8.8%] md:bottom-[11.4%] md:right-[12.2%]",
   },
 ];
 
@@ -58,13 +61,13 @@ function LogoChip({ tone }: { tone: PlatformCard["tone"] }) {
 function PlatformCardItem({ platform, status, tone, className }: PlatformCard) {
   return (
     <article
-      className={`absolute z-20 rounded-[16px] border border-cyan-100/16 bg-[linear-gradient(145deg,rgba(23,44,66,0.95),rgba(18,34,53,0.92))] px-3 py-3 shadow-[0_24px_80px_-52px_rgba(0,0,0,0.95)] backdrop-blur-sm ${className}`}
+      className={`absolute z-20 h-[86px] w-[250px] rounded-[16px] border border-cyan-100/16 bg-[linear-gradient(145deg,#172c42f2,#122235eb)] px-3 py-3 shadow-[0_24px_80px_-52px_#000000f2] backdrop-blur-sm md:h-[102px] md:w-[340px] ${className}`}
     >
       <div className="flex items-center gap-2.5">
         <LogoChip tone={tone} />
         <div>
-          <p className="text-[17px] font-semibold leading-none text-white/92 md:text-[16px]">{platform}</p>
-          <p className="mt-1 text-[13px] leading-none text-[#22d3ee] md:text-[12px]">● {status}</p>
+          <p className="text-[22px] font-semibold leading-none text-white/92 md:text-[16px]">{platform}</p>
+          <p className="mt-1 text-[18px] leading-none text-[#22d3ee] md:text-[12px]">● {status}</p>
         </div>
       </div>
     </article>
@@ -79,7 +82,7 @@ function CenterOverview() {
   ];
 
   return (
-    <section className="absolute left-1/2 top-1/2 z-20 h-[210px] w-[210px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/60 bg-[radial-gradient(circle_at_40%_35%,rgba(126,240,232,0.95),rgba(72,209,201,0.9)_45%,rgba(53,186,189,0.82)_72%,rgba(49,168,178,0.75)_100%)] p-3 shadow-[0_0_180px_18px_rgba(45,233,230,0.56)] md:h-[240px] md:w-[240px] md:p-4">
+    <section className="absolute left-1/2 top-1/2 z-20 h-[290px] w-[290px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/75 bg-[radial-gradient(circle_at_40%_35%,rgba(170,255,246,1),rgba(97,234,225,0.95)_40%,rgba(45,206,214,0.9)_68%,rgba(28,175,190,0.86)_100%)] p-4 shadow-[0_0_320px_58px_rgba(70,246,241,0.84)] md:h-[350px] md:w-[350px] md:p-5">
       <div className="absolute inset-3 rounded-full border border-cyan-50/22 border-dashed" />
       <div className="relative h-full rounded-full border border-cyan-50/22 p-4 text-center md:p-5">
         <div className="flex items-center justify-center gap-2">
@@ -118,9 +121,9 @@ function CenterOverview() {
 
 export default function DashboardHeroGraphic() {
   return (
-    <div className="relative h-[320px] w-full overflow-hidden bg-[radial-gradient(ellipse_at_52%_52%,rgba(37,203,209,0.42)_0%,rgba(6,49,83,0.76)_47%,#040d2a_100%)] md:h-[500px]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(40,247,240,0.23)_0%,rgba(21,143,170,0.06)_39%,rgba(0,0,0,0)_68%)]" />
-      <div className="absolute left-1/2 top-1/2 h-[490px] w-[490px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300/7 blur-[84px]" />
+    <div className="relative h-[440px] w-full overflow-hidden bg-[radial-gradient(ellipse_at_52%_52%,rgba(50,228,232,0.56)_0%,rgba(8,64,106,0.8)_45%,#040d2a_100%)] md:h-[660px]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(60,255,245,0.34)_0%,rgba(24,172,196,0.1)_41%,rgba(0,0,0,0)_72%)]" />
+      <div className="absolute left-1/2 top-1/2 h-[860px] w-[860px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300/24 blur-[128px]" />
 
       <div className="absolute left-[50%] top-[51.5%] z-[5] h-px w-[41%] -translate-x-[47%] -translate-y-[50%] rotate-[319deg] border-t border-dashed border-cyan-400/55" />
       <div className="absolute bottom-[25.5%] left-[24%] z-[5] h-px w-[29%] rotate-[139deg] border-t border-dashed border-cyan-400/55" />
