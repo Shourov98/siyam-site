@@ -18,7 +18,7 @@ const platformCards: PlatformCard[] = [
     status: "Live",
     tone: "tiktok",
     className:
-      "bottom-[9.8%] left-[7%] md:bottom-[11.4%] md:left-[8.2%]",
+      "bottom-[9.8%] left-[10.2%] md:bottom-[11.4%] md:left-[11.8%]",
   },
   {
     platform: "eBay",
@@ -70,6 +70,11 @@ function PlatformCardItem({ platform, status, tone, className }: PlatformCard) {
           <p className="mt-1 text-[18px] leading-none text-[#22d3ee] md:text-[12px]">● {status}</p>
         </div>
       </div>
+      {tone === "tiktok" ? (
+        <span className="absolute -bottom-5 right-4 z-30 -rotate-[2.5deg] rounded-lg bg-[#b9f56e] px-2.5 py-1 text-[13px] font-bold leading-none text-[#193205] shadow-[0_10px_24px_-16px_rgba(185,245,110,0.95)] md:-bottom-6 md:right-5 md:text-[12px]">
+          Stock: 842
+        </span>
+      ) : null}
     </article>
   );
 }
@@ -125,9 +130,9 @@ export default function DashboardHeroGraphic() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(60,255,245,0.34)_0%,rgba(24,172,196,0.1)_41%,rgba(0,0,0,0)_72%)]" />
       <div className="absolute left-1/2 top-1/2 h-[860px] w-[860px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300/24 blur-[128px]" />
 
-      <div className="absolute left-[50%] top-[51.5%] z-[5] h-px w-[41%] -translate-x-[47%] -translate-y-[50%] rotate-[319deg] border-t border-dashed border-cyan-400/55" />
-      <div className="absolute bottom-[25.5%] left-[24%] z-[5] h-px w-[29%] rotate-[139deg] border-t border-dashed border-cyan-400/55" />
-      <div className="absolute bottom-[24.8%] right-[21%] z-[5] h-px w-[29%] rotate-[42deg] border-t border-dashed border-cyan-400/55" />
+      <div className="absolute left-[56%] top-[38%] z-[5] h-px w-[20%] -rotate-[41deg] border-t border-dashed border-cyan-400/60" />
+      <div className="absolute left-[23%] top-[63%] z-[5] h-px w-[20%] rotate-[139deg] border-t border-dashed border-cyan-400/60" />
+      <div className="absolute left-[53%] top-[67%] z-[5] h-px w-[20%] rotate-[40deg] border-t border-dashed border-cyan-400/60" />
 
       <span className="absolute left-[36.7%] top-[30.7%] z-30 rounded-sm border border-lime-500/35 bg-[#153c40]/65 px-1.5 py-0.5 text-[8px] font-semibold tracking-[0.06em] text-[#9bf68e]">
         API_OK
@@ -151,10 +156,6 @@ export default function DashboardHeroGraphic() {
 
       <span className="absolute right-[25.2%] top-[70.7%] z-30 rounded-full border border-[#2d78ff] bg-[#081736]/95 px-3 py-1 text-[12px] font-semibold leading-none text-[#60b6ff] md:right-[26.2%] md:top-[70.3%] md:text-[11px]">
         New Order: #8431
-      </span>
-
-      <span className="absolute bottom-[7.1%] left-[33.2%] z-30 -rotate-[2.5deg] rounded-lg bg-[#b9f56e] px-2.5 py-1 text-[13px] font-bold leading-none text-[#193205] shadow-[0_10px_24px_-16px_rgba(185,245,110,0.95)] md:bottom-[6.6%] md:left-[34.2%] md:text-[12px]">
-        Stock: 842
       </span>
 
       <span className="absolute bottom-[20.8%] right-[8.4%] z-30 rounded-lg border border-cyan-400/45 bg-[#17313e]/88 px-2.5 py-1 text-[13px] font-bold leading-none text-white/95 md:bottom-[20.4%] md:right-[10.8%] md:text-[12px]">
