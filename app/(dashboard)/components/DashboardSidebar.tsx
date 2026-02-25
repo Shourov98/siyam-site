@@ -1,3 +1,7 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   BadgeCheck,
   Boxes,
@@ -11,18 +15,20 @@ import {
 } from "lucide-react";
 
 const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard },
-  { label: "Products", icon: Boxes },
-  { label: "Inventory", icon: Package },
-  { label: "Orders", icon: ShoppingCart },
-  { label: "Import", icon: CircleDashed },
-  { label: "Wallet", icon: Wallet },
-  { label: "Integration", icon: BadgeCheck },
-  { label: "Dispute & Support", icon: ShieldAlert },
-  { label: "Settings", icon: Settings },
+  { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+  { label: "Products", icon: Boxes, href: "/products" },
+  { label: "Inventory", icon: Package, href: "/inventory" },
+  { label: "Orders", icon: ShoppingCart, href: "/orders" },
+  { label: "Import", icon: CircleDashed, href: "/import" },
+  { label: "Wallet", icon: Wallet, href: "/wallet" },
+  { label: "Integration", icon: BadgeCheck, href: "/integration" },
+  { label: "Dispute & Support", icon: ShieldAlert, href: "/support" },
+  { label: "Settings", icon: Settings, href: "/settings" },
 ];
 
 export default function DashboardSidebar() {
+  const pathname = usePathname();
+
   return (
     <>
       <aside className="hidden h-screen w-24 shrink-0 border-r border-[#263350] bg-[#17223f] text-[#8ea0c6] md:flex md:flex-col md:sticky md:top-0">
@@ -34,21 +40,25 @@ export default function DashboardSidebar() {
 
         <nav className="flex-1 overflow-y-auto px-2 py-4">
           <ul className="space-y-1">
-            {navItems.map(({ label, icon: Icon }, index) => (
-              <li key={label}>
-                <button
-                  className={`group flex w-full flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium transition ${
-                    index === 0
-                      ? "bg-[#1f2e53] text-[#58e7f2]"
-                      : "hover:bg-[#1f2e53] hover:text-[#d8e7ff]"
-                  }`}
-                  type="button"
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="text-center leading-tight">{label}</span>
-                </button>
-              </li>
-            ))}
+            {navItems.map(({ label, icon: Icon, href }) => {
+              const isActive = pathname === href;
+
+              return (
+                <li key={label}>
+                  <Link
+                    href={href}
+                    className={`group flex w-full flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium transition ${
+                      isActive
+                        ? "bg-[#1f2e53] text-[#58e7f2]"
+                        : "hover:bg-[#1f2e53] hover:text-[#d8e7ff]"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="text-center leading-tight">{label}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </nav>
 

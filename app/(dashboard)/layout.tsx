@@ -7,7 +7,7 @@ export default function DashboardLayout({
 }>) {
   return (
     <div className="min-h-screen bg-[#f2f5fa] text-[#1d2a45]">
-      <div className="mx-auto flex w-full max-w-[1440px]">
+      <div className="flex w-full">
         <DashboardSidebar />
         <main className="min-w-0 flex-1">{children}</main>
       </div>
