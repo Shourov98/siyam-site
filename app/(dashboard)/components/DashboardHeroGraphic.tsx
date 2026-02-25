@@ -146,15 +146,15 @@ export default function DashboardHeroGraphic() {
         Orders: +12%
       </span>
 
-      <span className="absolute left-[58.5%] top-[11.3%] z-30 rounded-full border border-[#2ab6ff] bg-[#071a38]/95 px-3 py-1 text-[12px] font-semibold leading-none text-[#19cbff] md:left-[58.6%] md:top-[11.1%] md:text-[11px]">
+      <span className="new-order-motion new-order-motion-amazon absolute left-[58.5%] top-[11.3%] z-30 rounded-full border border-[#2ab6ff] bg-[#071a38]/95 px-3 py-1 text-[12px] font-semibold leading-none text-[#19cbff] md:left-[58.6%] md:top-[11.1%] md:text-[11px]">
         New Order: #8430
       </span>
 
-      <span className="absolute left-[12.4%] top-[67.5%] z-30 rounded-full bg-[#22c7c2] px-3 py-1 text-[13px] font-semibold leading-none text-[#03253d] md:left-[12.9%] md:top-[67.2%] md:text-[12px]">
+      <span className="new-order-motion new-order-motion-tiktok absolute left-[12.4%] top-[67.5%] z-30 rounded-full bg-[#22c7c2] px-3 py-1 text-[13px] font-semibold leading-none text-[#03253d] md:left-[12.9%] md:top-[67.2%] md:text-[12px]">
         New Order: #8432
       </span>
 
-      <span className="absolute right-[25.2%] top-[70.7%] z-30 rounded-full border border-[#2d78ff] bg-[#081736]/95 px-3 py-1 text-[12px] font-semibold leading-none text-[#60b6ff] md:right-[26.2%] md:top-[70.3%] md:text-[11px]">
+      <span className="new-order-motion new-order-motion-ebay absolute right-[25.2%] top-[70.7%] z-30 rounded-full border border-[#2d78ff] bg-[#081736]/95 px-3 py-1 text-[12px] font-semibold leading-none text-[#60b6ff] md:right-[26.2%] md:top-[70.3%] md:text-[11px]">
         New Order: #8431
       </span>
 

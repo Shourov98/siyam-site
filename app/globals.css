@@ -47,3 +47,73 @@ h6 {
 p {
   font-family: var(--font-body);
 }
+
+@keyframes new-order-to-center-amazon {
+  0%,
+  18% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  62% {
+    opacity: 1;
+  }
+  78%,
+  100% {
+    opacity: 0;
+    transform: translate(-250px, 175px) scale(0.72);
+  }
+}
+
+@keyframes new-order-to-center-tiktok {
+  0%,
+  18% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  62% {
+    opacity: 1;
+  }
+  78%,
+  100% {
+    opacity: 0;
+    transform: translate(265px, -188px) scale(0.72);
+  }
+}
+
+@keyframes new-order-to-center-ebay {
+  0%,
+  18% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  62% {
+    opacity: 1;
+  }
+  78%,
+  100% {
+    opacity: 0;
+    transform: translate(-148px, -172px) scale(0.72);
+  }
+}
+
+.new-order-motion {
+  animation-duration: 4.2s;
+  animation-timing-function: cubic-bezier(0.22, 0.78, 0.25, 0.99);
+  animation-iteration-count: infinite;
+  will-change: transform, opacity;
+}
+
+.new-order-motion-amazon {
+  animation-name: new-order-to-center-amazon;
+  animation-delay: 0s;
+}
+
+.new-order-motion-tiktok {
+  animation-name: new-order-to-center-tiktok;
+  animation-delay: 1.2s;
+}
+
+.new-order-motion-ebay {
+  animation-name: new-order-to-center-ebay;
+  animation-delay: 2.4s;
+}
