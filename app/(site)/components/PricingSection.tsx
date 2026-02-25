@@ -56,10 +56,10 @@ export default function PricingSection() {
     <section className="bg-[#f3f4f6] px-6 py-20 sm:px-10 lg:px-16 lg:py-24">
       <div className="mx-auto w-full max-w-[1280px]">
         <div className="text-center">
-          <h2 className="text-4xl font-bold tracking-[-0.02em] text-[#131c32] sm:text-6xl">
+          <h2 className="text-3xl font-bold tracking-[-0.02em] text-[#131c32] sm:text-5xl">
             Simple Pricing for <span className="text-[#31c8c5]">Scale</span>
           </h2>
-          <p className="mx-auto mt-6 max-w-[860px] text-lg leading-relaxed text-[#657184] sm:text-2xl">
+          <p className="mx-auto mt-6 max-w-[860px] text-base leading-relaxed text-[#657184] sm:text-xl">
             Transparent plans for every stage of your ecommerce empire. Upgrade or
             downgrade at any time.
           </p>
@@ -68,7 +68,7 @@ export default function PricingSection() {
             <button
               type="button"
               onClick={() => setBillingCycle("monthly")}
-              className={`text-lg font-medium transition-colors sm:text-2xl ${
+              className={`text-base font-medium transition-colors sm:text-xl ${
                 billingCycle === "monthly" ? "text-[#1b2337]" : "text-[#8d98a9]"
               }`}
             >
@@ -95,7 +95,7 @@ export default function PricingSection() {
             <button
               type="button"
               onClick={() => setBillingCycle("yearly")}
-              className={`text-lg font-medium transition-colors sm:text-2xl ${
+              className={`text-base font-medium transition-colors sm:text-xl ${
                 billingCycle === "yearly" ? "text-[#1b2337]" : "text-[#8d98a9]"
               }`}
             >
@@ -127,16 +127,16 @@ export default function PricingSection() {
                   </span>
                 ) : null}
 
-                <h3 className="text-[20px] font-semibold leading-tight sm:text-[24px]">
+                <h3 className="text-[18px] font-semibold leading-tight sm:text-[22px]">
                   {plan.name}
                 </h3>
 
                 <p className="mt-2 flex items-end">
-                  <span className="text-[48px] font-bold leading-none sm:text-[56px]">
+                  <span className="text-[40px] font-bold leading-none sm:text-[48px]">
                     ${plan.displayPrice}
                   </span>
                   <span
-                    className={`mb-1.5 text-[30px] ${
+                    className={`mb-1.5 text-[22px] ${
                       featured ? "text-[#b7c3d9]" : "text-[#7b8496]"
                     }`}
                   >
@@ -148,7 +148,7 @@ export default function PricingSection() {
                   {plan.features.map((feature) => (
                     <li
                       key={feature}
-                      className={`flex items-center gap-3 text-[16px] sm:text-[18px] ${
+                      className={`flex items-center gap-3 text-[15px] sm:text-[16px] ${
                         featured ? "text-[#e7edf8]" : "text-[#5e687b]"
                       }`}
                     >
@@ -160,7 +160,7 @@ export default function PricingSection() {
 
                 <button
                   type="button"
-                  className={`mt-9 w-full rounded-full px-8 py-3.5 text-[20px] font-semibold transition-all duration-300 ${
+                  className={`mt-9 w-full rounded-full px-8 py-3.5 text-[17px] font-semibold transition-all duration-300 ${
                     featured
                       ? "bg-white text-[#2b354a] group-hover:bg-[#e9f0fc] group-hover:shadow-lg"
                       : "bg-white text-[#3a4356] group-hover:bg-[#f8fbff] group-hover:shadow-md"

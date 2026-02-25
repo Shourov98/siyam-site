@@ -68,7 +68,7 @@ export default function PricingCompareFeaturesSection() {
   return (
     <section className="bg-[#f3f4f6] px-6 pb-20 sm:px-10 lg:px-16 lg:pb-24">
       <div className="mx-auto w-full max-w-[1280px]">
-        <h2 className="text-3xl font-bold text-[#1a2236] sm:text-4xl">Compare Features</h2>
+        <h2 className="text-2xl font-bold text-[#1a2236] sm:text-3xl">Compare Features</h2>
 
         <div className="mt-8 overflow-hidden rounded-xl border border-[#e5e8ee] bg-[#f7f8fa]">
           <div className="overflow-x-auto">
@@ -78,13 +78,13 @@ export default function PricingCompareFeaturesSection() {
                   <th className="px-5 py-5 text-left text-sm font-semibold uppercase tracking-[0.06em] text-[#7f8899]">
                     Feature
                   </th>
-                  <th className="px-5 py-5 text-center text-[33px] font-semibold text-[#1f2739]">
+                  <th className="px-5 py-5 text-center text-[24px] font-semibold text-[#1f2739]">
                     Starter
                   </th>
-                  <th className="px-5 py-5 text-center text-[33px] font-semibold text-[#3450a3]">
+                  <th className="px-5 py-5 text-center text-[24px] font-semibold text-[#3450a3]">
                     Growth
                   </th>
-                  <th className="px-5 py-5 text-center text-[33px] font-semibold text-[#1f2739]">
+                  <th className="px-5 py-5 text-center text-[24px] font-semibold text-[#1f2739]">
                     Scale
                   </th>
                 </tr>
@@ -104,7 +104,7 @@ export default function PricingCompareFeaturesSection() {
 
                     {section.rows.map((row) => (
                       <tr key={row.feature} className="border-t border-[#e5e8ee]">
-                        <td className="px-5 py-4 text-[24px] font-semibold text-[#374152]">
+                        <td className="px-5 py-4 text-[18px] font-semibold text-[#374152]">
                           <span>{row.feature}</span>
                           {row.badge ? (
                             <span className="ml-2 inline-flex rounded-full bg-[#d957cc] px-2 py-0.5 text-[12px] font-semibold text-white">
@@ -112,13 +112,13 @@ export default function PricingCompareFeaturesSection() {
                             </span>
                           ) : null}
                         </td>
-                        <td className="px-5 py-4 text-center text-[23px]">
+                        <td className="px-5 py-4 text-center text-[18px]">
                           {renderCell(row.starter)}
                         </td>
-                        <td className="px-5 py-4 text-center text-[23px]">
+                        <td className="px-5 py-4 text-center text-[18px]">
                           {renderCell(row.growth, row.highlightGrowth)}
                         </td>
-                        <td className="px-5 py-4 text-center text-[23px]">
+                        <td className="px-5 py-4 text-center text-[18px]">
                           {renderCell(row.scale)}
                         </td>
                       </tr>
