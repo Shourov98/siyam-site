@@ -62,7 +62,9 @@ export default function DashboardSidebar() {
                   <Link
                     href={href}
                     onClick={(event) => handleNavClick(event, href)}
-                    data-tour={href === "/integration" ? "nav-integration" : undefined}
+                    data-tour={
+                      href === "/integration" ? "nav-integration" : undefined
+                    }
                     className={`group flex w-full flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium transition ${
                       isActive
                         ? "bg-[#1f2e53] text-[#58e7f2]"

@@ -56,6 +56,12 @@ export default function Navbar() {
           Sign In
         </Link>
         <Link
+          className="whitespace-nowrap rounded-[6px] border border-[#132446] px-[18px] py-3 text-[16px] leading-none font-semibold text-[#132446] no-underline transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#132446] hover:text-[#e9f7ff] max-[1180px]:text-[14px]"
+          href="/dashboard"
+        >
+          Dashboard
+        </Link>
+        <Link
           className="whitespace-nowrap rounded-[6px] bg-[#132446] px-[22px] py-4 text-[18px] leading-none font-semibold text-[#2fd1c8] no-underline shadow-[0_4px_12px_rgba(11,20,40,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#1b3361] hover:shadow-[0_8px_16px_rgba(11,20,40,0.24)] max-[1180px]:text-[15px]"
           href="/signup"
         >
