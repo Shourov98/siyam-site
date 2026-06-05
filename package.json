@@ -8,7 +8,8 @@
     "dev:turbo": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate:product": "node scripts/generate-product-package.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.575.0",

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import {
-  Bolt,
   CheckCheck,
   ChevronDown,
   CircleCheck,
@@ -12,6 +11,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 import MediaTabClient from "./MediaTabClient";
+import SeoAiEditor from "./SeoAiEditor";
 
 type ProductEditPageProps = {
   params: Promise<{ id: string }>;
@@ -289,77 +289,7 @@ function SeoTab() {
         </article>
 
         <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
-          <div className="flex items-end justify-between gap-3">
-            <label className="text-sm font-medium text-[#3a4964]">Product Title</label>
-            <button
-              className="inline-flex h-8 items-center gap-1 rounded-md bg-[#1c2b4c] px-3 text-[11px] font-semibold uppercase tracking-wide text-white"
-              type="button"
-            >
-              <Bolt className="h-3 w-3" />
-              Generate
-            </button>
-          </div>
-          <div className="mt-2 rounded-lg border border-[#d5dcea] bg-[#f7f9fd] px-3 py-2">
-            <div className="flex items-center justify-between gap-3">
-              <input
-                className="w-full bg-transparent text-sm font-semibold text-[#2f3f5f] outline-none"
-                defaultValue="Sony WH-1000XM5 Wireless Noise Canceling Headphones"
-                type="text"
-              />
-              <span className="rounded bg-[#e1f7f2] px-2 py-0.5 text-xs font-semibold text-[#73b7a4]">65/80 chars</span>
-            </div>
-          </div>
-          <p className="mt-3 inline-flex rounded-md bg-[#edfdf7] px-2 py-1 text-xs font-semibold text-[#43be9b]">
-            <CircleCheck className="mr-1 h-3.5 w-3.5" /> Great length for Amazon search results.
-          </p>
-
-          <div className="mt-5">
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-sm font-medium text-[#3a4964]">Product Description</label>
-              <button className="text-xs font-semibold text-[#6f7f9d]" type="button">
-                Rewrite with AI
-              </button>
-            </div>
-            <div className="overflow-hidden rounded-lg border border-[#d5dcea] bg-white">
-              <div className="flex h-9 items-center gap-4 bg-[#1c2b4c] px-3 text-[#d8e4fb]">
-                <button type="button">
-                  <strong>B</strong>
-                </button>
-                <button className="italic" type="button">
-                  I
-                </button>
-                <button type="button">
-                  <List className="h-4 w-4" />
-                </button>
-                <button type="button">
-                  <Link2 className="h-4 w-4" />
-                </button>
-              </div>
-              <textarea
-                className="h-[130px] w-full resize-none bg-[#f8fafe] px-3 py-3 text-sm leading-7 text-[#5e6e88] outline-none"
-                defaultValue={
-                  "Experience industry-leading noise cancellation with the\nSony WH-1000XM5 headphones. Featuring two\nprocessors controlling eight microphones, Auto NC\nOptimizer for automatically optimizing noise canceling\nbased on your wearing conditions and environment, and a\nspecially designed driver unit."
-                }
-              />
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <label className="mb-2 block text-sm font-medium text-[#3a4964]">Target Keywords</label>
-            <div className="rounded-xl border border-[#d5dcea] bg-[#f7f9fd] p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                {["noise cancelling", "sony headphones", "wireless audio"].map((keyword) => (
-                  <span
-                    className="inline-flex items-center rounded-full border border-[#cfd8e7] bg-white px-3 py-1 text-xs font-semibold text-[#6d7f9f]"
-                    key={keyword}
-                  >
-                    {keyword} ×
-                  </span>
-                ))}
-                <input className="h-7 min-w-[140px] bg-transparent text-xs text-[#6d7f9f] outline-none" placeholder="Add keyword..." type="text" />
-              </div>
-            </div>
-          </div>
+          <SeoAiEditor />
         </article>
       </div>
 

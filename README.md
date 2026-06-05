@@ -20,6 +20,55 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Local Product Generation Pipeline
+
+This repo includes a standalone OpenAI-backed pipeline that generates structured product data and marketplace-specific images, then saves everything locally for review.
+
+### Setup
+
+Create `.env.local` with:
+
+```bash
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_TEXT_MODEL=gpt-5
+OPENAI_IMAGE_MODEL=gpt-image-1.5
+```
+
+If you already use `OPENAI_MODEL`, the script will fall back to that for text generation.
+
+### Input Brief
+
+Use the sample brief at `examples/product-brief.sample.json` as the template. You can optionally point `sourceImagePath` to a local product image. When provided, the pipeline will try to:
+
+- produce a transparent product cutout
+- create marketplace-specific edited images from the source asset
+
+Without a source image, the pipeline will generate images from prompts only.
+
+### Run
+
+```bash
+pnpm run generate:product -- --input examples/product-brief.sample.json
+```
+
+Optional:
+
+```bash
+pnpm run generate:product -- --input examples/product-brief.sample.json --output-dir generated-products
+```
+
+### Output
+
+Each run is written to `generated-products/<slug>-<timestamp>/` with:
+
+- `input-brief.json`
+- `product-package.json`
+- `manifest.json`
+- `images/`
+- `audit/`
+
+The `audit/` directory stores raw API responses for traceability. The `manifest.json` includes saved file paths and lightweight PNG validation metadata.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
