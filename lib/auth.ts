@@ -31,6 +31,26 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5
 
 const buildUrl = (path: string) => `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 
+const buildDefaultHeaders = (headers?: HeadersInit): HeadersInit => {
+  const baseHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  try {
+    const apiUrl = new URL(API_BASE_URL);
+    if (apiUrl.hostname.includes("ngrok")) {
+      baseHeaders["ngrok-skip-browser-warning"] = "true";
+    }
+  } catch {
+    // Ignore invalid env parsing and fall back to the provided headers only.
+  }
+
+  return {
+    ...baseHeaders,
+    ...(headers ?? {}),
+  };
+};
+
 export class ApiClientError extends Error {
   details?: unknown;
 
@@ -44,10 +64,7 @@ export class ApiClientError extends Error {
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(buildUrl(path), {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers: buildDefaultHeaders(init?.headers),
   });
 
   const payload = (await response.json().catch(() => null)) as ApiSuccessResponse<T> | ApiErrorResponse | null;
@@ -121,9 +138,8 @@ export const requestWithAuth = async <T>(path: string, init?: RequestInit): Prom
   const response = await fetch(buildUrl(path), {
     ...init,
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
-      ...(init?.headers ?? {}),
+      ...buildDefaultHeaders(init?.headers),
     },
   });
 
