@@ -1,6 +1,9 @@
 "use client";
 
-import { Facebook, Mail } from "lucide-react";
+import { Facebook, Mail, Eye, EyeOff } from "lucide-react";
+import AuthRedirect from "@/components/auth/AuthRedirect";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { ApiClientError } from "@/lib/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
@@ -14,11 +17,14 @@ const socialButtons = [
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!email.trim() || !password.trim()) {
@@ -27,11 +33,21 @@ export default function LoginPage() {
     }
 
     setError("");
-    router.push("/dashboard");
+    setIsSubmitting(true);
+
+    try {
+      await login({ email: email.trim(), password });
+      router.replace("/dashboard");
+    } catch (submissionError) {
+      setError(submissionError instanceof ApiClientError ? submissionError.message : "Unable to log in right now.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
-    <AuthShell>
+    <AuthRedirect>
+      <AuthShell>
       <Link href="/" className="text-3xl font-bold text-[#33cac7] sm:text-4xl">
         CommandCtr
       </Link>
@@ -97,16 +113,30 @@ export default function LoginPage() {
               STRONG
             </span>
           </div>
+        <div className="relative mt-2">
           <input
-            type="password"
+            type={showPassword ? "text" : "password"}
             name="password"
             autoComplete="current-password"
             placeholder="•••••••••"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="mt-2 h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] px-4 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] transition focus:border-[#32cbc6] focus:outline-none focus:ring-2 focus:ring-[#32cbc6]/25 sm:h-16 sm:text-xl"
+            className="h-14 w-full border border-[#e3e7ed] bg-[#eef1f5] pl-4 pr-12 text-lg text-[#4a556a] placeholder:text-[#b4bcc8] transition focus:border-[#32cbc6] focus:outline-none focus:ring-2 focus:ring-[#32cbc6]/25 sm:h-16 sm:text-xl"
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-[#b4bcc8] hover:text-[#32cbc6] transition focus:outline-none cursor-pointer"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? (
+              <EyeOff className="h-5 w-5" />
+            ) : (
+              <Eye className="h-5 w-5" />
+            )}
+          </button>
         </div>
+      </div>
 
         {error ? (
           <p className="text-sm font-medium text-[#d54d6b] sm:text-base">{error}</p>
@@ -124,9 +154,10 @@ export default function LoginPage() {
 
         <button
           type="submit"
+          disabled={isSubmitting}
           className="mt-2 h-14 w-full rounded-xl bg-[#263f72] text-lg font-semibold text-white shadow-[0_7px_16px_rgba(24,39,70,0.25)] transition hover:bg-[#2d497f] sm:h-16 sm:text-xl"
         >
-          Log in
+          {isSubmitting ? "Logging in..." : "Log in"}
         </button>
       </form>
 
@@ -136,6 +167,7 @@ export default function LoginPage() {
           Create an account
         </Link>
       </p>
-    </AuthShell>
+      </AuthShell>
+    </AuthRedirect>
   );
 }
