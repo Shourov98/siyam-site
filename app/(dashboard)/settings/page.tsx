@@ -10,6 +10,12 @@ type SettingsItem = {
 
 const settingsItems: SettingsItem[] = [
   {
+    id: "profile",
+    title: "My Profile",
+    description: "Manage your personal information, contact details, and organization profile",
+    href: "/settings/profile",
+  },
+  {
     id: "notifications",
     title: "Notification Settings",
     description: "Configure alerts, email preferences, and push notifications",

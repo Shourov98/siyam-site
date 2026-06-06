@@ -1,0 +1,195 @@
+/* ═══════════════════════════════════════════════════════════════
+   Integration Page — Premium Card Accordion
+   Pure CSS hover for flex + bg transitions (zero JS on hover).
+   Generous spacing, staggered opacity + transform (GPU-only).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Base card ── */
+.channel-card {
+  flex: 1 1 0%;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  padding: 2rem;
+  cursor: pointer;
+
+  background-color: #1b2748;
+  border: 1px solid transparent;
+  box-shadow: 0 20px 45px -34px rgba(9, 20, 44, 0.9);
+
+  transition:
+    flex-grow 550ms cubic-bezier(0.33, 1, 0.68, 1),
+    background-color 350ms ease,
+    border-color 350ms ease,
+    box-shadow 450ms ease;
+}
+
+/* ── Active state selector ── */
+.channel-deck:not(:hover) > .channel-card[data-platform="amazon"],
+.channel-deck:hover > .channel-card:hover {
+  flex-grow: 2.5;
+  background-color: #ffffff;
+  border-color: #dbe2ee;
+  box-shadow: 0 20px 50px -30px rgba(22, 35, 70, 0.3);
+}
+
+/* ── Decorative bubble ── */
+.channel-card .deco-bubble {
+  opacity: 0;
+  transform: scale(0.3);
+  transition: opacity 500ms ease, transform 600ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+:is(
+  .channel-deck:not(:hover) > .channel-card[data-platform="amazon"],
+  .channel-deck:hover > .channel-card:hover
+) .deco-bubble {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ── Icon box ── */
+.channel-card .icon-box {
+  background-color: #ffffff;
+  transition: background-color 350ms ease;
+}
+:is(
+  .channel-deck:not(:hover) > .channel-card[data-platform="amazon"],
+  .channel-deck:hover > .channel-card:hover
+) .icon-box {
+  background-color: var(--theme-bg);
+}
+
+.channel-card .icon-inner {
+  color: #1b2748;
+  transition: color 350ms ease;
+}
+:is(
+  .channel-deck:not(:hover) > .channel-card[data-platform="amazon"],
+  .channel-deck:hover > .channel-card:hover
+) .icon-inner {
+  color: #ffffff;
+}
+
+/* ── Badge ── */
+.channel-card .badge-label {
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 200ms ease, transform 200ms ease;
+  pointer-events: none;
+}
+:is(
+  .channel-deck:not(:hover) > .channel-card[data-platform="amazon"],
+  .channel-deck:hover > .channel-card:hover
+) .badge-label {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms ease 180ms, transform 300ms ease 180ms;
+  pointer-events: auto;
+}
+
+/* ── Expanded content (large title + subtitle + desc) ── */
+.channel-card .expanded-content {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 180ms ease, transform 180ms ease;
+  pointer-events: none;
+}
+:is(
+  .channel-deck:not(:hover) > .channel-card[data-platform="amazon"],
+  .channel-deck:hover > .channel-card:hover
+) .expanded-content {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 350ms ease 140ms, transform 350ms ease 140ms;
+  pointer-events: auto;
+}
+
+/* ── Collapsed content (small title overlay) ── */
+.channel-card .collapsed-content {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 280ms ease 180ms, transform 280ms ease 180ms;
+  pointer-events: auto;
+}
+:is(
+  .channel-deck:not(:hover) > .channel-card[data-platform="amazon"],
+  .channel-deck:hover > .channel-card:hover
+) .collapsed-content {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 180ms ease, transform 180ms ease;
+  pointer-events: none;
+}
+
+/* ── Expanded footer ── */
+.channel-card .expanded-footer {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 150ms ease, transform 150ms ease;
+  pointer-events: none;
+}
+:is(
+  .channel-deck:not(:hover) > .channel-card[data-platform="amazon"],
+  .channel-deck:hover > .channel-card:hover
+) .expanded-footer {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 280ms ease 180ms, transform 280ms ease 180ms;
+  pointer-events: auto;
+}
+
+/* ── Collapsed footer ── */
+.channel-card .collapsed-footer {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 280ms ease 220ms, transform 280ms ease 220ms;
+  pointer-events: auto;
+}
+:is(
+  .channel-deck:not(:hover) > .channel-card[data-platform="amazon"],
+  .channel-deck:hover > .channel-card:hover
+) .collapsed-footer {
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 150ms ease, transform 150ms ease;
+  pointer-events: none;
+}
+
+/* ── Mobile: stack cards, disable hover accordion ── */
+@media (max-width: 1279px) {
+  .channel-card {
+    flex: none !important;
+  }
+  .channel-card .expanded-content,
+  .channel-card .expanded-footer {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  .channel-card .collapsed-content,
+  .channel-card .collapsed-footer {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .channel-card .badge-label {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  .channel-card .deco-bubble {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .channel-card .icon-box {
+    background-color: var(--theme-bg) !important;
+  }
+  .channel-card .icon-inner {
+    color: #ffffff !important;
+  }
+  .channel-card {
+    background-color: #ffffff !important;
+    border-color: #dbe2ee !important;
+    box-shadow: 0 20px 50px -30px rgba(22, 35, 70, 0.3) !important;
+  }
+}

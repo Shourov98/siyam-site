@@ -2,7 +2,7 @@
 
 import { Info, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 
 const TUTORIAL_ENABLED_KEY = "integration-tutorial-enabled";
 const TUTORIAL_STAGE_KEY = "integration-tutorial-stage";
@@ -20,7 +20,9 @@ export default function IntegrationTutorialModal() {
   useEffect(() => {
     const enabled = window.sessionStorage.getItem(TUTORIAL_ENABLED_KEY) === "1";
     if (!enabled) {
-      setIsVisible(false);
+      startTransition(() => {
+        setIsVisible(false);
+      });
       return;
     }
 
@@ -39,8 +41,10 @@ export default function IntegrationTutorialModal() {
     }
 
     window.sessionStorage.setItem(TUTORIAL_STAGE_KEY, String(normalizedStage));
-    setStage(normalizedStage);
-    setIsVisible(true);
+    startTransition(() => {
+      setStage(normalizedStage);
+      setIsVisible(true);
+    });
   }, [pathname]);
 
   useEffect(() => {

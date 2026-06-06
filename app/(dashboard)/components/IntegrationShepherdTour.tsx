@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 
 const TOUR_ENABLED_KEY = "integration-shepherd-enabled";
 const TOUR_STAGE_KEY = "integration-shepherd-stage";
@@ -12,8 +12,41 @@ const SHEPHERD_CSS_URL = "https://cdn.jsdelivr.net/npm/shepherd.js@11.2.0/dist/c
 const SHEPHERD_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/shepherd.js@11.2.0/dist/js/shepherd.min.js";
 
 declare global {
+  interface ShepherdStepButton {
+    text: string;
+    action: () => void;
+  }
+
+  interface ShepherdTourStepOptions {
+    id: string;
+    title: string;
+    text: string;
+    attachTo: { element: string; on: "top" | "bottom" };
+    buttons: ShepherdStepButton[];
+  }
+
+  interface ShepherdTourInstance {
+    steps?: ShepherdTourStepOptions[];
+    addStep: (step: ShepherdTourStepOptions) => void;
+    back: () => void;
+    next: () => void;
+    start: () => void;
+    complete?: () => void;
+    on: (event: string, handler: () => void) => void;
+    off?: (event: string, handler: () => void) => void;
+  }
+
   interface Window {
-    Shepherd?: any;
+    Shepherd?: {
+      Tour: new (config: {
+        useModalOverlay: boolean;
+        defaultStepOptions: {
+          cancelIcon: { enabled: boolean };
+          classes: string;
+          scrollTo: { behavior: "smooth"; block: "center" };
+        };
+      }) => ShepherdTourInstance;
+    };
   }
 }
 
@@ -26,7 +59,7 @@ export default function IntegrationShepherdTour() {
   const router = useRouter();
   const [assetsReady, setAssetsReady] = useState(false);
   const [triggerCount, setTriggerCount] = useState(0);
-  const tourRef = useRef<any>(null);
+  const tourRef = useRef<ShepherdTourInstance | null>(null);
 
   const clearTourState = () => {
     window.sessionStorage.removeItem(TOUR_ENABLED_KEY);
@@ -63,17 +96,27 @@ export default function IntegrationShepherdTour() {
       script.id = SHEPHERD_SCRIPT_ID;
       script.src = SHEPHERD_SCRIPT_URL;
       script.async = true;
-      script.onload = () => setAssetsReady(true);
+      script.onload = () => {
+        startTransition(() => {
+          setAssetsReady(true);
+        });
+      };
       document.body.appendChild(script);
       return;
     }
 
     if (window.Shepherd) {
-      setAssetsReady(true);
+      startTransition(() => {
+        setAssetsReady(true);
+      });
       return;
     }
 
-    const markReady = () => setAssetsReady(true);
+    const markReady = () => {
+      startTransition(() => {
+        setAssetsReady(true);
+      });
+    };
     existingScript.addEventListener("load", markReady);
     return () => existingScript.removeEventListener("load", markReady);
   }, []);
@@ -131,7 +174,7 @@ export default function IntegrationShepherdTour() {
       text: "Skip",
       action: () => {
         clearTourState();
-        tour.complete();
+        tour.complete?.();
       },
     };
 
@@ -166,13 +209,13 @@ export default function IntegrationShepherdTour() {
             action: () => tour.back(),
           },
           {
-            text: "Go To Banking",
-            action: () => {
-              window.sessionStorage.setItem(TOUR_STAGE_KEY, "3");
-              tour.complete();
-              router.push("/integration/banking");
+              text: "Go To Banking",
+              action: () => {
+                window.sessionStorage.setItem(TOUR_STAGE_KEY, "3");
+                tour.complete?.();
+                router.push("/integration/banking");
+              },
             },
-          },
         ],
       });
     }
@@ -189,7 +232,7 @@ export default function IntegrationShepherdTour() {
             text: "Go To Verification",
             action: () => {
               window.sessionStorage.setItem(TOUR_STAGE_KEY, "4");
-              tour.complete();
+              tour.complete?.();
               router.push("/integration/identity-verification");
             },
           },
@@ -208,7 +251,7 @@ export default function IntegrationShepherdTour() {
             text: "Finish",
             action: () => {
               clearTourState();
-              tour.complete();
+              tour.complete?.();
             },
           },
         ],

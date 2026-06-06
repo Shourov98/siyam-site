@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/components/auth/AuthProvider";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -34,9 +35,12 @@ const navItems = [
 export default function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { logout, user } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const initials = `${user?.firstName?.[0] ?? "C"}${user?.lastName?.[0] ?? ""}`.toUpperCase();
+  const displayName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "CommandCtr User";
 
   const handleNavClick = (
     _event: React.MouseEvent<HTMLAnchorElement>,
@@ -56,9 +60,10 @@ export default function DashboardSidebar() {
   const handleLogout = () => {
     setIsLoggingOut(true);
     setTimeout(() => {
+      logout();
       window.sessionStorage.removeItem("integration-shepherd-enabled");
       window.sessionStorage.removeItem("integration-shepherd-stage");
-      router.push("/login");
+      router.replace("/login");
     }, 1000);
   };
 
@@ -77,12 +82,12 @@ export default function DashboardSidebar() {
         <div className="hidden md:block fixed left-[88px] bottom-4 w-64 rounded-2xl border border-[#2d3d66] bg-[#131b31] p-4 text-[#8ea0c6] shadow-[0_10px_30px_rgba(0,0,0,0.5)] z-50 animate-in fade-in slide-in-from-left-2 duration-150">
           <div className="flex items-center gap-3 mb-3 pb-3 border-b border-[#263350]">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-[#0ad0e1] to-[#2563eb] text-sm font-bold text-white">
-              S
+              {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <h4 className="text-sm font-bold text-white truncate">Siyam Ahmed</h4>
-              <p className="text-[11px] text-[#58eaef] font-medium leading-none mb-1">Merchant Admin</p>
-              <p className="text-[11px] text-[#8ea0c6]/75 truncate">siyam@example.com</p>
+              <h4 className="text-sm font-bold text-white truncate">{displayName}</h4>
+              <p className="text-[11px] text-[#58eaef] font-medium leading-none mb-1">Merchant Workspace</p>
+              <p className="text-[11px] text-[#8ea0c6]/75 truncate">{user?.email ?? "merchant@example.com"}</p>
             </div>
           </div>
 
@@ -91,7 +96,7 @@ export default function DashboardSidebar() {
               type="button"
               onClick={() => {
                 setIsProfileOpen(false);
-                router.push("/settings");
+                router.push("/settings/profile");
               }}
               className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-[#8ea0c6] hover:bg-[#1f2e53] hover:text-white transition text-left cursor-pointer"
             >
@@ -143,12 +148,12 @@ export default function DashboardSidebar() {
         <div className="block md:hidden fixed right-4 top-16 w-64 rounded-2xl border border-slate-200 bg-white p-4 text-slate-700 shadow-xl z-50 animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-100">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-[#32cbc6] to-[#0ad0e1] text-sm font-bold text-white">
-              S
+              {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <h4 className="text-sm font-bold text-slate-800 truncate">Siyam Ahmed</h4>
-              <p className="text-[11px] text-[#32cbc6] font-medium leading-none mb-1">Merchant Admin</p>
-              <p className="text-[11px] text-slate-500 truncate">siyam@example.com</p>
+              <h4 className="text-sm font-bold text-slate-800 truncate">{displayName}</h4>
+              <p className="text-[11px] text-[#32cbc6] font-medium leading-none mb-1">Merchant Workspace</p>
+              <p className="text-[11px] text-slate-500 truncate">{user?.email ?? "merchant@example.com"}</p>
             </div>
           </div>
 
@@ -157,7 +162,7 @@ export default function DashboardSidebar() {
               type="button"
               onClick={() => {
                 setIsProfileOpen(false);
-                router.push("/settings");
+                router.push("/settings/profile");
               }}
               className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition text-left cursor-pointer"
             >
@@ -285,7 +290,7 @@ export default function DashboardSidebar() {
             type="button"
             onClick={() => setIsProfileOpen(!isProfileOpen)}
           >
-            S
+            {initials}
           </button>
         </div>
       </aside>
@@ -300,7 +305,7 @@ export default function DashboardSidebar() {
             type="button"
             onClick={() => setIsProfileOpen(!isProfileOpen)}
           >
-            S
+            {initials}
           </button>
         </div>
       </div>
