@@ -447,8 +447,7 @@ export default function IntegrationPage() {
                       </header>
 
                       <main className="channel-card-body">
-                        <h2 className="title-collapsed">{platform.title}</h2>
-                        <h2 className="title-expanded">{platform.title}</h2>
+                        <h2 className="channel-card-title">{platform.title}</h2>
 
                         <div className="row-subtitle">
                           <div className="overflow-hidden">
