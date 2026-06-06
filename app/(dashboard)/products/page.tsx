@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import ProductGenerationModal from "./ProductGenerationModal";
 
 type MarketState = "active" | "pending" | "out_of_stock" | "not_listed";
 
@@ -143,6 +144,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [searchQuery, setSearchQuery] = useState("");
   const [globalEditMode, setGlobalEditMode] = useState(false);
+  const [generationModalOpen, setGenerationModalOpen] = useState(false);
 
   const filteredProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -187,6 +189,11 @@ export default function ProductsPage() {
 
   return (
     <section className="px-4 py-5 md:px-8 md:py-8">
+      <ProductGenerationModal
+        onClose={() => setGenerationModalOpen(false)}
+        open={generationModalOpen}
+      />
+
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <article className="rounded-2xl bg-[#283d6e] p-4 text-white shadow-[0_18px_40px_-28px_rgba(17,33,64,0.9)]">
@@ -264,13 +271,14 @@ export default function ProductsPage() {
               <CloudUpload className="h-4 w-4" />
               Import
             </button>
-            <Link
+            <button
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#172544] px-5 text-sm font-semibold text-white transition hover:bg-[#101e3b]"
-              href="/products/add"
+              onClick={() => setGenerationModalOpen(true)}
+              type="button"
             >
               <Plus className="h-4 w-4" />
               Add Product
-            </Link>
+            </button>
           </div>
         </div>
 
