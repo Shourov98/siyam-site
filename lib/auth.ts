@@ -100,3 +100,45 @@ export const authStorage = {
     window.localStorage.removeItem(this.key);
   },
 };
+
+export const getStoredAccessToken = () => authStorage.load()?.accessToken ?? null;
+
+export const clearStoredSession = () => {
+  authStorage.clear();
+};
+
+export const requestWithAuth = async <T>(path: string, init?: RequestInit): Promise<T> => {
+  const accessToken = getStoredAccessToken();
+
+  if (!accessToken) {
+    clearStoredSession();
+    if (typeof window !== "undefined") {
+      window.location.assign("/login");
+    }
+    throw new ApiClientError("Authentication is required.");
+  }
+
+  const response = await fetch(buildUrl(path), {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  const payload = (await response.json().catch(() => null)) as ApiSuccessResponse<T> | ApiErrorResponse | null;
+
+  if (response.status === 401) {
+    clearStoredSession();
+    if (typeof window !== "undefined") {
+      window.location.assign("/login");
+    }
+  }
+
+  if (!response.ok || !payload?.success) {
+    throw new ApiClientError(payload?.message ?? "Request failed", payload && "errors" in payload ? payload.errors : null);
+  }
+
+  return payload.data;
+};
