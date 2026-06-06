@@ -4,7 +4,6 @@ import AuthRedirect from "@/components/auth/AuthRedirect";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ApiClientError } from "@/lib/auth";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import AuthShell from "../../components/auth/AuthShell";
 import { Eye, EyeOff } from "lucide-react";
@@ -12,7 +11,6 @@ import { Eye, EyeOff } from "lucide-react";
 const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
 
 export default function SignupPage() {
-  const router = useRouter();
   const { register } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -52,7 +50,7 @@ export default function SignupPage() {
         email: email.trim(),
         password,
       });
-      router.replace("/dashboard");
+      window.location.replace("/dashboard");
     } catch (submissionError) {
       setError(submissionError instanceof ApiClientError ? submissionError.message : "Unable to create your account right now.");
     } finally {

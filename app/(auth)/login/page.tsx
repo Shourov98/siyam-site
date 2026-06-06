@@ -5,7 +5,6 @@ import AuthRedirect from "@/components/auth/AuthRedirect";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ApiClientError } from "@/lib/auth";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import AuthShell from "../../components/auth/AuthShell";
 
@@ -16,7 +15,6 @@ const socialButtons = [
 ];
 
 export default function LoginPage() {
-  const router = useRouter();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,7 +35,7 @@ export default function LoginPage() {
 
     try {
       await login({ email: email.trim(), password });
-      router.replace("/dashboard");
+      window.location.replace("/dashboard");
     } catch (submissionError) {
       setError(submissionError instanceof ApiClientError ? submissionError.message : "Unable to log in right now.");
     } finally {
