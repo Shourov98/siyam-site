@@ -62,10 +62,10 @@
 
   /* Performance transitions */
   transition:
-    flex-grow 480ms cubic-bezier(0.25, 0.8, 0.25, 1),
-    background-color 450ms cubic-bezier(0.25, 0.8, 0.25, 1),
-    border-color 450ms cubic-bezier(0.25, 0.8, 0.25, 1),
-    box-shadow 480ms cubic-bezier(0.25, 0.8, 0.25, 1);
+    flex-grow 800ms cubic-bezier(0.25, 0.8, 0.25, 1),
+    background-color 700ms cubic-bezier(0.25, 0.8, 0.25, 1),
+    border-color 700ms cubic-bezier(0.25, 0.8, 0.25, 1),
+    box-shadow 800ms cubic-bezier(0.25, 0.8, 0.25, 1);
   
   will-change: flex-grow, background-color, border-color, box-shadow;
 }
@@ -108,8 +108,8 @@
   opacity: 0;
   transform: scale(0.5) translate(20%, -20%);
   transition: 
-    opacity 450ms cubic-bezier(0.25, 0.8, 0.25, 1), 
-    transform 480ms cubic-bezier(0.25, 0.8, 0.25, 1);
+    opacity 700ms cubic-bezier(0.25, 0.8, 0.25, 1), 
+    transform 800ms cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .channel-card[data-expanded="true"] .deco-bubble {
@@ -149,9 +149,9 @@
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
   
   transition: 
-    background-color 450ms cubic-bezier(0.25, 0.8, 0.25, 1), 
-    color 450ms cubic-bezier(0.25, 0.8, 0.25, 1),
-    transform 450ms cubic-bezier(0.25, 0.8, 0.25, 1);
+    background-color 700ms cubic-bezier(0.25, 0.8, 0.25, 1), 
+    color 700ms cubic-bezier(0.25, 0.8, 0.25, 1),
+    transform 700ms cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .channel-card[data-expanded="true"] .icon-box {
@@ -170,8 +170,8 @@
   opacity: 0;
   transform: translateY(-8px);
   transition: 
-    opacity 400ms cubic-bezier(0.25, 0.8, 0.25, 1), 
-    transform 400ms cubic-bezier(0.25, 0.8, 0.25, 1);
+    opacity 600ms cubic-bezier(0.25, 0.8, 0.25, 1), 
+    transform 600ms cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .channel-card[data-expanded="true"] .badge-label {
@@ -189,23 +189,23 @@
   justify-content: center;
 }
 
-/* Titles */
 .channel-card .channel-card-title {
-  font-size: 1.35rem;
-  font-weight: 700;
+  font-size: 2rem;
+  font-weight: 800;
   color: #ffffff;
   margin: 0;
   white-space: nowrap;
   
+  transform: scale(0.675);
+  transform-origin: left center;
   transition: 
-    font-size 480ms cubic-bezier(0.25, 0.8, 0.25, 1), 
-    color 450ms cubic-bezier(0.25, 0.8, 0.25, 1);
+    transform 800ms cubic-bezier(0.25, 0.8, 0.25, 1), 
+    color 700ms cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .channel-card[data-expanded="true"] .channel-card-title {
-  font-size: 2rem;
-  font-weight: 800;
   color: #1e293b;
+  transform: scale(1);
 }
 
 /* Subtitle (Animated Height) */
@@ -214,8 +214,8 @@
   grid-template-rows: 0fr;
   opacity: 0;
   transition: 
-    grid-template-rows 480ms cubic-bezier(0.25, 0.8, 0.25, 1), 
-    opacity 450ms cubic-bezier(0.25, 0.8, 0.25, 1);
+    grid-template-rows 800ms cubic-bezier(0.25, 0.8, 0.25, 1), 
+    opacity 700ms cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .channel-card[data-expanded="true"] .row-subtitle {
@@ -237,8 +237,8 @@
   grid-template-rows: 0fr;
   opacity: 0;
   transition: 
-    grid-template-rows 480ms cubic-bezier(0.25, 0.8, 0.25, 1), 
-    opacity 450ms cubic-bezier(0.25, 0.8, 0.25, 1);
+    grid-template-rows 800ms cubic-bezier(0.25, 0.8, 0.25, 1), 
+    opacity 700ms cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .channel-card[data-expanded="true"] .row-description {
@@ -281,8 +281,8 @@
   grid-template-rows: 0fr;
   opacity: 0;
   transition: 
-    grid-template-rows 480ms cubic-bezier(0.25, 0.8, 0.25, 1), 
-    opacity 450ms cubic-bezier(0.25, 0.8, 0.25, 1);
+    grid-template-rows 800ms cubic-bezier(0.25, 0.8, 0.25, 1), 
+    opacity 700ms cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .channel-card[data-expanded="true"] .expanded-footer-wrapper {
@@ -302,8 +302,8 @@
   grid-template-rows: 1fr;
   opacity: 1;
   transition: 
-    grid-template-rows 480ms cubic-bezier(0.25, 0.8, 0.25, 1), 
-    opacity 450ms cubic-bezier(0.25, 0.8, 0.25, 1);
+    grid-template-rows 800ms cubic-bezier(0.25, 0.8, 0.25, 1), 
+    opacity 700ms cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .channel-card[data-expanded="true"] .collapsed-footer-wrapper {
