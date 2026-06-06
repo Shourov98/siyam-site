@@ -264,13 +264,13 @@ export default function ProductsPage() {
               <CloudUpload className="h-4 w-4" />
               Import
             </button>
-            <button
+            <Link
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#172544] px-5 text-sm font-semibold text-white transition hover:bg-[#101e3b]"
-              type="button"
+              href="/products/add"
             >
               <Plus className="h-4 w-4" />
               Add Product
-            </button>
+            </Link>
           </div>
         </div>
 
