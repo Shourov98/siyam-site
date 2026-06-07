@@ -5,6 +5,7 @@ import {
   Boxes,
   CheckCircle2,
   ChevronRight,
+  CircleAlert,
   Image as ImageIcon,
   LoaderCircle,
   PackageCheck,
@@ -146,6 +147,13 @@ type SavedDraftSnapshot = {
   savedAt: string;
 };
 
+type PublishFieldErrors = {
+  title: boolean;
+  price: boolean;
+};
+
+type DraftSaveState = "idle" | "saving" | "saved";
+
 const marketOrder: MarketKey[] = ["amazon", "ebay", "tiktok", "shopify"];
 
 const marketLabels: Record<MarketKey, string> = {
@@ -172,6 +180,10 @@ const emptyPublishState: PublishActionState = {
 
 const publishStatusOptions: PublishStatus[] = ["DRAFT", "ACTIVE"];
 const draftStorageKey = "commandctr-add-product-draft";
+const emptyPublishFieldErrors: PublishFieldErrors = {
+  title: false,
+  price: false,
+};
 
 const sampleProduct: ApiProduct = {
   core: {
@@ -484,24 +496,37 @@ function EditableField({
   value,
   onChange,
   multiline = false,
+  invalid = false,
+  helperText,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   multiline?: boolean;
+  invalid?: boolean;
+  helperText?: string;
 }) {
   return (
-    <label className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
+    <label
+      className={`block rounded-2xl border bg-[#f8fbff] p-4 ${
+        invalid ? "border-[#ef6b6b] bg-[#fff7f7]" : "border-[#dbe2ee]"
+      }`}
+    >
       <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">{label}</p>
+      {helperText ? <p className={`mt-1 text-xs ${invalid ? "text-[#cf4b4b]" : "text-[#8ea0bf]"}`}>{helperText}</p> : null}
       {multiline ? (
         <textarea
-          className="mt-2 min-h-28 w-full rounded-xl border border-[#d4ddec] bg-white px-3 py-3 text-sm text-[#31415e] outline-none transition focus:border-[#97abd0]"
+          className={`mt-2 min-h-28 w-full rounded-xl bg-white px-3 py-3 text-sm text-[#31415e] outline-none transition ${
+            invalid ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" : "border border-[#d4ddec] focus:border-[#97abd0]"
+          }`}
           onChange={(event) => onChange(event.target.value)}
           value={value}
         />
       ) : (
         <input
-          className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-3 text-sm text-[#31415e] outline-none transition focus:border-[#97abd0]"
+          className={`mt-2 h-11 w-full rounded-xl bg-white px-3 text-sm text-[#31415e] outline-none transition ${
+            invalid ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" : "border border-[#d4ddec] focus:border-[#97abd0]"
+          }`}
           onChange={(event) => onChange(event.target.value)}
           type="text"
           value={value}
@@ -573,6 +598,7 @@ export default function AddProductEditor({
 }) {
   const router = useRouter();
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const lastSavedDraftRef = useRef<string | null>(null);
   const [draft, setDraft] = useState<ApiProduct>(sampleProduct);
   const [variantsByMarket, setVariantsByMarket] = useState<Record<MarketKey, ApiVariant[]>>(sampleVariants);
   const [productId, setProductId] = useState<string | null>(initialProductId);
@@ -581,6 +607,7 @@ export default function AddProductEditor({
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [draftSaveState, setDraftSaveState] = useState<DraftSaveState>("idle");
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [marketRegenerating, setMarketRegenerating] = useState<MarketActionState>(emptyActionState);
   const [variantSubmitting, setVariantSubmitting] = useState<MarketActionState>(emptyActionState);
@@ -589,7 +616,12 @@ export default function AddProductEditor({
   const [publishPrice, setPublishPrice] = useState("");
   const [publishSku, setPublishSku] = useState("");
   const [publishStatus, setPublishStatus] = useState<PublishStatus>("DRAFT");
+  const [shopifyPublishMessage, setShopifyPublishMessage] = useState("");
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
+  const [isDeletingDraft, setIsDeletingDraft] = useState(false);
+  const [publishFieldErrors, setPublishFieldErrors] = useState<PublishFieldErrors>(emptyPublishFieldErrors);
+  const [restoredLocalDraftProductId, setRestoredLocalDraftProductId] = useState<string | null | undefined>(undefined);
+  const [hasInitializedDraftStorage, setHasInitializedDraftStorage] = useState(false);
   const [variantInputs, setVariantInputs] = useState<Record<MarketKey, { size: string; color: string }>>({
     amazon: { size: "", color: "" },
     ebay: { size: "", color: "" },
@@ -613,12 +645,26 @@ export default function AddProductEditor({
     };
   }
 
+  function buildComparableDraftSignature(snapshot: SavedDraftSnapshot) {
+    return JSON.stringify({
+      draft: snapshot.draft,
+      variantsByMarket: snapshot.variantsByMarket,
+      productId: snapshot.productId,
+      sourceTitle: snapshot.sourceTitle,
+      publishVendor: snapshot.publishVendor,
+      publishPrice: snapshot.publishPrice,
+      publishSku: snapshot.publishSku,
+      publishStatus: snapshot.publishStatus,
+    });
+  }
+
   function persistDraftSnapshot(snapshot: SavedDraftSnapshot) {
     if (typeof window === "undefined") {
       return;
     }
 
     window.localStorage.setItem(getStoredDraftKey(), JSON.stringify(snapshot));
+    lastSavedDraftRef.current = buildComparableDraftSignature(snapshot);
     setHasSavedDraft(true);
   }
 
@@ -631,11 +677,14 @@ export default function AddProductEditor({
     setPublishPrice(snapshot.publishPrice);
     setPublishSku(snapshot.publishSku);
     setPublishStatus(snapshot.publishStatus);
+    setShopifyPublishMessage("");
     setHasSavedDraft(true);
+    setDraftSaveState("saved");
+    setPublishFieldErrors(emptyPublishFieldErrors);
     setStatusMessage(message);
   }
 
-  function clearSavedDraft(message: string) {
+  function resetDraftEditor(message: string) {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(getStoredDraftKey());
     }
@@ -649,6 +698,8 @@ export default function AddProductEditor({
     setPublishPrice("");
     setPublishSku("");
     setPublishStatus("DRAFT");
+    setShopifyPublishMessage("");
+    setPublishFieldErrors(emptyPublishFieldErrors);
     setVariantInputs({
       amazon: { size: "", color: "" },
       ebay: { size: "", color: "" },
@@ -656,8 +707,15 @@ export default function AddProductEditor({
       shopify: { size: "", color: "" },
     });
     setHasSavedDraft(false);
+    setDraftSaveState("idle");
+    lastSavedDraftRef.current = null;
+    setRestoredLocalDraftProductId(undefined);
     setStatusMessage(message);
     router.replace(`/products/add?market=${activeMarket}`, { scroll: false });
+  }
+
+  function clearSavedDraft() {
+    resetDraftEditor("Draft cleared for this account.");
   }
 
   function loadSavedDraft() {
@@ -675,6 +733,7 @@ export default function AddProductEditor({
     try {
       const snapshot = JSON.parse(raw) as SavedDraftSnapshot;
       applySavedDraft(snapshot, "Saved draft loaded for this account.");
+      setRestoredLocalDraftProductId(snapshot.productId);
     } catch {
       window.localStorage.removeItem(getStoredDraftKey());
       setHasSavedDraft(false);
@@ -689,6 +748,9 @@ export default function AddProductEditor({
 
     const raw = window.localStorage.getItem(getStoredDraftKey());
     if (!raw) {
+      window.setTimeout(() => {
+        setHasInitializedDraftStorage(true);
+      }, 0);
       return;
     }
 
@@ -698,21 +760,35 @@ export default function AddProductEditor({
         setHasSavedDraft(true);
       }, 0);
 
-      if (!initialProductId) {
+      const matchesCurrentDraft = !initialProductId || snapshot.productId === initialProductId;
+      if (matchesCurrentDraft) {
         window.setTimeout(() => {
           applySavedDraft(snapshot, "Saved draft restored for this account.");
+          setRestoredLocalDraftProductId(snapshot.productId);
+          setHasInitializedDraftStorage(true);
+        }, 0);
+      } else {
+        window.setTimeout(() => {
+          setRestoredLocalDraftProductId(undefined);
+          setHasInitializedDraftStorage(true);
         }, 0);
       }
     } catch {
       window.localStorage.removeItem(getStoredDraftKey());
       window.setTimeout(() => {
         setHasSavedDraft(false);
+        setRestoredLocalDraftProductId(undefined);
+        setHasInitializedDraftStorage(true);
       }, 0);
     }
   }, [initialProductId]);
 
   useEffect(() => {
     if (!initialProductId) {
+      return;
+    }
+
+    if (restoredLocalDraftProductId === initialProductId) {
       return;
     }
 
@@ -735,6 +811,7 @@ export default function AddProductEditor({
         setDraft(record.product);
         setVariantsByMarket(record.variants);
         setSourceTitle(record.product.core.source_title);
+        setDraftSaveState("saved");
         setStatusMessage(`Loaded draft ${record.id.slice(0, 8)} for editing.`);
       } catch (error) {
         if (!active) {
@@ -754,10 +831,14 @@ export default function AddProductEditor({
     return () => {
       active = false;
     };
-  }, [initialProductId]);
+  }, [initialProductId, restoredLocalDraftProductId]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!hasInitializedDraftStorage) {
       return;
     }
 
@@ -776,7 +857,32 @@ export default function AddProductEditor({
     window.setTimeout(() => {
       setHasSavedDraft(true);
     }, 0);
-  }, [draft, productId, publishPrice, publishSku, publishStatus, publishVendor, sourceTitle, variantsByMarket]);
+  }, [draft, hasInitializedDraftStorage, productId, publishPrice, publishSku, publishStatus, publishVendor, sourceTitle, variantsByMarket]);
+
+  const currentDraftComparableSignature = useMemo(
+    () =>
+      buildComparableDraftSignature({
+        draft,
+        variantsByMarket,
+        productId,
+        sourceTitle,
+        publishVendor,
+        publishPrice,
+        publishSku,
+        publishStatus,
+        savedAt: "",
+      }),
+    [draft, variantsByMarket, productId, sourceTitle, publishVendor, publishPrice, publishSku, publishStatus],
+  );
+
+  useEffect(() => {
+    if (!lastSavedDraftRef.current) {
+      setDraftSaveState("idle");
+      return;
+    }
+
+    setDraftSaveState(lastSavedDraftRef.current === currentDraftComparableSignature ? "saved" : "idle");
+  }, [currentDraftComparableSignature]);
 
   const imageCards = useMemo(
     () => [
@@ -796,6 +902,7 @@ export default function AddProductEditor({
     setVariantsByMarket(record.variants);
     setSourceTitle(record.product.core.source_title);
     setPublishSku((current) => current || record.id.slice(0, 12).toUpperCase());
+    setDraftSaveState("saved");
     setStatusMessage(message);
   }
 
@@ -836,30 +943,41 @@ export default function AddProductEditor({
   async function uploadToShopify() {
     const title = getPublishTitle();
     const trimmedPrice = publishPrice.trim();
+    setShopifyPublishMessage("");
+    const nextFieldErrors: PublishFieldErrors = {
+      title: !title,
+      price: !trimmedPrice,
+    };
+    setPublishFieldErrors(nextFieldErrors);
     const missingFields: string[] = [];
-    if (!title) {
+    if (nextFieldErrors.title) {
       missingFields.push("Product title");
     }
-    if (!trimmedPrice) {
+    if (nextFieldErrors.price) {
       missingFields.push("Default price");
     }
     if (missingFields.length > 0) {
+      setShopifyPublishMessage(`Required before Shopify upload: ${missingFields.join(", ")}.`);
       setStatusMessage(`Please fill the required publish fields: ${missingFields.join(", ")}.`);
       return;
     }
 
     const numericPrice = Number(trimmedPrice);
     if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+      setPublishFieldErrors((prev) => ({ ...prev, price: true }));
+      setShopifyPublishMessage("Default price must be a valid number greater than or equal to 0.");
       setStatusMessage("Price must be a valid number greater than or equal to 0.");
       return;
     }
 
     if (!publishStatusOptions.includes(publishStatus)) {
+      setShopifyPublishMessage("Shopify status must be either DRAFT or ACTIVE.");
       setStatusMessage("Status must be either DRAFT or ACTIVE.");
       return;
     }
 
     setPublishSubmitting((prev) => ({ ...prev, shopify: true }));
+    setShopifyPublishMessage("Uploading product to Shopify...");
     try {
       await shopifyProductsApi.createShopifyProduct({
         title,
@@ -877,13 +995,16 @@ export default function AddProductEditor({
         ],
       });
 
-      setStatusMessage("Product created on Shopify successfully");
+      setShopifyPublishMessage("Product uploaded to Shopify successfully. Redirecting to Products...");
+      setStatusMessage("Product uploaded to Shopify successfully.");
       persistDraftSnapshot(buildDraftSnapshot());
       window.setTimeout(() => {
         router.push("/products");
       }, 700);
     } catch (error) {
-      setStatusMessage(error instanceof ApiClientError ? error.message : "Could not create the Shopify product.");
+      const message = error instanceof ApiClientError ? error.message : "Could not upload the product to Shopify.";
+      setShopifyPublishMessage(message);
+      setStatusMessage(message);
     } finally {
       setPublishSubmitting((prev) => ({ ...prev, shopify: false }));
     }
@@ -928,8 +1049,10 @@ export default function AddProductEditor({
 
   async function saveDraft() {
     persistDraftSnapshot(buildDraftSnapshot());
+    setDraftSaveState("saving");
 
     if (!productId) {
+      setDraftSaveState("saved");
       setStatusMessage("Draft saved locally for this account. Generate with AI later if you want to sync it to product-ai-agent.");
       return;
     }
@@ -961,10 +1084,40 @@ export default function AddProductEditor({
         ...buildDraftSnapshot(),
         productId: record.id,
       });
+      setDraftSaveState("saved");
     } catch (error) {
+      setDraftSaveState("idle");
       setStatusMessage(error instanceof Error ? error.message : "Draft save failed.");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function deleteDraft() {
+    const savedProductId = productId;
+
+    setIsDeletingDraft(true);
+    try {
+      if (savedProductId) {
+        const response = await fetch(`/api/product-ai/products/${savedProductId}`, {
+          method: "DELETE",
+        });
+
+        if (!response.ok && response.status !== 404 && response.status !== 405) {
+          const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(errorBody?.detail ?? "Draft delete failed.");
+        }
+      }
+
+      resetDraftEditor(
+        savedProductId
+          ? "Draft deleted locally. Backend draft was removed when supported by the upstream service."
+          : "Local draft deleted.",
+      );
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Draft delete failed.");
+    } finally {
+      setIsDeletingDraft(false);
     }
   }
 
@@ -1097,11 +1250,16 @@ export default function AddProductEditor({
 
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
               <input
-                className="h-11 rounded-xl border border-[#51658f] bg-white/5 px-3 text-sm text-white outline-none transition placeholder:text-[#aab8d6] focus:border-[#8ea0bf]"
+                className={`h-11 rounded-xl bg-white/5 px-3 text-sm text-white outline-none transition placeholder:text-[#aab8d6] ${
+                  publishFieldErrors.title ? "border border-[#ff7d7d] focus:border-[#ff9b9b]" : "border border-[#51658f] focus:border-[#8ea0bf]"
+                }`}
                 onChange={(event) => {
                   const value = event.target.value;
                   setSourceTitle(value);
                   setDraft((prev) => ({ ...prev, core: { ...prev.core, source_title: value } }));
+                  if (publishFieldErrors.title && value.trim()) {
+                    setPublishFieldErrors((prev) => ({ ...prev, title: false }));
+                  }
                 }}
                 placeholder="Source title used for generation"
                 type="text"
@@ -1137,10 +1295,18 @@ export default function AddProductEditor({
               </button>
               <button
                 className="inline-flex h-10 items-center justify-center rounded-xl border border-[#51658f] bg-transparent px-4 text-sm font-semibold text-[#dce7fb] transition hover:bg-white/5"
-                onClick={() => clearSavedDraft("Draft cleared for this account.")}
+                onClick={() => clearSavedDraft()}
                 type="button"
               >
                 Clear Draft
+              </button>
+              <button
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-[#7d3b45] bg-[#2b1016] px-4 text-sm font-semibold text-[#ffd8de] transition hover:bg-[#39151d] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isDeletingDraft}
+                onClick={() => void deleteDraft()}
+                type="button"
+              >
+                {isDeletingDraft ? "Deleting..." : "Delete Draft"}
               </button>
               <p className="text-xs text-[#aab8d6]">
                 Draft changes are also saved locally for this account so they survive reloads and sign-ins.
@@ -1324,6 +1490,8 @@ export default function AddProductEditor({
                     <EditableField
                       label="Storefront Title"
                       onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, title: value } }))}
+                      helperText={publishFieldErrors.title ? "Required for Shopify publish." : undefined}
+                      invalid={publishFieldErrors.title}
                       value={draft.shopify.title}
                     />
                     <EditableField
@@ -1378,7 +1546,14 @@ export default function AddProductEditor({
                 />
                 <EditableField
                   label="Default Price"
-                  onChange={setPublishPrice}
+                  helperText={publishFieldErrors.price ? "Required for Shopify publish." : undefined}
+                  invalid={publishFieldErrors.price}
+                  onChange={(value) => {
+                    setPublishPrice(value);
+                    if (publishFieldErrors.price && value.trim()) {
+                      setPublishFieldErrors((prev) => ({ ...prev, price: false }));
+                    }
+                  }}
                   value={publishPrice}
                 />
                 <EditableField
@@ -1445,15 +1620,41 @@ export default function AddProductEditor({
                   type="button"
                 >
                   {publishSubmitting.shopify ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  {publishSubmitting.shopify ? "Creating on Shopify..." : "Create on Shopify"}
+                  {publishSubmitting.shopify ? "Uploading to Shopify..." : "Upload to Shopify"}
                 </button>
               </div>
 
               <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-3 text-xs leading-6 text-[#667a99]">
                 CommandCtr local database creation is not exposed as a standalone backend endpoint yet.
-                Shopify upload is live because `commandctr-backend` already supports `POST /shopify/products`, and that flow also upserts the local CommandCtr product record.
+                Shopify upload is live because `commandctr-backend` already supports `POST /shopify/products`, and that flow creates the Shopify product and also upserts the local CommandCtr product record.
                 Amazon, eBay, and TikTok upload buttons are shown separately but remain disabled until those marketplace create APIs exist in the backend.
               </div>
+              <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-xs leading-6 text-[#667a99]">
+                Shopify upload needs:
+                <span className="font-semibold text-[#31415e]"> product title </span>
+                and
+                <span className="font-semibold text-[#31415e]"> default price</span>.
+                Vendor, SKU, tags, product type, description, and status are included when available.
+              </div>
+              {publishFieldErrors.title || publishFieldErrors.price ? (
+                <div className="mt-4 flex items-start gap-2 rounded-2xl border border-[#f3c1c1] bg-[#fff5f5] px-4 py-3 text-sm text-[#b24646]">
+                  <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>Fill the highlighted required fields before creating the Shopify product.</p>
+                </div>
+              ) : null}
+              {shopifyPublishMessage ? (
+                <div
+                  className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                    publishSubmitting.shopify
+                      ? "border border-[#cde4ff] bg-[#f3f8ff] text-[#355b91]"
+                      : shopifyPublishMessage.toLowerCase().includes("success")
+                        ? "border border-[#ccebdc] bg-[#eefbf4] text-[#267a4f]"
+                        : "border border-[#dbe2ee] bg-[#f8fbff] text-[#546884]"
+                  }`}
+                >
+                  {shopifyPublishMessage}
+                </div>
+              ) : null}
             </article>
 
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
@@ -1633,7 +1834,7 @@ export default function AddProductEditor({
               <div className="mt-4 space-y-3 text-sm text-[#44526d]">
                 {[
                   "Generate uses POST /api/product-ai/products/generate through the Next proxy.",
-                  "Save Draft uses PATCH /api/product-ai/products/{id}.",
+                  "Save Draft keeps the full editor state locally for the signed-in account and also PATCHes the persisted backend draft when a backend product ID exists.",
                   "Marketplace-specific regenerate uses the backend regeneration endpoint.",
                   "Size and color variants now call the backend variant APIs.",
                   "Generated image cards render backend output files through a local image proxy route.",
@@ -1663,19 +1864,39 @@ export default function AddProductEditor({
                     ? "This page is connected to a persisted backend draft."
                     : "Generate a product draft first to unlock saving, regeneration, and variants."}
               </div>
-              <div className="mt-4 flex gap-3">
-                <Link className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#172544] px-4 text-sm font-semibold text-white" href="/products">
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <Link
+                  className="inline-flex min-h-11 min-w-[140px] items-center justify-center gap-2 rounded-xl bg-[#172544] px-4 py-3 text-center text-sm font-semibold leading-5 text-white"
+                  href="/products"
+                >
                   <BadgeCheck className="h-4 w-4" />
                   Back to Products
                 </Link>
                 <button
-                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={!hasPersistedProduct || isSaving}
+                  className={`inline-flex min-h-11 min-w-[132px] items-center justify-center gap-2 rounded-xl px-4 py-3 text-center text-sm font-semibold leading-5 disabled:cursor-not-allowed disabled:opacity-60 ${
+                    draftSaveState === "saved"
+                      ? "border border-[#ccebdc] bg-[#eefbf4] text-[#267a4f]"
+                      : "border border-[#d5dcea] bg-white text-[#4a5d7d]"
+                  }`}
+                  disabled={isSaving}
                   onClick={() => void saveDraft()}
                   type="button"
                 >
-                  {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  {isSaving ? "Saving..." : "Save Draft"}
+                  {draftSaveState === "saving" ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                  {draftSaveState === "saving" ? "Saving..." : draftSaveState === "saved" ? "Saved" : "Save Draft"}
+                </button>
+                <button
+                  className="inline-flex min-h-11 min-w-[132px] items-center justify-center gap-2 rounded-xl border border-[#e6cfd4] bg-[#fff7f8] px-4 py-3 text-center text-sm font-semibold leading-5 text-[#8a4b57] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isDeletingDraft}
+                  onClick={() => void deleteDraft()}
+                  type="button"
+                >
+                  {isDeletingDraft ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CircleAlert className="h-4 w-4" />}
+                  {isDeletingDraft ? "Deleting..." : "Delete Draft"}
                 </button>
               </div>
             </article>

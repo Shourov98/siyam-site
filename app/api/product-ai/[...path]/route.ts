@@ -91,3 +91,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const { path } = await context.params;
   return forwardRequest(request, path);
 }
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const { path } = await context.params;
+  return forwardRequest(request, path);
+}
