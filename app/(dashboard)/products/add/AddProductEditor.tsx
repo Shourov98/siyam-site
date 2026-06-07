@@ -393,19 +393,28 @@ function ProductPreview({
   backgroundLabel: string;
 }) {
   const src = image ? imageUrlFor(image.absolute_path) : null;
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const hasLoadError = Boolean(src && failedSrc === src);
 
-  if (src) {
+  if (src && !hasLoadError) {
     return (
       <div className="overflow-hidden rounded-2xl border border-[#dbe2ee] bg-white">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img alt={alt} className="aspect-[4/3] w-full object-contain bg-white" src={src} />
+        <img
+          alt={alt}
+          className="aspect-[4/3] w-full object-contain bg-white"
+          onError={() => setFailedSrc(src)}
+          src={src}
+        />
       </div>
     );
   }
 
   return (
     <div className="flex aspect-[4/3] items-center justify-center rounded-2xl border border-dashed border-[#d4ddec] bg-[#f8fbff] p-4 text-center text-xs text-[#667a99]">
-      {backgroundLabel} preview will appear here after generation.
+      {hasLoadError
+        ? "Preview file is not reachable from this local app. This usually happens when the draft was generated on the remote Product AI service and the image only exists on that server."
+        : `${backgroundLabel} preview will appear here after generation.`}
     </div>
   );
 }

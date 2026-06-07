@@ -4,17 +4,34 @@ import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 
 const DEFAULT_OUTPUT_ROOT = path.resolve(process.cwd(), "../product-ai-agent/output");
+const RENDER_OUTPUT_ROOT_PREFIX = "/opt/render/project/src/output/";
 
 function getAllowedRoot() {
   return path.resolve(process.env.PRODUCT_AI_AGENT_OUTPUT_ROOT ?? DEFAULT_OUTPUT_ROOT);
 }
 
+function mapKnownAbsoluteOutputPath(rawPath: string, allowedRoot: string) {
+  const normalizedPath = path.posix.normalize(rawPath.replace(/\\/g, "/"));
+
+  if (normalizedPath.startsWith(RENDER_OUTPUT_ROOT_PREFIX)) {
+    const relativeOutputPath = normalizedPath.slice(RENDER_OUTPUT_ROOT_PREFIX.length);
+    return path.resolve(allowedRoot, relativeOutputPath);
+  }
+
+  return null;
+}
+
 function resolveRequestedPath(rawPath: string, allowedRoot: string) {
   if (path.isAbsolute(rawPath)) {
+    const mappedPath = mapKnownAbsoluteOutputPath(rawPath, allowedRoot);
+    if (mappedPath) {
+      return mappedPath;
+    }
+
     return path.resolve(rawPath);
   }
 
-  return path.resolve(allowedRoot, "..", rawPath);
+  return path.resolve(allowedRoot, rawPath);
 }
 
 function getMimeType(filePath: string) {
