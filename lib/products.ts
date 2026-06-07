@@ -45,6 +45,24 @@ export type ShopifyVariantPriceResult = {
   compareAtPrice?: string;
 };
 
+export type InventoryRecord = {
+  _id?: string;
+  id?: string;
+  productId?: string;
+  marketplace?: string;
+  shopifyProductId?: string;
+  shopifyVariantId?: string;
+  inventoryItemId: string;
+  sku?: string;
+  title?: string;
+  availableQuantity?: number;
+  safetyBuffer?: number;
+  lowStockThreshold?: number;
+  locationId?: string;
+  locationName?: string;
+  updatedAt?: string;
+};
+
 export const productsApi = {
   getProducts() {
     return requestWithAuth<ProductListItem[]>("/products");
@@ -60,6 +78,10 @@ export const productsApi = {
     return requestWithAuth<ShopifyInventoryLevel[]>("/shopify/inventory");
   },
 
+  getInventory() {
+    return requestWithAuth<InventoryRecord[]>("/inventory");
+  },
+
   updateShopifyVariantPrice(shopifyProductId: string, payload: { variantId: string; price: string; compareAtPrice?: string }) {
     return requestWithAuth<ShopifyVariantPriceResult>(`/shopify/products/${encodeURIComponent(shopifyProductId)}/price`, {
       method: "PATCH",
@@ -71,6 +93,13 @@ export const productsApi = {
     return requestWithAuth<{ createdAt: string } | null>(`/shopify/inventory/${encodeURIComponent(inventoryItemId)}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
+    });
+  },
+
+  updateInventorySafetyBuffer(inventoryId: string, safetyBuffer: number) {
+    return requestWithAuth<InventoryRecord>(`/inventory/${encodeURIComponent(inventoryId)}/safety-buffer`, {
+      method: "PATCH",
+      body: JSON.stringify({ safetyBuffer }),
     });
   },
 };

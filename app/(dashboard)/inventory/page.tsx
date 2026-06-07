@@ -3,122 +3,179 @@
 import {
   AlertTriangle,
   CloudUpload,
-  Edit3,
   FileDown,
   Filter,
+  Loader2,
   Package2,
   Plus,
   Search,
   TriangleAlert,
-  Trash2,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
-type ChannelState = "active" | "paused";
+import { ApiClientError } from "@/lib/auth";
+import { productsApi, type InventoryRecord, type ProductListItem, type ShopifyInventoryLevel } from "@/lib/products";
 
-type ChannelInfo = {
-  value: string;
-  state: ChannelState;
-};
-
-type InventoryItem = {
+type InventoryRow = {
   id: string;
-  name: string;
+  productDocumentId?: string;
+  shopifyProductId: string;
+  inventoryItemId: string;
+  locationId: string;
+  locationName: string;
+  title: string;
   sku: string;
-  asin: string;
-  thumbTone: string;
-  masterCount: string;
-  amazon: ChannelInfo;
-  ebay: ChannelInfo;
-  tiktok: ChannelInfo;
-  safetyBuffer: string;
-  available: string;
+  featuredImage?: string;
+  masterCount: number;
+  available: number;
+  safetyBuffer: number;
+  lowStockThreshold: number;
 };
 
-const initialInventory: InventoryItem[] = [
-  {
-    id: "1",
-    name: "Smart Watch Series 7",
-    sku: "WTCH-S7-BLK",
-    asin: "B0C1W7A001",
-    thumbTone: "bg-[#e6d6be]",
-    masterCount: "142",
-    amazon: { value: "142", state: "active" },
-    ebay: { value: "65", state: "active" },
-    tiktok: { value: "16", state: "active" },
-    safetyBuffer: "10",
-    available: "196",
-  },
-  {
-    id: "2",
-    name: "Smart Watch Series 7",
-    sku: "WTCH-S7-BLK",
-    asin: "B0C1W7A002",
-    thumbTone: "bg-[#e6d6be]",
-    masterCount: "142",
-    amazon: { value: "142", state: "active" },
-    ebay: { value: "65", state: "active" },
-    tiktok: { value: "16", state: "active" },
-    safetyBuffer: "10",
-    available: "80",
-  },
-  {
-    id: "3",
-    name: "Smart Watch Series 7",
-    sku: "WTCH-S7-BLK",
-    asin: "B0C1W7A003",
-    thumbTone: "bg-[#e6d6be]",
-    masterCount: "142",
-    amazon: { value: "142", state: "active" },
-    ebay: { value: "65", state: "active" },
-    tiktok: { value: "16", state: "active" },
-    safetyBuffer: "10",
-    available: "44",
-  },
-  {
-    id: "4",
-    name: "Smart Watch Series 7",
-    sku: "WTCH-S7-BLK",
-    asin: "B0C1W7A004",
-    thumbTone: "bg-[#e6d6be]",
-    masterCount: "142",
-    amazon: { value: "142", state: "active" },
-    ebay: { value: "65", state: "active" },
-    tiktok: { value: "16", state: "active" },
-    safetyBuffer: "10",
-    available: "12",
-  },
-  {
-    id: "5",
-    name: "Smart Watch Series 7",
-    sku: "WTCH-S7-BLK",
-    asin: "B0C1W7A005",
-    thumbTone: "bg-[#e6d6be]",
-    masterCount: "142",
-    amazon: { value: "142", state: "active" },
-    ebay: { value: "65", state: "active" },
-    tiktok: { value: "16", state: "active" },
-    safetyBuffer: "10",
-    available: "196",
-  },
-];
+type RowFeedback = {
+  tone: "idle" | "saving" | "success" | "error";
+  message: string;
+};
 
-function AvailabilityText({ value }: { value: string }) {
-  const count = Number(value);
-  if (count <= 20) {
+function getDocumentId(record: InventoryRecord) {
+  return record._id ?? record.id ?? `${record.inventoryItemId}:${record.locationId ?? ""}`;
+}
+
+function AvailabilityText({ value }: { value: number }) {
+  if (value <= 20) {
     return <span className="font-semibold text-[#f05694]">{value}</span>;
   }
-  if (count <= 80) {
+  if (value <= 80) {
     return <span className="font-semibold text-[#f3ad2f]">{value}</span>;
   }
   return <span className="font-semibold text-[#4ec9cd]">{value}</span>;
 }
 
+function EmptyChannelCell() {
+  return (
+    <>
+      <div className="mx-auto text-sm font-semibold text-[#9aa5bc]">--</div>
+      <p className="mt-1 text-xs text-[#9aa5bc]">
+        <span className="mr-1 inline-block h-2 w-2 rounded-full bg-[#d4dceb]" />
+        Empty
+      </p>
+    </>
+  );
+}
+
+function mapInventoryRows(inventory: InventoryRecord[], products: ProductListItem[], liveLevels: ShopifyInventoryLevel[]) {
+  const productByShopifyId = new Map(products.map((product) => [product.shopifyProductId, product]));
+  const liveByInventoryKey = new Map(
+    liveLevels.map((level) => [`${level.inventoryItemId}:${level.locationId}`, level]),
+  );
+
+  return inventory.map<InventoryRow>((record) => {
+    const product = record.shopifyProductId ? productByShopifyId.get(record.shopifyProductId) : undefined;
+    const liveLevel = liveByInventoryKey.get(`${record.inventoryItemId}:${record.locationId ?? ""}`);
+
+    return {
+      id: getDocumentId(record),
+      productDocumentId: product?._id ?? product?.id ?? record.productId,
+      shopifyProductId: record.shopifyProductId ?? product?.shopifyProductId ?? "",
+      inventoryItemId: record.inventoryItemId,
+      locationId: record.locationId ?? "",
+      locationName: record.locationName ?? liveLevel?.locationName ?? "",
+      title: product?.title ?? record.title ?? liveLevel?.productTitle ?? "Untitled product",
+      sku: record.sku ?? liveLevel?.sku ?? product?.variants[0]?.sku ?? "",
+      featuredImage: product?.featuredImage,
+      masterCount: liveLevel?.quantity ?? record.availableQuantity ?? 0,
+      available: record.availableQuantity ?? liveLevel?.quantity ?? 0,
+      safetyBuffer: record.safetyBuffer ?? 0,
+      lowStockThreshold: record.lowStockThreshold ?? 5,
+    };
+  });
+}
+
+function downloadCsv(rows: InventoryRow[]) {
+  const header = [
+    "Title",
+    "SKU",
+    "Shopify Product ID",
+    "Inventory Item ID",
+    "Location",
+    "Master Count",
+    "Safety Buffer",
+    "Available",
+  ];
+
+  const lines = rows.map((row) => [
+    row.title,
+    row.sku,
+    row.shopifyProductId,
+    row.inventoryItemId,
+    row.locationName || row.locationId,
+    String(row.masterCount),
+    String(row.safetyBuffer),
+    String(row.available),
+  ]);
+
+  const csv = [header, ...lines]
+    .map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))
+    .join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `inventory-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function InventoryPage() {
-  const [items, setItems] = useState<InventoryItem[]>(initialInventory);
+  const [items, setItems] = useState<InventoryRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [globalEditMode, setGlobalEditMode] = useState(false);
-  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isImporting, setIsImporting] = useState(false);
+  const [pageMessage, setPageMessage] = useState("");
+  const [rowFeedbackById, setRowFeedbackById] = useState<Record<string, RowFeedback>>({});
+
+  async function fetchInventoryData() {
+    const [inventory, products, liveInventory] = await Promise.all([
+      productsApi.getInventory(),
+      productsApi.getProducts(),
+      productsApi.getShopifyInventory(),
+    ]);
+
+    return mapInventoryRows(inventory, products, liveInventory);
+  }
+
+  useEffect(() => {
+    let active = true;
+
+    void fetchInventoryData()
+      .then((rows) => {
+        if (!active) {
+          return;
+        }
+
+        setItems(rows);
+      })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+
+        setPageMessage(error instanceof ApiClientError ? error.message : "Could not load inventory.");
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -128,36 +185,132 @@ export default function InventoryPage() {
 
     return items.filter((item) => {
       return (
-        item.name.toLowerCase().includes(query) ||
+        item.title.toLowerCase().includes(query) ||
         item.sku.toLowerCase().includes(query) ||
-        item.asin.toLowerCase().includes(query)
+        item.shopifyProductId.toLowerCase().includes(query)
       );
     });
   }, [items, searchQuery]);
 
-  const updateItem = <K extends keyof InventoryItem>(id: string, key: K, value: InventoryItem[K]) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, [key]: value } : item)));
+  const metrics = useMemo(() => {
+    const availableStock = items.reduce((sum, item) => sum + item.available, 0);
+    const lowStock = items.filter((item) => item.available <= item.lowStockThreshold && item.available > 0).length;
+    const outOfStock = items.filter((item) => item.available <= 0).length;
+
+    return {
+      totalSkus: items.length,
+      availableStock,
+      lowStock,
+      outOfStock,
+    };
+  }, [items]);
+
+  const setRowFeedback = (rowId: string, feedback: RowFeedback) => {
+    setRowFeedbackById((prev) => ({
+      ...prev,
+      [rowId]: feedback,
+    }));
   };
 
-  const updateChannel = (id: string, channel: "amazon" | "ebay" | "tiktok", value: string) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              [channel]: {
-                ...item[channel],
-                value,
-                state: value.trim() ? "active" : "paused",
-              },
-            }
-          : item,
-      ),
-    );
+  const updateLocalRow = (rowId: string, updater: (row: InventoryRow) => InventoryRow) => {
+    setItems((prev) => prev.map((item) => (item.id === rowId ? updater(item) : item)));
   };
 
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+  const handleImport = async () => {
+    setIsImporting(true);
+    setPageMessage("");
+
+    try {
+      const result = await productsApi.importShopifyProducts();
+      const rows = await fetchInventoryData();
+      setItems(rows);
+      setPageMessage(`Imported ${result.count} Shopify products and refreshed inventory.`);
+    } catch (error) {
+      setPageMessage(error instanceof ApiClientError ? error.message : "Could not import Shopify inventory.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleMasterCountChange = (rowId: string, value: string) => {
+    const numericValue = Number(value);
+    updateLocalRow(rowId, (row) => ({
+      ...row,
+      masterCount: Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0,
+      available: Math.max(0, (Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0) - row.safetyBuffer),
+    }));
+  };
+
+  const handleSafetyBufferChange = (rowId: string, value: string) => {
+    const numericValue = Number(value);
+    updateLocalRow(rowId, (row) => {
+      const nextSafetyBuffer = Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0;
+      return {
+        ...row,
+        safetyBuffer: nextSafetyBuffer,
+        available: Math.max(0, row.masterCount - nextSafetyBuffer),
+      };
+    });
+  };
+
+  const handleMasterCountSave = async (row: InventoryRow) => {
+    if (!globalEditMode) {
+      return;
+    }
+
+    if (!row.locationId) {
+      setRowFeedback(row.id, {
+        tone: "error",
+        message: "No Shopify location is available for this inventory row.",
+      });
+      return;
+    }
+
+    setRowFeedback(row.id, {
+      tone: "saving",
+      message: "Updating Shopify inventory...",
+    });
+
+    try {
+      await productsApi.updateShopifyInventory(row.inventoryItemId, {
+        locationId: row.locationId,
+        quantity: row.masterCount,
+      });
+
+      setRowFeedback(row.id, {
+        tone: "success",
+        message: "Shopify inventory updated.",
+      });
+    } catch (error) {
+      setRowFeedback(row.id, {
+        tone: "error",
+        message: error instanceof ApiClientError ? error.message : "Could not update Shopify inventory.",
+      });
+    }
+  };
+
+  const handleSafetyBufferSave = async (row: InventoryRow) => {
+    if (!globalEditMode) {
+      return;
+    }
+
+    setRowFeedback(row.id, {
+      tone: "saving",
+      message: "Saving safety buffer...",
+    });
+
+    try {
+      await productsApi.updateInventorySafetyBuffer(row.id, row.safetyBuffer);
+      setRowFeedback(row.id, {
+        tone: "success",
+        message: "Safety buffer updated.",
+      });
+    } catch (error) {
+      setRowFeedback(row.id, {
+        tone: "error",
+        message: error instanceof ApiClientError ? error.message : "Could not update safety buffer.",
+      });
+    }
   };
 
   return (
@@ -167,11 +320,12 @@ export default function InventoryPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h1 className="text-xl font-semibold">Inventory Overview</h1>
-              <p className="mt-1 text-sm text-[#a9b8d6]">Manage stock levels across Amazon, TikTok, and eBay</p>
+              <p className="mt-1 text-sm text-[#a9b8d6]">Manage live inventory levels across your connected marketplaces.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#cbd6ea] bg-white px-4 text-sm font-semibold text-[#425370]"
+                onClick={() => setGlobalEditMode(true)}
                 type="button"
               >
                 <Filter className="h-4 w-4" />
@@ -179,6 +333,7 @@ export default function InventoryPage() {
               </button>
               <button
                 className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#35d3ce] px-4 text-sm font-semibold text-white"
+                onClick={() => downloadCsv(filteredItems)}
                 type="button"
               >
                 <FileDown className="h-4 w-4" />
@@ -194,37 +349,33 @@ export default function InventoryPage() {
             <div className="rounded-xl bg-[#1a2748] p-4 text-white">
               <div className="mb-3 flex items-center justify-between">
                 <Package2 className="h-4 w-4 text-[#a9b7d3]" />
-                <span className="rounded-full bg-[#113c60] px-2 py-0.5 text-[10px] text-[#53e1d6]">+12%</span>
               </div>
               <p className="text-sm text-[#c0cce4]">Total SKUs</p>
-              <p className="mt-1 text-3xl font-semibold">1,240</p>
+              <p className="mt-1 text-3xl font-semibold">{metrics.totalSkus}</p>
             </div>
 
             <div className="rounded-xl bg-[#1a2748] p-4 text-white">
               <div className="mb-3 flex items-center justify-between">
                 <CloudUpload className="h-4 w-4 text-[#a9b7d3]" />
-                <span className="rounded-full bg-[#113c60] px-2 py-0.5 text-[10px] text-[#53e1d6]">+5%</span>
               </div>
               <p className="text-sm text-[#c0cce4]">Available Stock</p>
-              <p className="mt-1 text-3xl font-semibold">45,302</p>
+              <p className="mt-1 text-3xl font-semibold">{metrics.availableStock}</p>
             </div>
 
             <div className="rounded-xl bg-[#1a2748] p-4 text-white">
               <div className="mb-3 flex items-center justify-between">
                 <AlertTriangle className="h-4 w-4 text-[#f1b83d]" />
-                <span className="rounded-full bg-[#113c60] px-2 py-0.5 text-[10px] text-[#53e1d6]">-2%</span>
               </div>
               <p className="text-sm text-[#c0cce4]">Low Stock</p>
-              <p className="mt-1 text-3xl font-semibold text-[#f2b239]">12</p>
+              <p className="mt-1 text-3xl font-semibold text-[#f2b239]">{metrics.lowStock}</p>
             </div>
 
             <div className="rounded-xl bg-[#1a2748] p-4 text-white">
               <div className="mb-3 flex items-center justify-between">
                 <TriangleAlert className="h-4 w-4 text-[#ef4a89]" />
-                <span className="rounded-full bg-[#3f2347] px-2 py-0.5 text-[10px] text-[#ef4a89]">+1%</span>
               </div>
               <p className="text-sm text-[#c0cce4]">Out of Stock</p>
-              <p className="mt-1 text-3xl font-semibold text-[#ef4a89]">3</p>
+              <p className="mt-1 text-3xl font-semibold text-[#ef4a89]">{metrics.outOfStock}</p>
             </div>
           </div>
         </article>
@@ -236,7 +387,7 @@ export default function InventoryPage() {
               <input
                 className="h-11 w-full rounded-xl border border-[#d6dce9] bg-white py-2 pl-10 pr-3 text-sm text-[#243251] outline-none placeholder:text-[#8f9bb1] focus:border-[#98abcf]"
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search by name, SKU, or ASIN..."
+                placeholder="Search by name, SKU, or Shopify ID..."
                 type="text"
                 value={searchQuery}
               />
@@ -267,134 +418,186 @@ export default function InventoryPage() {
               </button>
             </label>
 
-            <button className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-5 text-sm font-semibold text-[#465574]" type="button">
-              <CloudUpload className="h-4 w-4" />
-              Import
+            <button
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-5 text-sm font-semibold text-[#465574] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isImporting}
+              onClick={() => void handleImport()}
+              type="button"
+            >
+              {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
+              {isImporting ? "Importing..." : "Import"}
             </button>
-            <button className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#172544] px-5 text-sm font-semibold text-white" type="button">
+            <Link className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#172544] px-5 text-sm font-semibold text-white" href="/products/add">
               <Plus className="h-4 w-4" />
               Add Product
-            </button>
+            </Link>
           </div>
         </div>
 
+        {pageMessage ? (
+          <div className="rounded-xl border border-[#dbe2ee] bg-white px-4 py-3 text-sm text-[#4e5f82] shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
+            {pageMessage}
+          </div>
+        ) : null}
+
         <article className="overflow-hidden rounded-2xl border border-[#e1e6f0] bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] text-left">
+            <table className="w-full min-w-[1280px] text-left">
               <thead className="text-xs font-semibold uppercase tracking-wide text-[#d8e4fb]">
                 <tr>
                   <th className="w-12 bg-[#233a69] px-3 py-4 text-center">○</th>
-                  <th className="w-[280px] bg-[#233a69] px-4 py-4">Product Details</th>
-                  <th className="w-[130px] bg-[#233a69] px-4 py-4 text-center">Master Count</th>
+                  <th className="w-[320px] bg-[#233a69] px-4 py-4">Product Details</th>
+                  <th className="w-[140px] bg-[#1f7a43] px-4 py-4 text-center">
+                    <p className="text-sm normal-case text-white">Shopify</p>
+                    <p className="mt-1 text-[11px] normal-case text-white">Master Count</p>
+                  </th>
                   <th className="w-[150px] bg-[#f8a100] px-4 py-4 text-center">
                     <p className="text-sm normal-case text-white">a Amazon</p>
-                    <p className="mt-1 text-[11px] normal-case text-white">Price + Shipping</p>
+                    <p className="mt-1 text-[11px] normal-case text-white">Inventory</p>
                   </th>
                   <th className="w-[150px] bg-[#0b72de] px-4 py-4 text-center">
                     <p className="text-sm normal-case text-white">eb eBay</p>
-                    <p className="mt-1 text-[11px] normal-case text-white">BIN Price</p>
+                    <p className="mt-1 text-[11px] normal-case text-white">Inventory</p>
                   </th>
                   <th className="w-[150px] bg-gradient-to-r from-[#00d4d1] via-[#0ea4d6] to-[#eb0f67] px-4 py-4 text-center">
                     <p className="text-sm normal-case text-white">♪ TikTok</p>
-                    <p className="mt-1 text-[11px] normal-case text-white">Shop Price</p>
+                    <p className="mt-1 text-[11px] normal-case text-white">Inventory</p>
                   </th>
                   <th className="w-[140px] bg-[#233a69] px-4 py-4 text-center">Safety Buffer</th>
                   <th className="w-[120px] bg-[#233a69] px-4 py-4 text-center">Available</th>
-                  <th className="w-[120px] bg-[#233a69] px-4 py-4 text-center">Actions</th>
+                  <th className="w-[180px] bg-[#233a69] px-4 py-4 text-center">Actions</th>
                 </tr>
               </thead>
 
               <tbody>
-                {filteredItems.map((item) => {
-                  const canEdit = globalEditMode || editingRowId === item.id;
+                {isLoading ? (
+                  <tr>
+                    <td className="px-4 py-12 text-center text-sm text-[#6f7f9f]" colSpan={9}>
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading live inventory...
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredItems.map((item) => {
+                    const canEdit = globalEditMode;
+                    const rowFeedback = rowFeedbackById[item.id] ?? { tone: "idle", message: "" };
 
-                  const renderCountCell = (
-                    value: string,
-                    onChange: (nextValue: string) => void,
-                    className?: string,
-                  ) => {
-                    if (canEdit) {
-                      return (
-                        <input
-                          className={`h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none ${className ?? ""}`}
-                          onChange={(event) => onChange(event.target.value)}
-                          type="number"
-                          value={value}
-                        />
-                      );
-                    }
-
-                    return <div className="mx-auto text-sm font-semibold text-[#5a6a86]">{value}</div>;
-                  };
-
-                  return (
-                    <tr className="border-t border-[#e9eef7] text-sm text-[#44526d]" key={item.id}>
-                      <td className="px-3 py-4 text-center">
-                        <span className="inline-block h-3.5 w-3.5 rounded-full border border-[#c7d1e3]" />
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`flex h-11 w-11 items-center justify-center rounded-lg ${item.thumbTone}`}>
-                            <div className="h-7 w-4 rounded-[3px] bg-white/85" />
+                    return (
+                      <tr className="border-t border-[#e9eef7] text-sm text-[#44526d]" key={item.id}>
+                        <td className="px-3 py-4 text-center">
+                          <span className="inline-block h-3.5 w-3.5 rounded-full border border-[#c7d1e3]" />
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border border-[#e3e9f3] bg-[#f7f9fd]">
+                              {item.featuredImage ? (
+                                <Image
+                                  alt={item.title}
+                                  className="h-full w-full object-cover"
+                                  height={44}
+                                  src={item.featuredImage}
+                                  unoptimized
+                                  width={44}
+                                />
+                              ) : (
+                                <div className="h-7 w-4 rounded-[3px] bg-[#d9e1ef]" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold leading-tight text-[#202b44]">{item.title}</p>
+                              <p className="mt-0.5 text-xs text-[#7d89a2]">SKU: {item.sku || "--"}</p>
+                              <p className="mt-0.5 text-xs text-[#9aa5bc]">
+                                {item.locationName || "No location"} • {item.shopifyProductId}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-semibold leading-tight text-[#202b44]">{item.name}</p>
-                            <p className="mt-0.5 text-xs text-[#7d89a2]">SKU: {item.sku}</p>
+                        </td>
+
+                        <td className="px-4 py-4 text-center">
+                          {canEdit ? (
+                            <input
+                              className="h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none"
+                              min={0}
+                              onBlur={() => void handleMasterCountSave(item)}
+                              onChange={(event) => handleMasterCountChange(item.id, event.target.value)}
+                              type="number"
+                              value={item.masterCount}
+                            />
+                          ) : (
+                            <div className="mx-auto text-sm font-semibold text-[#5a6a86]">{item.masterCount}</div>
+                          )}
+                          <p className="mt-1 text-xs text-[#40cacc]">Live Shopify Qty</p>
+                        </td>
+
+                        <td className="border-l border-[#ffe0bc] px-4 py-4 text-center">
+                          <EmptyChannelCell />
+                        </td>
+
+                        <td className="border-l border-[#d2e5ff] px-4 py-4 text-center">
+                          <EmptyChannelCell />
+                        </td>
+
+                        <td className="border-l border-[#f5d4e6] px-4 py-4 text-center">
+                          <EmptyChannelCell />
+                        </td>
+
+                        <td className="px-4 py-4 text-center">
+                          {canEdit ? (
+                            <input
+                              className="h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none"
+                              min={0}
+                              onBlur={() => void handleSafetyBufferSave(item)}
+                              onChange={(event) => handleSafetyBufferChange(item.id, event.target.value)}
+                              type="number"
+                              value={item.safetyBuffer}
+                            />
+                          ) : (
+                            <div className="mx-auto text-sm font-semibold text-[#5a6a86]">{item.safetyBuffer}</div>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-4 text-center">
+                          <AvailabilityText value={item.available} />
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col items-center gap-2">
+                            {item.productDocumentId ? (
+                              <Link className="text-[#223763]" href={`/products/${item.productDocumentId}`}>
+                                View Product
+                              </Link>
+                            ) : (
+                              <span className="text-xs text-[#9aa5bc]">No product link</span>
+                            )}
+                            <p
+                              className={`text-center text-xs ${
+                                rowFeedback.tone === "error"
+                                  ? "text-[#ea2e3f]"
+                                  : rowFeedback.tone === "success"
+                                    ? "text-[#168b7c]"
+                                    : rowFeedback.tone === "saving"
+                                      ? "text-[#566b90]"
+                                      : "text-[#9aa5bc]"
+                              }`}
+                            >
+                              {rowFeedback.message || (globalEditMode ? "Blur field to save." : "Store-backed inventory row")}
+                            </p>
                           </div>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-4 text-center">
-                        {renderCountCell(item.masterCount, (value) => updateItem(item.id, "masterCount", value))}
-                        <p className="mt-1 text-xs text-[#40cacc]">In Stock</p>
-                      </td>
-
-                      <td className="border-l border-[#ffe0bc] px-4 py-4 text-center">
-                        {renderCountCell(item.amazon.value, (value) => updateChannel(item.id, "amazon", value), "border-[#7ca0af] bg-[#d5eced]")}
-                        <p className="mt-1 text-xs text-[#7f91ac]"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-[#2ccac4]" />Active</p>
-                      </td>
-
-                      <td className="border-l border-[#d2e5ff] px-4 py-4 text-center">
-                        {renderCountCell(item.ebay.value, (value) => updateChannel(item.id, "ebay", value), "border-[#7ca0af] bg-[#d5eced]")}
-                        <p className="mt-1 text-xs text-[#7f91ac]"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-[#2ccac4]" />Active</p>
-                      </td>
-
-                      <td className="border-l border-[#f5d4e6] px-4 py-4 text-center">
-                        {renderCountCell(item.tiktok.value, (value) => updateChannel(item.id, "tiktok", value), "border-[#e58fc0] bg-[#fbe3f0] text-[#dd4a95]")}
-                        <p className="mt-1 text-xs text-[#7f91ac]"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-[#2ccac4]" />Active</p>
-                      </td>
-
-                      <td className="px-4 py-4 text-center">
-                        {renderCountCell(item.safetyBuffer, (value) => updateItem(item.id, "safetyBuffer", value), "border-[#d5ddea]")}
-                      </td>
-
-                      <td className="px-4 py-4 text-center">
-                        <AvailabilityText value={item.available} />
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <div className="flex items-center justify-center gap-3">
-                          <button
-                            className="text-[#223763]"
-                            onClick={() => setEditingRowId((prev) => (prev === item.id ? null : item.id))}
-                            type="button"
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </button>
-                          <button className="text-[#f03f8f]" onClick={() => removeItem(item.id)} type="button">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
 
-          {filteredItems.length === 0 ? (
-            <div className="border-t border-[#edf1f7] px-4 py-6 text-center text-sm text-[#6f7f9f]">No inventory rows found.</div>
+          {!isLoading && filteredItems.length === 0 ? (
+            <div className="border-t border-[#edf1f7] px-4 py-6 text-center text-sm text-[#6f7f9f]">
+              {items.length === 0 ? "No live inventory rows found. Import Shopify products first." : `No inventory rows found for "${searchQuery}".`}
+            </div>
           ) : null}
         </article>
       </div>
