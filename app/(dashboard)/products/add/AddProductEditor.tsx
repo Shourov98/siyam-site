@@ -139,6 +139,7 @@ type SavedDraftSnapshot = {
   draft: ApiProduct;
   variantsByMarket: Record<MarketKey, ApiVariant[]>;
   productId: string | null;
+  shopifyProductId: string | null;
   sourceTitle: string;
   publishVendor: string;
   publishPrice: string;
@@ -153,6 +154,7 @@ type PublishFieldErrors = {
 };
 
 type DraftSaveState = "idle" | "saving" | "saved";
+type ShopifyUploadMode = "active" | "draft";
 
 const marketOrder: MarketKey[] = ["amazon", "ebay", "tiktok", "shopify"];
 
@@ -615,7 +617,9 @@ export default function AddProductEditor({
   const [publishVendor, setPublishVendor] = useState("");
   const [publishPrice, setPublishPrice] = useState("");
   const [publishSku, setPublishSku] = useState("");
-  const [publishStatus, setPublishStatus] = useState<PublishStatus>("DRAFT");
+  const [publishStatus, setPublishStatus] = useState<PublishStatus>("ACTIVE");
+  const [shopifyProductId, setShopifyProductId] = useState<string | null>(null);
+  const [shopifySubmitMode, setShopifySubmitMode] = useState<ShopifyUploadMode | null>(null);
   const [shopifyPublishMessage, setShopifyPublishMessage] = useState("");
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
@@ -636,6 +640,7 @@ export default function AddProductEditor({
       draft,
       variantsByMarket,
       productId,
+      shopifyProductId,
       sourceTitle,
       publishVendor,
       publishPrice,
@@ -650,6 +655,7 @@ export default function AddProductEditor({
       draft: snapshot.draft,
       variantsByMarket: snapshot.variantsByMarket,
       productId: snapshot.productId,
+      shopifyProductId: snapshot.shopifyProductId,
       sourceTitle: snapshot.sourceTitle,
       publishVendor: snapshot.publishVendor,
       publishPrice: snapshot.publishPrice,
@@ -672,6 +678,7 @@ export default function AddProductEditor({
     setDraft(snapshot.draft);
     setVariantsByMarket(snapshot.variantsByMarket);
     setProductId(snapshot.productId);
+    setShopifyProductId(snapshot.shopifyProductId);
     setSourceTitle(snapshot.sourceTitle);
     setPublishVendor(snapshot.publishVendor);
     setPublishPrice(snapshot.publishPrice);
@@ -692,12 +699,13 @@ export default function AddProductEditor({
     setDraft(sampleProduct);
     setVariantsByMarket(sampleVariants);
     setProductId(null);
+    setShopifyProductId(null);
     setSourceTitle(sampleProduct.core.source_title);
     setSelectedImage(null);
     setPublishVendor("");
     setPublishPrice("");
     setPublishSku("");
-    setPublishStatus("DRAFT");
+    setPublishStatus("ACTIVE");
     setShopifyPublishMessage("");
     setPublishFieldErrors(emptyPublishFieldErrors);
     setVariantInputs({
@@ -808,6 +816,7 @@ export default function AddProductEditor({
         }
 
         setProductId(record.id);
+        setShopifyProductId(null);
         setDraft(record.product);
         setVariantsByMarket(record.variants);
         setSourceTitle(record.product.core.source_title);
@@ -846,6 +855,7 @@ export default function AddProductEditor({
       draft,
       variantsByMarket,
       productId,
+      shopifyProductId,
       sourceTitle,
       publishVendor,
       publishPrice,
@@ -857,7 +867,7 @@ export default function AddProductEditor({
     window.setTimeout(() => {
       setHasSavedDraft(true);
     }, 0);
-  }, [draft, hasInitializedDraftStorage, productId, publishPrice, publishSku, publishStatus, publishVendor, sourceTitle, variantsByMarket]);
+  }, [draft, hasInitializedDraftStorage, productId, publishPrice, publishSku, publishStatus, publishVendor, shopifyProductId, sourceTitle, variantsByMarket]);
 
   const currentDraftComparableSignature = useMemo(
     () =>
@@ -865,6 +875,7 @@ export default function AddProductEditor({
         draft,
         variantsByMarket,
         productId,
+        shopifyProductId,
         sourceTitle,
         publishVendor,
         publishPrice,
@@ -872,7 +883,7 @@ export default function AddProductEditor({
         publishStatus,
         savedAt: "",
       }),
-    [draft, variantsByMarket, productId, sourceTitle, publishVendor, publishPrice, publishSku, publishStatus],
+    [draft, variantsByMarket, productId, shopifyProductId, sourceTitle, publishVendor, publishPrice, publishSku, publishStatus],
   );
 
   useEffect(() => {
@@ -932,6 +943,10 @@ export default function AddProductEditor({
     );
   }
 
+  function getPublishCategory() {
+    return draft.core.category.trim() || draft.core.product_type.trim() || "";
+  }
+
   function getPublishTags() {
     if (Array.isArray(draft.shopify.tags)) {
       return draft.shopify.tags.map((tag) => tag.trim()).filter(Boolean);
@@ -940,9 +955,14 @@ export default function AddProductEditor({
     return [];
   }
 
-  async function uploadToShopify() {
+  function getPublishImagePath() {
+    return draft.images.shopify.absolute_path || draft.images.shopify.relative_path || "";
+  }
+
+  async function uploadToShopify(mode: ShopifyUploadMode) {
     const title = getPublishTitle();
     const trimmedPrice = publishPrice.trim();
+    const imagePath = getPublishImagePath().trim();
     setShopifyPublishMessage("");
     const nextFieldErrors: PublishFieldErrors = {
       title: !title,
@@ -962,6 +982,13 @@ export default function AddProductEditor({
       return;
     }
 
+    if (!imagePath) {
+      const message = "Generated Shopify image is missing. Generate or regenerate Shopify content before uploading.";
+      setShopifyPublishMessage(message);
+      setStatusMessage(message);
+      return;
+    }
+
     const numericPrice = Number(trimmedPrice);
     if (!Number.isFinite(numericPrice) || numericPrice < 0) {
       setPublishFieldErrors((prev) => ({ ...prev, price: true }));
@@ -976,16 +1003,31 @@ export default function AddProductEditor({
       return;
     }
 
+    const isUpdate = Boolean(shopifyProductId);
+    const resolvedStatus: PublishStatus = mode === "draft" ? "DRAFT" : "ACTIVE";
+
+    setShopifySubmitMode(mode);
     setPublishSubmitting((prev) => ({ ...prev, shopify: true }));
-    setShopifyPublishMessage("Uploading product to Shopify...");
+    setShopifyPublishMessage(
+      mode === "draft"
+        ? isUpdate
+          ? "Updating draft product on Shopify..."
+          : "Uploading draft product to Shopify..."
+        : isUpdate
+          ? "Updating Shopify product..."
+          : "Uploading product to Shopify...",
+    );
     try {
-      await shopifyProductsApi.createShopifyProduct({
+      const payload = {
         title,
         description: getPublishDescription(),
         vendor: getPublishVendor() || undefined,
         productType: getPublishProductType() || undefined,
-        status: publishStatus,
+        category: getPublishCategory() || undefined,
+        status: resolvedStatus,
         tags: getPublishTags(),
+        imagePath,
+        publishToOnlineStore: mode === "active",
         variants: [
           {
             title: "Default Title",
@@ -993,19 +1035,33 @@ export default function AddProductEditor({
             sku: publishSku.trim() || undefined,
           },
         ],
-      });
+      };
 
-      setShopifyPublishMessage("Product uploaded to Shopify successfully. Redirecting to Products...");
-      setStatusMessage("Product uploaded to Shopify successfully.");
-      persistDraftSnapshot(buildDraftSnapshot());
-      window.setTimeout(() => {
-        router.push("/products");
-      }, 700);
+      const result = shopifyProductId
+        ? await shopifyProductsApi.updateShopifyProduct(shopifyProductId, payload)
+        : await shopifyProductsApi.createShopifyProduct(payload);
+
+      setShopifyProductId(result.product.id);
+      const warningsText = result.warnings.length ? ` Warnings: ${result.warnings.join(" ")}` : "";
+      const successMessage =
+        mode === "draft"
+          ? `${isUpdate ? "Draft updated" : "Draft uploaded"} to Shopify.${warningsText}`
+          : result.publishedToOnlineStore
+            ? `${isUpdate ? "Product updated" : "Product uploaded"} to Shopify and published to the Online Store.${warningsText}`
+            : `${isUpdate ? "Product updated" : "Product uploaded"} to Shopify.${warningsText}`;
+
+      setShopifyPublishMessage(successMessage);
+      setStatusMessage(successMessage);
+      persistDraftSnapshot({
+        ...buildDraftSnapshot(),
+        shopifyProductId: result.product.id,
+      });
     } catch (error) {
       const message = error instanceof ApiClientError ? error.message : "Could not upload the product to Shopify.";
       setShopifyPublishMessage(message);
       setStatusMessage(message);
     } finally {
+      setShopifySubmitMode(null);
       setPublishSubmitting((prev) => ({ ...prev, shopify: false }));
     }
   }
@@ -1038,6 +1094,7 @@ export default function AddProductEditor({
       }
 
       const record = (await response.json()) as ApiRecord;
+      setShopifyProductId(null);
       applyRecord(record, "AI draft generated and connected to the add-product page.");
       router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
     } catch (error) {
@@ -1565,10 +1622,11 @@ export default function AddProductEditor({
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <label className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Shopify Status</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Primary Upload Status</p>
+                  <p className="mt-1 text-xs text-[#8ea0bf]">`Upload to Shopify` always creates or updates an ACTIVE Shopify product. `Upload as Draft` always forces DRAFT.</p>
                   <select
-                    className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-3 text-sm text-[#31415e] outline-none transition focus:border-[#97abd0]"
-                    onChange={(event) => setPublishStatus(event.target.value as PublishStatus)}
+                    className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-[#f3f6fb] px-3 text-sm text-[#31415e] outline-none transition"
+                    disabled
                     value={publishStatus}
                   >
                     {publishStatusOptions.map((status) => (
@@ -1584,7 +1642,7 @@ export default function AddProductEditor({
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
                 <button
                   className="inline-flex min-h-12 items-center justify-center rounded-xl border border-dashed border-[#cfd9ea] bg-[#f8fbff] px-4 text-sm font-semibold text-[#8ea0bf] disabled:cursor-not-allowed"
                   disabled
@@ -1616,11 +1674,36 @@ export default function AddProductEditor({
                 <button
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#172544] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={publishSubmitting.shopify}
-                  onClick={() => void uploadToShopify()}
+                  onClick={() => void uploadToShopify("active")}
                   type="button"
                 >
                   {publishSubmitting.shopify ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  {publishSubmitting.shopify ? "Uploading to Shopify..." : "Upload to Shopify"}
+                  {publishSubmitting.shopify && shopifySubmitMode === "active"
+                    ? shopifyProductId
+                      ? "Updating Shopify..."
+                      : "Uploading to Shopify..."
+                    : shopifyProductId
+                      ? "Update on Shopify"
+                      : "Upload to Shopify"}
+                </button>
+                <button
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={publishSubmitting.shopify}
+                  onClick={() => void uploadToShopify("draft")}
+                  type="button"
+                >
+                  {publishSubmitting.shopify && shopifySubmitMode === "draft" ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  {publishSubmitting.shopify && shopifySubmitMode === "draft"
+                    ? shopifyProductId
+                      ? "Updating Draft..."
+                      : "Uploading Draft..."
+                    : shopifyProductId
+                      ? "Update Draft on Shopify"
+                      : "Upload as Draft"}
                 </button>
               </div>
 
@@ -1629,12 +1712,18 @@ export default function AddProductEditor({
                 Shopify upload is live because `commandctr-backend` already supports `POST /shopify/products`, and that flow creates the Shopify product and also upserts the local CommandCtr product record.
                 Amazon, eBay, and TikTok upload buttons are shown separately but remain disabled until those marketplace create APIs exist in the backend.
               </div>
+              {shopifyProductId ? (
+                <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-xs leading-6 text-[#667a99]">
+                  Current Shopify product ID:
+                  <span className="ml-2 font-semibold text-[#31415e]">{shopifyProductId}</span>
+                </div>
+              ) : null}
               <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-xs leading-6 text-[#667a99]">
                 Shopify upload needs:
                 <span className="font-semibold text-[#31415e]"> product title </span>
                 and
                 <span className="font-semibold text-[#31415e]"> default price</span>.
-                Vendor, SKU, tags, product type, description, and status are included when available.
+                Vendor, SKU, tags, product type, description, status, and the generated Shopify image are included when available.
               </div>
               {publishFieldErrors.title || publishFieldErrors.price ? (
                 <div className="mt-4 flex items-start gap-2 rounded-2xl border border-[#f3c1c1] bg-[#fff5f5] px-4 py-3 text-sm text-[#b24646]">

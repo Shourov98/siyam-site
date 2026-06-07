@@ -1,12 +1,15 @@
 import { requestWithAuth } from "@/lib/auth";
 
-export type ShopifyProductCreatePayload = {
+export type ShopifyProductPayload = {
   title: string;
   description?: string;
   vendor?: string;
   productType?: string;
+  category?: string;
   status: "DRAFT" | "ACTIVE";
   tags: string[];
+  imagePath?: string;
+  publishToOnlineStore?: boolean;
   variants: Array<{
     title: string;
     price: string;
@@ -44,10 +47,24 @@ export type ShopifyCreatedProduct = {
   };
 };
 
+export type ShopifyMutationResult = {
+  imageUploaded: boolean;
+  product: ShopifyCreatedProduct;
+  publishedToOnlineStore: boolean;
+  warnings: string[];
+};
+
 export const shopifyProductsApi = {
-  createShopifyProduct(payload: ShopifyProductCreatePayload) {
-    return requestWithAuth<ShopifyCreatedProduct>("/shopify/products", {
+  createShopifyProduct(payload: ShopifyProductPayload) {
+    return requestWithAuth<ShopifyMutationResult>("/shopify/products", {
       method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateShopifyProduct(shopifyProductId: string, payload: ShopifyProductPayload) {
+    return requestWithAuth<ShopifyMutationResult>(`/shopify/products/${encodeURIComponent(shopifyProductId)}`, {
+      method: "PATCH",
       body: JSON.stringify(payload),
     });
   },
