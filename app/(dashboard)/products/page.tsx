@@ -8,141 +8,162 @@ import {
   CloudUpload,
   Edit3,
   Filter,
+  Loader2,
   Plus,
   Search,
-  Trash2,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type MarketState = "active" | "pending" | "out_of_stock" | "not_listed";
+import { ApiClientError } from "@/lib/auth";
+import { productsApi, type ProductListItem, type ShopifyInventoryLevel } from "@/lib/products";
 
-type MarketInfo = {
-  price: string;
-  status: MarketState;
-};
+type ExternalMarketState = "empty";
 
-type Product = {
+type ProductRow = {
   id: string;
-  name: string;
+  shopifyProductId: string;
+  title: string;
   sku: string;
-  asin: string;
+  vendor: string;
+  productType: string;
+  status: string;
   stock: number;
-  stockStatus: "in_stock" | "low_stock";
-  thumbTone: string;
-  amazon: MarketInfo;
-  ebay: MarketInfo;
-  tiktok: MarketInfo;
+  featuredImage?: string;
+  shopifyPrice: string;
+  shopifyVariantId?: string;
+  inventoryItemId?: string;
+  inventoryLocationId?: string;
 };
 
-const initialProducts: Product[] = [
-  {
-    id: "1",
-    name: "Smart Watch Series 7",
-    sku: "WTCH-S7-BLK",
-    asin: "B0C1W7A001",
-    stock: 142,
-    stockStatus: "in_stock",
-    thumbTone: "bg-[#e8d7bd]",
-    amazon: { price: "329.00", status: "active" },
-    ebay: { price: "335.50", status: "active" },
-    tiktok: { price: "319.99", status: "pending" },
-  },
-  {
-    id: "2",
-    name: "Nike Air Zoom Pegasus",
-    sku: "NK-ZOOM-RED",
-    asin: "B0C1W7A002",
-    stock: 45,
-    stockStatus: "in_stock",
-    thumbTone: "bg-[#e2caa4]",
-    amazon: { price: "119.99", status: "out_of_stock" },
-    ebay: { price: "", status: "not_listed" },
-    tiktok: { price: "115.00", status: "active" },
-  },
-  {
-    id: "3",
-    name: "Sony WH-1000XM4",
-    sku: "SNY-WH4-SIL",
-    asin: "B0C1W7A003",
-    stock: 89,
-    stockStatus: "low_stock",
-    thumbTone: "bg-[#e5d8bd]",
-    amazon: { price: "348.00", status: "active" },
-    ebay: { price: "345.00", status: "active" },
-    tiktok: { price: "", status: "not_listed" },
-  },
-  {
-    id: "4",
-    name: "iPhone 14 Pro Max Case",
-    sku: "CS-IP14PM-CLR",
-    asin: "B0C1W7A004",
-    stock: 1205,
-    stockStatus: "in_stock",
-    thumbTone: "bg-[#aabbb3]",
-    amazon: { price: "19.99", status: "active" },
-    ebay: { price: "18.50", status: "active" },
-    tiktok: { price: "15.99", status: "active" },
-  },
-  {
-    id: "5",
-    name: "iPhone 14 Pro Max Case",
-    sku: "CS-IP14PM-CLR",
-    asin: "B0C1W7A005",
-    stock: 1205,
-    stockStatus: "in_stock",
-    thumbTone: "bg-[#aabbb3]",
-    amazon: { price: "19.99", status: "active" },
-    ebay: { price: "18.50", status: "active" },
-    tiktok: { price: "15.99", status: "active" },
-  },
-  {
-    id: "6",
-    name: "iPhone 14 Pro Max Case",
-    sku: "CS-IP14PM-CLR",
-    asin: "B0C1W7A006",
-    stock: 1205,
-    stockStatus: "in_stock",
-    thumbTone: "bg-[#aabbb3]",
-    amazon: { price: "19.99", status: "active" },
-    ebay: { price: "18.50", status: "active" },
-    tiktok: { price: "15.99", status: "active" },
-  },
-];
-
-const marketLabels: Record<MarketState, string> = {
-  active: "Active",
-  pending: "Pending",
-  out_of_stock: "Out of Stock",
-  not_listed: "Not Listed",
+type RowFeedback = {
+  tone: "idle" | "saving" | "success" | "error";
+  message: string;
 };
 
-const marketLabelClasses: Record<MarketState, string> = {
-  active: "text-[#5b6e89]",
-  pending: "text-[#8a8f9e]",
-  out_of_stock: "text-[#ef4444]",
-  not_listed: "text-[#9aa5bc]",
+const EMPTY_MARKET_STATUS: Record<ExternalMarketState, string> = {
+  empty: "Empty",
 };
 
-const marketDotClasses: Record<MarketState, string> = {
-  active: "bg-[#2bc7c4]",
-  pending: "bg-[#e3b101]",
-  out_of_stock: "bg-[#ef4444]",
-  not_listed: "bg-[#d4dceb]",
-};
+function getProductDocumentId(product: ProductListItem) {
+  return product._id ?? product.id ?? product.shopifyProductId;
+}
 
-function toStockStatus(value: number): Product["stockStatus"] {
-  if (value < 100) {
-    return "low_stock";
+function toCurrencyValue(value: string) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "--";
   }
 
-  return "in_stock";
+  return `$ ${numeric.toFixed(2)}`;
+}
+
+function toStockTone(value: number) {
+  if (value <= 10) {
+    return {
+      label: "Low Stock",
+      className: "text-[#d28e10]",
+    };
+  }
+
+  return {
+    label: "In Stock",
+    className: "text-[#16c4cb]",
+  };
+}
+
+function buildInventoryLocationMap(levels: ShopifyInventoryLevel[]) {
+  return new Map(
+    levels
+      .filter((level) => level.inventoryItemId && level.locationId)
+      .map((level) => [level.inventoryItemId, level.locationId]),
+  );
+}
+
+function mapProductRows(products: ProductListItem[], inventoryLevels: ShopifyInventoryLevel[]) {
+  const inventoryLocationByItemId = buildInventoryLocationMap(inventoryLevels);
+
+  return products.map<ProductRow>((product) => {
+    const primaryVariant = product.variants[0];
+    const inventoryItemId = primaryVariant?.inventoryItemId;
+
+    return {
+      id: getProductDocumentId(product),
+      shopifyProductId: product.shopifyProductId,
+      title: product.title,
+      sku: primaryVariant?.sku ?? "",
+      vendor: product.vendor ?? "",
+      productType: product.productType ?? "",
+      status: product.status ?? "DRAFT",
+      stock: primaryVariant?.inventoryQuantity ?? product.totalInventory ?? 0,
+      featuredImage: product.featuredImage,
+      shopifyPrice: primaryVariant?.price ?? "",
+      shopifyVariantId: primaryVariant?.shopifyVariantId,
+      inventoryItemId,
+      inventoryLocationId: inventoryItemId ? (inventoryLocationByItemId.get(inventoryItemId) ?? "") : "",
+    };
+  });
+}
+
+function MarketPlaceholder() {
+  return (
+    <>
+      <div className="mx-auto flex h-8 w-full items-center justify-center rounded-lg px-2 text-sm text-[#97a3ba]">--</div>
+      <div className="mt-1 flex items-center justify-center gap-1.5">
+        <span className="h-2 w-2 rounded-full bg-[#d4dceb]" />
+        <span className="text-xs text-[#9aa5bc]">{EMPTY_MARKET_STATUS.empty}</span>
+      </div>
+    </>
+  );
 }
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [products, setProducts] = useState<ProductRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [globalEditMode, setGlobalEditMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isImporting, setIsImporting] = useState(false);
+  const [pageMessage, setPageMessage] = useState("");
+  const [rowFeedbackById, setRowFeedbackById] = useState<Record<string, RowFeedback>>({});
+
+  async function fetchProductsData() {
+    const [productItems, inventoryLevels] = await Promise.all([
+      productsApi.getProducts(),
+      productsApi.getShopifyInventory(),
+    ]);
+
+    return mapProductRows(productItems, inventoryLevels);
+  }
+
+  useEffect(() => {
+    let active = true;
+
+    void fetchProductsData()
+      .then((rows) => {
+        if (!active) {
+          return;
+        }
+
+        setProducts(rows);
+      })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+
+        setPageMessage(error instanceof ApiClientError ? error.message : "Could not load product listings.");
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const filteredProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -153,36 +174,142 @@ export default function ProductsPage() {
 
     return products.filter((product) => {
       return (
-        product.name.toLowerCase().includes(query) ||
+        product.title.toLowerCase().includes(query) ||
         product.sku.toLowerCase().includes(query) ||
-        product.asin.toLowerCase().includes(query)
+        product.shopifyProductId.toLowerCase().includes(query)
       );
     });
   }, [products, searchQuery]);
 
-  const updateProduct = <K extends keyof Product>(id: string, key: K, value: Product[K]) => {
-    setProducts((prev) => prev.map((product) => (product.id === id ? { ...product, [key]: value } : product)));
+  const metrics = useMemo(() => {
+    const lowStockCount = products.filter((product) => product.stock <= 10).length;
+    const activeListings = products.filter((product) => product.status.toUpperCase() === "ACTIVE").length;
+    const syncErrors = Object.values(rowFeedbackById).filter((feedback) => feedback.tone === "error").length;
+
+    return {
+      totalProducts: products.length,
+      activeListings,
+      lowStockCount,
+      syncErrors,
+    };
+  }, [products, rowFeedbackById]);
+
+  const setRowFeedback = (rowId: string, feedback: RowFeedback) => {
+    setRowFeedbackById((prev) => ({
+      ...prev,
+      [rowId]: feedback,
+    }));
   };
 
-  const updateMarket = (id: string, market: "amazon" | "ebay" | "tiktok", price: string) => {
-    setProducts((prev) =>
-      prev.map((product) =>
-        product.id === id
-          ? {
-              ...product,
-              [market]: {
-                ...product[market],
-                price,
-                status: price.trim() ? "active" : "not_listed",
-              },
-            }
-          : product,
-      ),
-    );
+  const updateLocalRow = (rowId: string, updater: (row: ProductRow) => ProductRow) => {
+    setProducts((prev) => prev.map((row) => (row.id === rowId ? updater(row) : row)));
   };
 
-  const removeProduct = (id: string) => {
-    setProducts((prev) => prev.filter((product) => product.id !== id));
+  const handleImport = async () => {
+    setIsImporting(true);
+    setPageMessage("");
+
+    try {
+      const result = await productsApi.importShopifyProducts();
+      const rows = await fetchProductsData();
+      setProducts(rows);
+      setPageMessage(`Imported ${result.count} Shopify products.`);
+    } catch (error) {
+      setPageMessage(error instanceof ApiClientError ? error.message : "Could not import Shopify products.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleShopifyPriceChange = (rowId: string, nextPrice: string) => {
+    updateLocalRow(rowId, (row) => ({ ...row, shopifyPrice: nextPrice }));
+  };
+
+  const handleShopifyPriceSave = async (row: ProductRow) => {
+    if (!globalEditMode || !row.shopifyVariantId) {
+      return;
+    }
+
+    const normalizedPrice = row.shopifyPrice.trim();
+    const numericPrice = Number(normalizedPrice);
+
+    if (!normalizedPrice || !Number.isFinite(numericPrice) || numericPrice < 0) {
+      setRowFeedback(row.id, {
+        tone: "error",
+        message: "Shopify price must be a valid number.",
+      });
+      return;
+    }
+
+    setRowFeedback(row.id, {
+      tone: "saving",
+      message: "Updating Shopify price...",
+    });
+
+    try {
+      const result = await productsApi.updateShopifyVariantPrice(row.shopifyProductId, {
+        variantId: row.shopifyVariantId,
+        price: numericPrice.toFixed(2),
+      });
+
+      updateLocalRow(row.id, (current) => ({
+        ...current,
+        shopifyPrice: result.price ?? numericPrice.toFixed(2),
+      }));
+      setRowFeedback(row.id, {
+        tone: "success",
+        message: "Shopify price updated.",
+      });
+    } catch (error) {
+      setRowFeedback(row.id, {
+        tone: "error",
+        message: error instanceof ApiClientError ? error.message : "Could not update Shopify price.",
+      });
+    }
+  };
+
+  const handleStockChange = (rowId: string, nextStock: string) => {
+    const numericValue = Number(nextStock);
+    updateLocalRow(rowId, (row) => ({
+      ...row,
+      stock: Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0,
+    }));
+  };
+
+  const handleStockSave = async (row: ProductRow) => {
+    if (!globalEditMode) {
+      return;
+    }
+
+    if (!row.inventoryItemId || !row.inventoryLocationId) {
+      setRowFeedback(row.id, {
+        tone: "error",
+        message: "No Shopify inventory location was found for this product.",
+      });
+      return;
+    }
+
+    setRowFeedback(row.id, {
+      tone: "saving",
+      message: "Updating Shopify stock...",
+    });
+
+    try {
+      await productsApi.updateShopifyInventory(row.inventoryItemId, {
+        locationId: row.inventoryLocationId,
+        quantity: row.stock,
+      });
+
+      setRowFeedback(row.id, {
+        tone: "success",
+        message: "Shopify stock updated.",
+      });
+    } catch (error) {
+      setRowFeedback(row.id, {
+        tone: "error",
+        message: error instanceof ApiClientError ? error.message : "Could not update Shopify stock.",
+      });
+    }
   };
 
   return (
@@ -194,28 +321,28 @@ export default function ProductsPage() {
               <Box className="h-5 w-5 text-[#2f3f63]" />
             </div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#f2f6ff]">Total Products</p>
-            <p className="mt-1 text-3xl font-semibold leading-none">128</p>
+            <p className="mt-1 text-3xl font-semibold leading-none">{metrics.totalProducts}</p>
           </article>
           <article className="rounded-2xl bg-[#1a2548] p-4 text-white shadow-[0_18px_40px_-28px_rgba(17,33,64,0.9)]">
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#d2fae7]">
               <CheckCircle2 className="h-5 w-5 text-[#29c5b8]" />
             </div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-[#f2f6ff]">Active Listings</p>
-            <p className="mt-1 text-3xl font-semibold leading-none">342</p>
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#f2f6ff]">Active Shopify Listings</p>
+            <p className="mt-1 text-3xl font-semibold leading-none">{metrics.activeListings}</p>
           </article>
           <article className="rounded-2xl bg-[#1a2548] p-4 text-white shadow-[0_18px_40px_-28px_rgba(17,33,64,0.9)]">
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#fff7cb]">
               <AlertTriangle className="h-5 w-5 text-[#c98510]" />
             </div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#f2f6ff]">Low Stock</p>
-            <p className="mt-1 text-3xl font-semibold leading-none">12</p>
+            <p className="mt-1 text-3xl font-semibold leading-none">{metrics.lowStockCount}</p>
           </article>
           <article className="rounded-2xl bg-[#1a2548] p-4 text-white shadow-[0_18px_40px_-28px_rgba(17,33,64,0.9)]">
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#ffe5e7]">
               <CircleAlert className="h-5 w-5 text-[#ea2e3f]" />
             </div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#f2f6ff]">Sync Errors</p>
-            <p className="mt-1 text-3xl font-semibold leading-none">3</p>
+            <p className="mt-1 text-3xl font-semibold leading-none">{metrics.syncErrors}</p>
           </article>
         </div>
 
@@ -226,7 +353,7 @@ export default function ProductsPage() {
               <input
                 className="h-11 w-full rounded-xl border border-[#d6dce9] bg-white py-2 pl-10 pr-3 text-sm text-[#243251] outline-none transition placeholder:text-[#8f9bb1] focus:border-[#98abcf]"
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search by name, SKU, or ASIN..."
+                placeholder="Search by name, SKU, or Shopify ID..."
                 type="text"
                 value={searchQuery}
               />
@@ -258,11 +385,13 @@ export default function ProductsPage() {
             </label>
 
             <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-5 text-sm font-semibold text-[#465574] transition hover:bg-[#f8fafe]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-5 text-sm font-semibold text-[#465574] transition hover:bg-[#f8fafe] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isImporting}
+              onClick={() => void handleImport()}
               type="button"
             >
-              <CloudUpload className="h-4 w-4" />
-              Import
+              {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
+              {isImporting ? "Importing..." : "Import"}
             </button>
             <Link
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#172544] px-5 text-sm font-semibold text-white transition hover:bg-[#101e3b]"
@@ -274,17 +403,25 @@ export default function ProductsPage() {
           </div>
         </div>
 
+        {pageMessage ? (
+          <div className="rounded-xl border border-[#dbe2ee] bg-white px-4 py-3 text-sm text-[#4e5f82] shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
+            {pageMessage}
+          </div>
+        ) : null}
+
         <div className="overflow-hidden rounded-2xl border border-[#e1e6f0] bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1120px] text-left">
+            <table className="w-full min-w-[1280px] text-left">
               <thead className="text-xs font-semibold uppercase tracking-wide text-[#d8e4fb]">
                 <tr>
-                  <th className="w-14 bg-[#233a69] px-4 py-4 text-center">
-                    SL
-                  </th>
+                  <th className="w-14 bg-[#233a69] px-4 py-4 text-center">SL</th>
                   <th className="w-[118px] bg-[#233a69] px-4 py-4">Thumbnail</th>
-                  <th className="w-[290px] bg-[#233a69] px-4 py-4">Product Details</th>
+                  <th className="w-[320px] bg-[#233a69] px-4 py-4">Product Details</th>
                   <th className="w-[130px] bg-[#233a69] px-4 py-4">Stock</th>
+                  <th className="w-[180px] bg-[#1f7a43] px-4 py-4">
+                    <p className="text-sm normal-case leading-none text-white">Shopify</p>
+                    <p className="mt-1 text-[11px] normal-case text-white">Live Price</p>
+                  </th>
                   <th className="w-[170px] bg-[#f8a100] px-4 py-4">
                     <p className="text-sm normal-case leading-none text-white">a Amazon</p>
                     <p className="mt-1 text-[11px] normal-case text-white">Price + Shipping</p>
@@ -297,144 +434,140 @@ export default function ProductsPage() {
                     <p className="text-sm normal-case leading-none text-white">♪ TikTok</p>
                     <p className="mt-1 text-[11px] normal-case text-white">Shop Price</p>
                   </th>
-                  <th className="w-[120px] bg-[#233a69] px-4 py-4 text-center">Actions</th>
+                  <th className="w-[170px] bg-[#233a69] px-4 py-4 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map((product, index) => {
-                  const canEdit = globalEditMode;
-                  const stockLabel = product.stockStatus === "in_stock" ? "In Stock" : "Low Stock";
-                  const stockColor = product.stockStatus === "in_stock" ? "text-[#16c4cb]" : "text-[#d28e10]";
-
-                  const renderMarketCell = (
-                    marketName: "amazon" | "ebay" | "tiktok",
-                    actionLabel: string,
-                    marketData: MarketInfo,
-                  ) => {
-                    if (marketData.status === "not_listed" && !canEdit) {
-                      return (
-                        <>
-                          <p className="text-sm text-[#97a3ba]">{marketLabels.not_listed}</p>
-                          <p className="mt-1 text-xs font-semibold text-[#f03f8f]">+ {actionLabel}</p>
-                        </>
-                      );
-                    }
-
-                    return (
-                      <>
-                        <div className="relative mx-auto w-[112px]">
-                          {canEdit ? (
-                            <>
-                              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#95a1b8]">
-                                $
-                              </span>
-                              <input
-                                className="h-8 w-full rounded-lg border border-[#cfd8e7] bg-white py-1 pl-6 pr-2 text-center text-sm text-[#3f4d65] outline-none transition focus:border-[#90a5cd]"
-                                onChange={(event) => updateMarket(product.id, marketName, event.target.value)}
-                                type="text"
-                                value={marketData.price}
-                              />
-                            </>
-                          ) : (
-                            <div className="mx-auto flex h-8 w-full items-center justify-center rounded-lg border border-transparent bg-transparent px-2 text-sm text-[#3f4d65]">
-                              $ {marketData.price || "--"}
-                            </div>
-                          )}
-                        </div>
-                        <div className="mt-1 flex items-center justify-center gap-1.5">
-                          <span className={`h-2 w-2 rounded-full ${marketDotClasses[marketData.status]}`} />
-                          <span className={`text-xs ${marketLabelClasses[marketData.status]}`}>
-                            {marketLabels[marketData.status]}
-                          </span>
-                        </div>
-                      </>
-                    );
-                  };
+                {isLoading ? (
+                  <tr>
+                    <td className="px-4 py-12 text-center text-sm text-[#6f7f9f]" colSpan={9}>
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading Shopify products...
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProducts.map((product, index) => {
+                    const canEdit = globalEditMode;
+                    const stockTone = toStockTone(product.stock);
+                    const rowFeedback = rowFeedbackById[product.id] ?? { tone: "idle", message: "" };
 
                     return (
                       <tr className="border-t border-[#e9eef7] text-sm text-[#44526d]" key={product.id}>
-                        <td className="px-4 py-4 text-center">
-                          {index + 1}
-                        </td>
-                      <td className="px-4 py-4">
-                        <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${product.thumbTone}`}>
-                          <div className="h-7 w-4 rounded-[3px] bg-white/85 shadow-sm" />
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <p className="text-lg font-semibold leading-tight text-[#202b44]">{product.name}</p>
-                        <p className="mt-1 text-xs text-[#7d89a2]">SKU: {product.sku}</p>
-                      </td>
-                      <td className="px-4 py-4">
-                        {canEdit ? (
-                          <input
-                            className="h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none transition focus:border-[#90a5cd]"
-                            min={0}
-                            onChange={(event) => {
-                              const stockValue = Number(event.target.value);
-                              updateProduct(product.id, "stock", stockValue);
-                              updateProduct(product.id, "stockStatus", toStockStatus(stockValue));
-                            }}
-                            type="number"
-                            value={product.stock}
-                          />
-                        ) : (
-                          <div className="mx-auto flex h-8 w-[84px] items-center justify-center rounded-lg border border-transparent bg-transparent px-2 text-center text-sm text-[#3f4d65]">
-                            {product.stock}
+                        <td className="px-4 py-4 text-center">{index + 1}</td>
+                        <td className="px-4 py-4">
+                          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-[#e3e9f3] bg-[#f7f9fd]">
+                            {product.featuredImage ? (
+                              <Image
+                                alt={product.title}
+                                className="h-full w-full object-cover"
+                                height={56}
+                                src={product.featuredImage}
+                                unoptimized
+                                width={56}
+                              />
+                            ) : (
+                              <div className="h-8 w-5 rounded-[3px] bg-[#d9e1ef]" />
+                            )}
                           </div>
-                        )}
-                        <p className={`mt-1 text-center text-xs ${stockColor}`}>{stockLabel}</p>
-                      </td>
-                      <td className="border-l border-[#ffe0bc] px-4 py-4 text-center">
-                        {renderMarketCell("amazon", "Add to Amazon", product.amazon)}
-                      </td>
-                      <td className="border-l border-[#d2e5ff] px-4 py-4 text-center">
-                        {renderMarketCell("ebay", "Add to eBay", product.ebay)}
-                      </td>
-                      <td className="border-l border-[#f5d4e6] px-4 py-4 text-center">
-                        {renderMarketCell("tiktok", "Add to TikTok", product.tiktok)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center justify-center gap-3">
-                          <Link
-                            className="text-[#223763] transition hover:text-[#121f39]"
-                            href={`/products/${product.id}`}
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </Link>
-                          <button
-                            className="text-[#f03f8f] transition hover:text-[#cf216f]"
-                            onClick={() => removeProduct(product.id)}
-                            type="button"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="text-lg font-semibold leading-tight text-[#202b44]">{product.title}</p>
+                          <p className="mt-1 text-xs text-[#7d89a2]">SKU: {product.sku || "--"}</p>
+                          <p className="mt-1 text-xs text-[#7d89a2]">
+                            {product.vendor || "No vendor"}{product.productType ? ` • ${product.productType}` : ""}
+                          </p>
+                          <p className="mt-1 text-xs text-[#9aa5bc]">Shopify: {product.shopifyProductId}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          {canEdit ? (
+                            <input
+                              className="h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none transition focus:border-[#90a5cd]"
+                              min={0}
+                              onBlur={() => void handleStockSave(product)}
+                              onChange={(event) => handleStockChange(product.id, event.target.value)}
+                              type="number"
+                              value={product.stock}
+                            />
+                          ) : (
+                            <div className="mx-auto flex h-8 w-[84px] items-center justify-center rounded-lg px-2 text-center text-sm text-[#3f4d65]">
+                              {product.stock}
+                            </div>
+                          )}
+                          <p className={`mt-1 text-center text-xs ${stockTone.className}`}>{stockTone.label}</p>
+                        </td>
+                        <td className="border-l border-[#cce7d7] px-4 py-4 text-center">
+                          <div className="relative mx-auto w-[112px]">
+                            {canEdit ? (
+                              <>
+                                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#95a1b8]">$</span>
+                                <input
+                                  className="h-8 w-full rounded-lg border border-[#cfd8e7] bg-white py-1 pl-6 pr-2 text-center text-sm text-[#3f4d65] outline-none transition focus:border-[#90a5cd]"
+                                  onBlur={() => void handleShopifyPriceSave(product)}
+                                  onChange={(event) => handleShopifyPriceChange(product.id, event.target.value)}
+                                  type="text"
+                                  value={product.shopifyPrice}
+                                />
+                              </>
+                            ) : (
+                              <div className="mx-auto flex h-8 w-full items-center justify-center rounded-lg px-2 text-sm text-[#3f4d65]">
+                                {toCurrencyValue(product.shopifyPrice)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-1 flex items-center justify-center gap-1.5">
+                            <span className={`h-2 w-2 rounded-full ${product.status.toUpperCase() === "ACTIVE" ? "bg-[#2bc7c4]" : "bg-[#e3b101]"}`} />
+                            <span className="text-xs text-[#5b6e89]">{product.status || "DRAFT"}</span>
+                          </div>
+                        </td>
+                        <td className="border-l border-[#ffe0bc] px-4 py-4 text-center">
+                          <MarketPlaceholder />
+                        </td>
+                        <td className="border-l border-[#d2e5ff] px-4 py-4 text-center">
+                          <MarketPlaceholder />
+                        </td>
+                        <td className="border-l border-[#f5d4e6] px-4 py-4 text-center">
+                          <MarketPlaceholder />
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col items-center gap-2">
+                            <Link className="text-[#223763] transition hover:text-[#121f39]" href={`/products/${product.id}`}>
+                              <Edit3 className="h-4 w-4" />
+                            </Link>
+                            <p
+                              className={`text-center text-xs ${
+                                rowFeedback.tone === "error"
+                                  ? "text-[#ea2e3f]"
+                                  : rowFeedback.tone === "success"
+                                    ? "text-[#168b7c]"
+                                    : rowFeedback.tone === "saving"
+                                      ? "text-[#566b90]"
+                                      : "text-[#9aa5bc]"
+                              }`}
+                            >
+                              {rowFeedback.message || (globalEditMode ? "Blur field to sync Shopify." : "Shopify-backed row")}
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
 
-          {filteredProducts.length === 0 && (
+          {!isLoading && filteredProducts.length === 0 ? (
             <div className="border-t border-[#edf1f7] px-4 py-6 text-center text-sm text-[#6f7f9f] md:px-6">
-              No products found for &quot;{searchQuery}&quot;.
+              {products.length === 0 ? "No Shopify products found yet. Import products or upload one from the Add Product flow." : `No products found for "${searchQuery}".`}
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="flex items-center justify-between rounded-xl border border-[#e1e6f0] bg-white px-4 py-3 text-xs text-[#7b89a6]">
-          <p>Showing 1 to {Math.min(filteredProducts.length, 6)} of 128 results</p>
-          <div className="flex items-center gap-2">
-            <button className="rounded-lg border border-[#d7deea] px-3 py-1.5 text-xs text-[#637291]" type="button">
-              Previous
-            </button>
-            <button className="rounded-lg border border-[#d7deea] px-3 py-1.5 text-xs text-[#637291]" type="button">
-              Next
-            </button>
-          </div>
+          <p>Showing {filteredProducts.length} of {products.length} Shopify products</p>
+          <div className="text-right text-[#8c99b2]">Amazon, eBay, and TikTok remain empty until those marketplace listings exist.</div>
         </div>
       </div>
     </section>
