@@ -18,7 +18,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { ApiClientError, requestWithAuth } from "@/lib/auth";
+import { ApiClientError, authStorage } from "@/lib/auth";
+import { shopifyProductsApi } from "@/lib/shopify-products";
 
 type MarketKey = "amazon" | "ebay" | "tiktok" | "shopify";
 
@@ -64,6 +65,10 @@ type ApiCore = {
   attributes: Record<string, string>;
   source_title: string;
   vision_confidence: number;
+};
+
+type ExtendedApiCore = ApiCore & {
+  brand?: string;
 };
 
 type ApiAmazon = {
@@ -128,6 +133,18 @@ type ApiRecord = {
 type MarketActionState = Record<MarketKey, boolean>;
 type PublishTarget = "commandctr" | MarketKey;
 type PublishActionState = Record<PublishTarget, boolean>;
+type PublishStatus = "DRAFT" | "ACTIVE";
+type SavedDraftSnapshot = {
+  draft: ApiProduct;
+  variantsByMarket: Record<MarketKey, ApiVariant[]>;
+  productId: string | null;
+  sourceTitle: string;
+  publishVendor: string;
+  publishPrice: string;
+  publishSku: string;
+  publishStatus: PublishStatus;
+  savedAt: string;
+};
 
 const marketOrder: MarketKey[] = ["amazon", "ebay", "tiktok", "shopify"];
 
@@ -152,6 +169,9 @@ const emptyPublishState: PublishActionState = {
   tiktok: false,
   shopify: false,
 };
+
+const publishStatusOptions: PublishStatus[] = ["DRAFT", "ACTIVE"];
+const draftStorageKey = "commandctr-add-product-draft";
 
 const sampleProduct: ApiProduct = {
   core: {
@@ -539,6 +559,11 @@ function EditableAttributesField({
   );
 }
 
+function getStoredDraftKey() {
+  const session = authStorage.load();
+  return session?.user?.id ? `${draftStorageKey}:${session.user.id}` : draftStorageKey;
+}
+
 export default function AddProductEditor({
   activeMarket,
   initialProductId,
@@ -563,6 +588,8 @@ export default function AddProductEditor({
   const [publishVendor, setPublishVendor] = useState("");
   const [publishPrice, setPublishPrice] = useState("");
   const [publishSku, setPublishSku] = useState("");
+  const [publishStatus, setPublishStatus] = useState<PublishStatus>("DRAFT");
+  const [hasSavedDraft, setHasSavedDraft] = useState(false);
   const [variantInputs, setVariantInputs] = useState<Record<MarketKey, { size: string; color: string }>>({
     amazon: { size: "", color: "" },
     ebay: { size: "", color: "" },
@@ -571,6 +598,118 @@ export default function AddProductEditor({
   });
 
   const hasPersistedProduct = Boolean(productId);
+
+  function buildDraftSnapshot(): SavedDraftSnapshot {
+    return {
+      draft,
+      variantsByMarket,
+      productId,
+      sourceTitle,
+      publishVendor,
+      publishPrice,
+      publishSku,
+      publishStatus,
+      savedAt: new Date().toISOString(),
+    };
+  }
+
+  function persistDraftSnapshot(snapshot: SavedDraftSnapshot) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(getStoredDraftKey(), JSON.stringify(snapshot));
+    setHasSavedDraft(true);
+  }
+
+  function applySavedDraft(snapshot: SavedDraftSnapshot, message: string) {
+    setDraft(snapshot.draft);
+    setVariantsByMarket(snapshot.variantsByMarket);
+    setProductId(snapshot.productId);
+    setSourceTitle(snapshot.sourceTitle);
+    setPublishVendor(snapshot.publishVendor);
+    setPublishPrice(snapshot.publishPrice);
+    setPublishSku(snapshot.publishSku);
+    setPublishStatus(snapshot.publishStatus);
+    setHasSavedDraft(true);
+    setStatusMessage(message);
+  }
+
+  function clearSavedDraft(message: string) {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(getStoredDraftKey());
+    }
+
+    setDraft(sampleProduct);
+    setVariantsByMarket(sampleVariants);
+    setProductId(null);
+    setSourceTitle(sampleProduct.core.source_title);
+    setSelectedImage(null);
+    setPublishVendor("");
+    setPublishPrice("");
+    setPublishSku("");
+    setPublishStatus("DRAFT");
+    setVariantInputs({
+      amazon: { size: "", color: "" },
+      ebay: { size: "", color: "" },
+      tiktok: { size: "", color: "" },
+      shopify: { size: "", color: "" },
+    });
+    setHasSavedDraft(false);
+    setStatusMessage(message);
+    router.replace(`/products/add?market=${activeMarket}`, { scroll: false });
+  }
+
+  function loadSavedDraft() {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const raw = window.localStorage.getItem(getStoredDraftKey());
+    if (!raw) {
+      setHasSavedDraft(false);
+      setStatusMessage("No saved draft was found for this account.");
+      return;
+    }
+
+    try {
+      const snapshot = JSON.parse(raw) as SavedDraftSnapshot;
+      applySavedDraft(snapshot, "Saved draft loaded for this account.");
+    } catch {
+      window.localStorage.removeItem(getStoredDraftKey());
+      setHasSavedDraft(false);
+      setStatusMessage("Saved draft data was invalid and has been cleared.");
+    }
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const raw = window.localStorage.getItem(getStoredDraftKey());
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const snapshot = JSON.parse(raw) as SavedDraftSnapshot;
+      window.setTimeout(() => {
+        setHasSavedDraft(true);
+      }, 0);
+
+      if (!initialProductId) {
+        window.setTimeout(() => {
+          applySavedDraft(snapshot, "Saved draft restored for this account.");
+        }, 0);
+      }
+    } catch {
+      window.localStorage.removeItem(getStoredDraftKey());
+      window.setTimeout(() => {
+        setHasSavedDraft(false);
+      }, 0);
+    }
+  }, [initialProductId]);
 
   useEffect(() => {
     if (!initialProductId) {
@@ -617,6 +756,28 @@ export default function AddProductEditor({
     };
   }, [initialProductId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const snapshot: SavedDraftSnapshot = {
+      draft,
+      variantsByMarket,
+      productId,
+      sourceTitle,
+      publishVendor,
+      publishPrice,
+      publishSku,
+      publishStatus,
+      savedAt: new Date().toISOString(),
+    };
+    window.localStorage.setItem(getStoredDraftKey(), JSON.stringify(snapshot));
+    window.setTimeout(() => {
+      setHasSavedDraft(true);
+    }, 0);
+  }, [draft, productId, publishPrice, publishSku, publishStatus, publishVendor, sourceTitle, variantsByMarket]);
+
   const imageCards = useMemo(
     () => [
       { key: "source", label: "Source Upload", image: draft.images.source, note: "Original upload stored for audit and regeneration." },
@@ -638,36 +799,91 @@ export default function AddProductEditor({
     setStatusMessage(message);
   }
 
+  function getPublishTitle() {
+    return (
+      draft.shopify.title.trim() ||
+      draft.core.normalized_title.trim() ||
+      draft.core.source_title.trim()
+    );
+  }
+
+  function getPublishDescription() {
+    return draft.shopify.body_html.trim() || draft.core.product_summary.trim() || "";
+  }
+
+  function getPublishVendor() {
+    const brand = (draft.core as ExtendedApiCore).brand?.trim() ?? "";
+    return publishVendor.trim() || brand || "";
+  }
+
+  function getPublishProductType() {
+    return (
+      draft.shopify.product_type.trim() ||
+      draft.core.product_type.trim() ||
+      draft.core.category.trim() ||
+      ""
+    );
+  }
+
+  function getPublishTags() {
+    if (Array.isArray(draft.shopify.tags)) {
+      return draft.shopify.tags.map((tag) => tag.trim()).filter(Boolean);
+    }
+
+    return [];
+  }
+
   async function uploadToShopify() {
-    if (!publishPrice.trim()) {
-      setStatusMessage("Add a default price before uploading to Shopify.");
+    const title = getPublishTitle();
+    const trimmedPrice = publishPrice.trim();
+    const missingFields: string[] = [];
+    if (!title) {
+      missingFields.push("Product title");
+    }
+    if (!trimmedPrice) {
+      missingFields.push("Default price");
+    }
+    if (missingFields.length > 0) {
+      setStatusMessage(`Please fill the required publish fields: ${missingFields.join(", ")}.`);
+      return;
+    }
+
+    const numericPrice = Number(trimmedPrice);
+    if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+      setStatusMessage("Price must be a valid number greater than or equal to 0.");
+      return;
+    }
+
+    if (!publishStatusOptions.includes(publishStatus)) {
+      setStatusMessage("Status must be either DRAFT or ACTIVE.");
       return;
     }
 
     setPublishSubmitting((prev) => ({ ...prev, shopify: true }));
     try {
-      await requestWithAuth("/shopify/products", {
-        method: "POST",
-        body: JSON.stringify({
-          title: draft.shopify.title || draft.core.normalized_title,
-          description: draft.shopify.body_html || `<p>${draft.core.product_summary}</p>`,
-          vendor: publishVendor.trim() || undefined,
-          productType: draft.shopify.product_type || draft.core.product_type,
-          status: "ACTIVE",
-          tags: draft.shopify.tags,
-          variants: [
-            {
-              title: "Default Title",
-              price: publishPrice.trim(),
-              sku: publishSku.trim() || undefined,
-            },
-          ],
-        }),
+      await shopifyProductsApi.createShopifyProduct({
+        title,
+        description: getPublishDescription(),
+        vendor: getPublishVendor() || undefined,
+        productType: getPublishProductType() || undefined,
+        status: publishStatus,
+        tags: getPublishTags(),
+        variants: [
+          {
+            title: "Default Title",
+            price: numericPrice.toFixed(2),
+            sku: publishSku.trim() || undefined,
+          },
+        ],
       });
 
-      setStatusMessage("Uploaded to Shopify successfully. CommandCtr local product storage is updated by the Shopify backend flow.");
+      setStatusMessage("Product created on Shopify successfully");
+      persistDraftSnapshot(buildDraftSnapshot());
+      window.setTimeout(() => {
+        router.push("/products");
+      }, 700);
     } catch (error) {
-      setStatusMessage(error instanceof ApiClientError ? error.message : "Could not upload to Shopify.");
+      setStatusMessage(error instanceof ApiClientError ? error.message : "Could not create the Shopify product.");
     } finally {
       setPublishSubmitting((prev) => ({ ...prev, shopify: false }));
     }
@@ -711,8 +927,10 @@ export default function AddProductEditor({
   }
 
   async function saveDraft() {
+    persistDraftSnapshot(buildDraftSnapshot());
+
     if (!productId) {
-      setStatusMessage("Generate a product first, then save the draft.");
+      setStatusMessage("Draft saved locally for this account. Generate with AI later if you want to sync it to product-ai-agent.");
       return;
     }
 
@@ -738,7 +956,11 @@ export default function AddProductEditor({
       }
 
       const record = (await response.json()) as ApiRecord;
-      applyRecord(record, "Draft saved to product-ai-agent.");
+      applyRecord(record, "Draft saved to product-ai-agent and kept locally for this account.");
+      persistDraftSnapshot({
+        ...buildDraftSnapshot(),
+        productId: record.id,
+      });
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Draft save failed.");
     } finally {
@@ -902,6 +1124,27 @@ export default function AddProductEditor({
                 {isGenerating ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {isGenerating ? "Generating..." : "Generate with AI"}
               </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-[#51658f] bg-white/5 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!hasSavedDraft}
+                onClick={() => loadSavedDraft()}
+                type="button"
+              >
+                Load Draft
+              </button>
+              <button
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-[#51658f] bg-transparent px-4 text-sm font-semibold text-[#dce7fb] transition hover:bg-white/5"
+                onClick={() => clearSavedDraft("Draft cleared for this account.")}
+                type="button"
+              >
+                Clear Draft
+              </button>
+              <p className="text-xs text-[#aab8d6]">
+                Draft changes are also saved locally for this account so they survive reloads and sign-ins.
+              </p>
             </div>
           </div>
         </header>
@@ -1145,6 +1388,27 @@ export default function AddProductEditor({
                 />
               </div>
 
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <label className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Shopify Status</p>
+                  <select
+                    className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-3 text-sm text-[#31415e] outline-none transition focus:border-[#97abd0]"
+                    onChange={(event) => setPublishStatus(event.target.value as PublishStatus)}
+                    value={publishStatus}
+                  >
+                    {publishStatusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4 text-sm leading-6 text-[#667a99]">
+                  MVP publish sends basic Shopify product fields only. Images, inventory, SEO, and variants will be added later.
+                </div>
+              </div>
+
               <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <button
                   className="inline-flex min-h-12 items-center justify-center rounded-xl border border-dashed border-[#cfd9ea] bg-[#f8fbff] px-4 text-sm font-semibold text-[#8ea0bf] disabled:cursor-not-allowed"
@@ -1181,7 +1445,7 @@ export default function AddProductEditor({
                   type="button"
                 >
                   {publishSubmitting.shopify ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  {publishSubmitting.shopify ? "Uploading..." : "Shopify"}
+                  {publishSubmitting.shopify ? "Creating on Shopify..." : "Create on Shopify"}
                 </button>
               </div>
 
