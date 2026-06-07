@@ -1037,9 +1037,34 @@ export default function AddProductEditor({
         ],
       };
 
-      const result = shopifyProductId
-        ? await shopifyProductsApi.updateShopifyProduct(shopifyProductId, payload)
-        : await shopifyProductsApi.createShopifyProduct(payload);
+      let result;
+
+      try {
+        result = shopifyProductId
+          ? await shopifyProductsApi.updateShopifyProduct(shopifyProductId, payload)
+          : await shopifyProductsApi.createShopifyProduct(payload);
+      } catch (error) {
+        const isMissingExistingProduct =
+          shopifyProductId &&
+          error instanceof ApiClientError &&
+          error.message.toLowerCase().includes("product does not exist");
+
+        if (!isMissingExistingProduct) {
+          throw error;
+        }
+
+        setShopifyProductId(null);
+        persistDraftSnapshot({
+          ...buildDraftSnapshot(),
+          shopifyProductId: null,
+        });
+
+        const message =
+          "No Shopify draft was found for this product. The old Shopify link was cleared. Click Upload as Draft or Upload to Shopify again.";
+        setShopifyPublishMessage(message);
+        setStatusMessage(message);
+        return;
+      }
 
       setShopifyProductId(result.product.id);
       const warningsText = result.warnings.length ? ` Warnings: ${result.warnings.join(" ")}` : "";
