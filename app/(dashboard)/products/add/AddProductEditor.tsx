@@ -18,6 +18,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
+import { ApiClientError, requestWithAuth } from "@/lib/auth";
+
 type MarketKey = "amazon" | "ebay" | "tiktok" | "shopify";
 
 type ApiImageValidation = {
@@ -124,6 +126,8 @@ type ApiRecord = {
 };
 
 type MarketActionState = Record<MarketKey, boolean>;
+type PublishTarget = "commandctr" | MarketKey;
+type PublishActionState = Record<PublishTarget, boolean>;
 
 const marketOrder: MarketKey[] = ["amazon", "ebay", "tiktok", "shopify"];
 
@@ -135,6 +139,14 @@ const marketLabels: Record<MarketKey, string> = {
 };
 
 const emptyActionState: MarketActionState = {
+  amazon: false,
+  ebay: false,
+  tiktok: false,
+  shopify: false,
+};
+
+const emptyPublishState: PublishActionState = {
+  commandctr: false,
   amazon: false,
   ebay: false,
   tiktok: false,
@@ -380,6 +392,10 @@ function imageUrlFor(pathValue: string) {
     return null;
   }
 
+  if (pathValue.startsWith("http://") || pathValue.startsWith("https://")) {
+    return pathValue;
+  }
+
   return `/api/product-ai/image?path=${encodeURIComponent(pathValue)}`;
 }
 
@@ -436,6 +452,7 @@ function MarketTabLink({
         active ? "bg-[#1b2748] text-white" : "bg-[#edf2fb] text-[#49607f] hover:bg-[#dfe9fb]"
       }`}
       href={`/products/add?market=${market}${suffix}`}
+      scroll={false}
     >
       {marketLabels[market]}
     </Link>
@@ -542,6 +559,10 @@ export default function AddProductEditor({
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [marketRegenerating, setMarketRegenerating] = useState<MarketActionState>(emptyActionState);
   const [variantSubmitting, setVariantSubmitting] = useState<MarketActionState>(emptyActionState);
+  const [publishSubmitting, setPublishSubmitting] = useState<PublishActionState>(emptyPublishState);
+  const [publishVendor, setPublishVendor] = useState("");
+  const [publishPrice, setPublishPrice] = useState("");
+  const [publishSku, setPublishSku] = useState("");
   const [variantInputs, setVariantInputs] = useState<Record<MarketKey, { size: string; color: string }>>({
     amazon: { size: "", color: "" },
     ebay: { size: "", color: "" },
@@ -613,7 +634,43 @@ export default function AddProductEditor({
     setDraft(record.product);
     setVariantsByMarket(record.variants);
     setSourceTitle(record.product.core.source_title);
+    setPublishSku((current) => current || record.id.slice(0, 12).toUpperCase());
     setStatusMessage(message);
+  }
+
+  async function uploadToShopify() {
+    if (!publishPrice.trim()) {
+      setStatusMessage("Add a default price before uploading to Shopify.");
+      return;
+    }
+
+    setPublishSubmitting((prev) => ({ ...prev, shopify: true }));
+    try {
+      await requestWithAuth("/shopify/products", {
+        method: "POST",
+        body: JSON.stringify({
+          title: draft.shopify.title || draft.core.normalized_title,
+          description: draft.shopify.body_html || `<p>${draft.core.product_summary}</p>`,
+          vendor: publishVendor.trim() || undefined,
+          productType: draft.shopify.product_type || draft.core.product_type,
+          status: "ACTIVE",
+          tags: draft.shopify.tags,
+          variants: [
+            {
+              title: "Default Title",
+              price: publishPrice.trim(),
+              sku: publishSku.trim() || undefined,
+            },
+          ],
+        }),
+      });
+
+      setStatusMessage("Uploaded to Shopify successfully. CommandCtr local product storage is updated by the Shopify backend flow.");
+    } catch (error) {
+      setStatusMessage(error instanceof ApiClientError ? error.message : "Could not upload to Shopify.");
+    } finally {
+      setPublishSubmitting((prev) => ({ ...prev, shopify: false }));
+    }
   }
 
   async function generateProduct() {
@@ -645,7 +702,7 @@ export default function AddProductEditor({
 
       const record = (await response.json()) as ApiRecord;
       applyRecord(record, "AI draft generated and connected to the add-product page.");
-      router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`);
+      router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Product generation failed.");
     } finally {
@@ -1062,6 +1119,82 @@ export default function AddProductEditor({
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
+                  <h2 className="text-lg font-semibold text-[#1f2c44]">Publish Targets</h2>
+                  <p className="text-sm text-[#7f92b1]">Upload the current product data to supported CommandCtr marketplace backends.</p>
+                </div>
+                <div className="rounded-full bg-[#eef5ff] px-3 py-2 text-xs font-semibold text-[#4d6284]">
+                  Active market: {marketLabels[activeMarket]}
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                <EditableField
+                  label="Vendor / Brand"
+                  onChange={setPublishVendor}
+                  value={publishVendor}
+                />
+                <EditableField
+                  label="Default Price"
+                  onChange={setPublishPrice}
+                  value={publishPrice}
+                />
+                <EditableField
+                  label="Default SKU"
+                  onChange={setPublishSku}
+                  value={publishSku}
+                />
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <button
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-dashed border-[#cfd9ea] bg-[#f8fbff] px-4 text-sm font-semibold text-[#8ea0bf] disabled:cursor-not-allowed"
+                  disabled
+                  type="button"
+                >
+                  CommandCtr DB
+                </button>
+                <button
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-dashed border-[#cfd9ea] bg-[#f8fbff] px-4 text-sm font-semibold text-[#8ea0bf] disabled:cursor-not-allowed"
+                  disabled
+                  type="button"
+                >
+                  Amazon
+                </button>
+                <button
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-dashed border-[#cfd9ea] bg-[#f8fbff] px-4 text-sm font-semibold text-[#8ea0bf] disabled:cursor-not-allowed"
+                  disabled
+                  type="button"
+                >
+                  eBay
+                </button>
+                <button
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-dashed border-[#cfd9ea] bg-[#f8fbff] px-4 text-sm font-semibold text-[#8ea0bf] disabled:cursor-not-allowed"
+                  disabled
+                  type="button"
+                >
+                  TikTok Shop
+                </button>
+                <button
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#172544] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={publishSubmitting.shopify}
+                  onClick={() => void uploadToShopify()}
+                  type="button"
+                >
+                  {publishSubmitting.shopify ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  {publishSubmitting.shopify ? "Uploading..." : "Shopify"}
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-3 text-xs leading-6 text-[#667a99]">
+                CommandCtr local database creation is not exposed as a standalone backend endpoint yet.
+                Shopify upload is live because `commandctr-backend` already supports `POST /shopify/products`, and that flow also upserts the local CommandCtr product record.
+                Amazon, eBay, and TikTok upload buttons are shown separately but remain disabled until those marketplace create APIs exist in the backend.
+              </div>
+            </article>
+
+            <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
                   <h2 className="text-lg font-semibold text-[#1f2c44]">Marketplace Variants</h2>
                   <p className="text-sm text-[#7f92b1]">These controls are now live against the backend variant APIs.</p>
                 </div>
@@ -1165,7 +1298,7 @@ export default function AddProductEditor({
             </article>
           </div>
 
-          <aside className="space-y-5">
+          <aside className="space-y-5 xl:sticky xl:top-5 xl:max-h-[calc(100vh-2.5rem)] xl:overflow-y-auto xl:pr-2">
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eefaf7] text-[#2dc7c3]">
