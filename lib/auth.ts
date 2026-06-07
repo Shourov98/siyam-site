@@ -15,6 +15,10 @@ export type AuthSession = {
   refreshToken: string;
 };
 
+type RefreshTokenResponse = {
+  accessToken: string;
+};
+
 type ApiSuccessResponse<T> = {
   success: true;
   message: string;
@@ -90,6 +94,13 @@ export const authApi = {
       body: JSON.stringify(input),
     });
   },
+
+  refreshToken(refreshToken: string) {
+    return request<RefreshTokenResponse>("/auth/refresh-token", {
+      method: "POST",
+      body: JSON.stringify({ refreshToken }),
+    });
+  },
 };
 
 export const authStorage = {
@@ -124,18 +135,74 @@ export const clearStoredSession = () => {
   authStorage.clear();
 };
 
-export const requestWithAuth = async <T>(path: string, init?: RequestInit): Promise<T> => {
-  const accessToken = getStoredAccessToken();
+let refreshSessionPromise: Promise<AuthSession | null> | null = null;
+const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000;
 
-  if (!accessToken) {
-    clearStoredSession();
-    if (typeof window !== "undefined") {
-      window.location.assign("/login");
-    }
-    throw new ApiClientError("Authentication is required.");
+const redirectToLogin = () => {
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    window.location.assign("/login");
+  }
+};
+
+const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
+  const segments = token.split(".");
+  if (segments.length < 2) {
+    return null;
   }
 
-  const response = await fetch(buildUrl(path), {
+  try {
+    const normalized = segments[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    const payload = atob(padded);
+    return JSON.parse(payload) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+};
+
+const shouldRefreshAccessToken = (accessToken: string) => {
+  const payload = decodeJwtPayload(accessToken);
+  const exp = typeof payload?.exp === "number" ? payload.exp : null;
+
+  if (!exp) {
+    return false;
+  }
+
+  return exp * 1000 <= Date.now() + ACCESS_TOKEN_REFRESH_BUFFER_MS;
+};
+
+const refreshStoredSession = async (): Promise<AuthSession | null> => {
+  const session = authStorage.load();
+  if (!session?.refreshToken) {
+    clearStoredSession();
+    return null;
+  }
+
+  if (!refreshSessionPromise) {
+    refreshSessionPromise = authApi
+      .refreshToken(session.refreshToken)
+      .then((result) => {
+        const nextSession: AuthSession = {
+          ...session,
+          accessToken: result.accessToken,
+        };
+        authStorage.save(nextSession);
+        return nextSession;
+      })
+      .catch(() => {
+        clearStoredSession();
+        return null;
+      })
+      .finally(() => {
+        refreshSessionPromise = null;
+      });
+  }
+
+  return refreshSessionPromise;
+};
+
+const fetchWithAccessToken = (accessToken: string, path: string, init?: RequestInit) =>
+  fetch(buildUrl(path), {
     ...init,
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -143,13 +210,44 @@ export const requestWithAuth = async <T>(path: string, init?: RequestInit): Prom
     },
   });
 
+export const requestWithAuth = async <T>(path: string, init?: RequestInit): Promise<T> => {
+  let accessToken = getStoredAccessToken();
+
+  if (accessToken && shouldRefreshAccessToken(accessToken)) {
+    const refreshedSession = await refreshStoredSession();
+    accessToken = refreshedSession?.accessToken ?? null;
+  }
+
+  if (!accessToken) {
+    const refreshedSession = await refreshStoredSession();
+    accessToken = refreshedSession?.accessToken ?? null;
+  }
+
+  if (!accessToken) {
+    clearStoredSession();
+    redirectToLogin();
+    throw new ApiClientError("Authentication is required.");
+  }
+
+  let response = await fetchWithAccessToken(accessToken, path, init);
+
+  if (response.status === 401) {
+    const refreshedSession = await refreshStoredSession();
+    const nextAccessToken = refreshedSession?.accessToken ?? null;
+
+    if (!nextAccessToken) {
+      redirectToLogin();
+      throw new ApiClientError("Authentication is required.");
+    }
+
+    response = await fetchWithAccessToken(nextAccessToken, path, init);
+  }
+
   const payload = (await response.json().catch(() => null)) as ApiSuccessResponse<T> | ApiErrorResponse | null;
 
   if (response.status === 401) {
     clearStoredSession();
-    if (typeof window !== "undefined") {
-      window.location.assign("/login");
-    }
+    redirectToLogin();
   }
 
   if (!response.ok || !payload?.success) {
