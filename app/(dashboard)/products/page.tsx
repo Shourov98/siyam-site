@@ -14,44 +14,12 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-
-import { ApiClientError } from "@/lib/auth";
-import { productsApi, type ProductListItem, type ShopifyInventoryLevel } from "@/lib/products";
-
-type ExternalMarketState = "empty";
-
-type ProductRow = {
-  id: string;
-  shopifyProductId: string;
-  title: string;
-  sku: string;
-  vendor: string;
-  productType: string;
-  status: string;
-  stock: number;
-  featuredImage?: string;
-  shopifyPrice: string;
-  shopifyVariantId?: string;
-  inventoryItemId?: string;
-  inventoryLocationId?: string;
-  source: "shopify" | "product_ai";
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-type RowFeedback = {
-  tone: "idle" | "saving" | "success" | "error";
-  message: string;
-};
+import { useEffect, useMemo } from "react";
 
 const EMPTY_MARKET_STATUS: Record<ExternalMarketState, string> = {
   empty: "Empty",
 };
-
-function getProductDocumentId(product: ProductListItem) {
-  return product._id ?? product.id ?? product.shopifyProductId;
-}
+import { useProductsPageStore, type ExternalMarketState } from "@/lib/stores/products-page-store";
 
 function toCurrencyValue(value: string) {
   const numeric = Number(value);
@@ -76,85 +44,6 @@ function toStockTone(value: number) {
   };
 }
 
-function buildInventoryLocationMap(levels: ShopifyInventoryLevel[]) {
-  return new Map(
-    levels
-      .filter((level) => level.inventoryItemId && level.locationId)
-      .map((level) => [level.inventoryItemId, level.locationId]),
-  );
-}
-
-function mapProductRows(products: ProductListItem[], inventoryLevels: ShopifyInventoryLevel[]) {
-  const inventoryLocationByItemId = buildInventoryLocationMap(inventoryLevels);
-
-  return products.map<ProductRow>((product) => {
-    const primaryVariant = product.variants[0];
-    const inventoryItemId = primaryVariant?.inventoryItemId;
-
-    return {
-      id: getProductDocumentId(product),
-      shopifyProductId: product.shopifyProductId,
-      title: product.title,
-      sku: primaryVariant?.sku ?? "",
-      vendor: product.vendor ?? "",
-      productType: product.productType ?? "",
-      status: product.status ?? "DRAFT",
-      stock: primaryVariant?.inventoryQuantity ?? product.totalInventory ?? 0,
-      featuredImage: product.featuredImage,
-      shopifyPrice: primaryVariant?.price ?? "",
-      shopifyVariantId: primaryVariant?.shopifyVariantId,
-      inventoryItemId,
-      inventoryLocationId: inventoryItemId ? (inventoryLocationByItemId.get(inventoryItemId) ?? "") : "",
-      source: "shopify",
-      createdAt: product.updatedAt,
-      updatedAt: product.updatedAt,
-    };
-  });
-}
-
-type ProductAiListItem = {
-  id: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  normalized_title: string;
-  category: string;
-  product_type: string;
-  preview_image_path: string;
-};
-
-function mapProductAiRows(products: ProductAiListItem[]) {
-  return products.map<ProductRow>((product) => ({
-    id: product.id,
-    shopifyProductId: `product-ai:${product.id}`,
-    title: product.normalized_title,
-    sku: "",
-    vendor: "Product AI Agent",
-    productType: product.product_type,
-    status: product.status ?? "DRAFT",
-    stock: 0,
-    featuredImage: product.preview_image_path,
-    shopifyPrice: "",
-    source: "product_ai",
-    createdAt: product.created_at,
-    updatedAt: product.updated_at,
-  }));
-}
-
-function sortProductRows(rows: ProductRow[]) {
-  return [...rows].sort((left, right) => {
-    if (left.source !== right.source) {
-      return left.source === "product_ai" ? -1 : 1;
-    }
-
-    const leftTime = Date.parse(left.updatedAt ?? left.createdAt ?? "");
-    const rightTime = Date.parse(right.updatedAt ?? right.createdAt ?? "");
-    const safeLeftTime = Number.isFinite(leftTime) ? leftTime : 0;
-    const safeRightTime = Number.isFinite(rightTime) ? rightTime : 0;
-    return safeRightTime - safeLeftTime;
-  });
-}
-
 function MarketPlaceholder() {
   return (
     <>
@@ -168,58 +57,30 @@ function MarketPlaceholder() {
 }
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<ProductRow[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [globalEditMode, setGlobalEditMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isImporting, setIsImporting] = useState(false);
-  const [pageMessage, setPageMessage] = useState("");
-  const [rowFeedbackById, setRowFeedbackById] = useState<Record<string, RowFeedback>>({});
-
-  async function fetchProductsData() {
-    const [productItems, inventoryLevels, productAiResponse] = await Promise.all([
-      productsApi.getProducts(),
-      productsApi.getShopifyInventory(),
-      fetch("/api/product-ai/products", { cache: "no-store" }),
-    ]);
-
-    if (!productAiResponse.ok) {
-      const errorBody = (await productAiResponse.json().catch(() => null)) as { detail?: string } | null;
-      throw new Error(errorBody?.detail ?? "Could not load AI-generated products.");
-    }
-
-    const productAiItems = (await productAiResponse.json()) as ProductAiListItem[];
-    return sortProductRows([...mapProductRows(productItems, inventoryLevels), ...mapProductAiRows(productAiItems)]);
-  }
+  const products = useProductsPageStore((state) => state.products);
+  const pagination = useProductsPageStore((state) => state.pagination);
+  const searchQuery = useProductsPageStore((state) => state.searchQuery);
+  const globalEditMode = useProductsPageStore((state) => state.globalEditMode);
+  const isLoading = useProductsPageStore((state) => state.isLoading);
+  const isImporting = useProductsPageStore((state) => state.isImporting);
+  const pageMessage = useProductsPageStore((state) => state.pageMessage);
+  const rowFeedbackById = useProductsPageStore((state) => state.rowFeedbackById);
+  const hasLoadedOnce = useProductsPageStore((state) => state.hasLoadedOnce);
+  const setSearchQuery = useProductsPageStore((state) => state.setSearchQuery);
+  const toggleGlobalEditMode = useProductsPageStore((state) => state.toggleGlobalEditMode);
+  const loadPage = useProductsPageStore((state) => state.loadPage);
+  const importShopify = useProductsPageStore((state) => state.importShopify);
+  const changePage = useProductsPageStore((state) => state.changePage);
+  const updateShopifyPriceDraft = useProductsPageStore((state) => state.updateShopifyPriceDraft);
+  const saveShopifyPrice = useProductsPageStore((state) => state.saveShopifyPrice);
+  const updateStockDraft = useProductsPageStore((state) => state.updateStockDraft);
+  const saveStock = useProductsPageStore((state) => state.saveStock);
 
   useEffect(() => {
-    let active = true;
-
-    void fetchProductsData()
-      .then((rows) => {
-        if (!active) {
-          return;
-        }
-
-        setProducts(rows);
-      })
-      .catch((error) => {
-        if (!active) {
-          return;
-        }
-
-        setPageMessage(error instanceof ApiClientError ? error.message : "Could not load product listings.");
-      })
-      .finally(() => {
-        if (active) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
+    if (!hasLoadedOnce) {
+      void loadPage();
+    }
+  }, [hasLoadedOnce, loadPage]);
 
   const filteredProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -249,124 +110,6 @@ export default function ProductsPage() {
       syncErrors,
     };
   }, [products, rowFeedbackById]);
-
-  const setRowFeedback = (rowId: string, feedback: RowFeedback) => {
-    setRowFeedbackById((prev) => ({
-      ...prev,
-      [rowId]: feedback,
-    }));
-  };
-
-  const updateLocalRow = (rowId: string, updater: (row: ProductRow) => ProductRow) => {
-    setProducts((prev) => prev.map((row) => (row.id === rowId ? updater(row) : row)));
-  };
-
-  const handleImport = async () => {
-    setIsImporting(true);
-    setPageMessage("");
-
-    try {
-      const result = await productsApi.importShopifyProducts();
-      const rows = await fetchProductsData();
-      setProducts(rows);
-      setPageMessage(`Imported ${result.count} Shopify products.`);
-    } catch (error) {
-      setPageMessage(error instanceof ApiClientError ? error.message : "Could not import Shopify products.");
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  const handleShopifyPriceChange = (rowId: string, nextPrice: string) => {
-    updateLocalRow(rowId, (row) => ({ ...row, shopifyPrice: nextPrice }));
-  };
-
-  const handleShopifyPriceSave = async (row: ProductRow) => {
-    if (!globalEditMode || row.source !== "shopify" || !row.shopifyVariantId) {
-      return;
-    }
-
-    const normalizedPrice = row.shopifyPrice.trim();
-    const numericPrice = Number(normalizedPrice);
-
-    if (!normalizedPrice || !Number.isFinite(numericPrice) || numericPrice < 0) {
-      setRowFeedback(row.id, {
-        tone: "error",
-        message: "Shopify price must be a valid number.",
-      });
-      return;
-    }
-
-    setRowFeedback(row.id, {
-      tone: "saving",
-      message: "Updating Shopify price...",
-    });
-
-    try {
-      const result = await productsApi.updateShopifyVariantPrice(row.shopifyProductId, {
-        variantId: row.shopifyVariantId,
-        price: numericPrice.toFixed(2),
-      });
-
-      updateLocalRow(row.id, (current) => ({
-        ...current,
-        shopifyPrice: result.price ?? numericPrice.toFixed(2),
-      }));
-      setRowFeedback(row.id, {
-        tone: "success",
-        message: "Shopify price updated.",
-      });
-    } catch (error) {
-      setRowFeedback(row.id, {
-        tone: "error",
-        message: error instanceof ApiClientError ? error.message : "Could not update Shopify price.",
-      });
-    }
-  };
-
-  const handleStockChange = (rowId: string, nextStock: string) => {
-    const numericValue = Number(nextStock);
-    updateLocalRow(rowId, (row) => ({
-      ...row,
-      stock: Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0,
-    }));
-  };
-
-  const handleStockSave = async (row: ProductRow) => {
-    if (!globalEditMode || row.source !== "shopify") {
-      return;
-    }
-
-    if (!row.inventoryItemId || !row.inventoryLocationId) {
-      setRowFeedback(row.id, {
-        tone: "error",
-        message: "No Shopify inventory location was found for this product.",
-      });
-      return;
-    }
-
-    setRowFeedback(row.id, {
-      tone: "saving",
-      message: "Updating Shopify stock...",
-    });
-
-    try {
-      await productsApi.updateShopifyInventory(row.inventoryItemId, {
-        locationId: row.inventoryLocationId,
-        quantity: row.stock,
-      });
-
-      setRowFeedback(row.id, {
-        tone: "success",
-        message: "Shopify stock updated.",
-      });
-    } catch (error) {
-      setRowFeedback(row.id, {
-        tone: "error",
-        message: error instanceof ApiClientError ? error.message : "Could not update Shopify stock.",
-      });
-    }
-  };
 
   return (
     <section className="px-4 py-5 md:px-8 md:py-8">
@@ -429,7 +172,7 @@ export default function ProductsPage() {
               Global Edit Mode
               <button
                 className={`relative h-6 w-12 rounded-full transition ${globalEditMode ? "bg-[#1f2d4d]" : "bg-[#c8d2e5]"}`}
-                onClick={() => setGlobalEditMode((prev) => !prev)}
+                onClick={toggleGlobalEditMode}
                 type="button"
               >
                 <span
@@ -443,7 +186,7 @@ export default function ProductsPage() {
             <button
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-5 text-sm font-semibold text-[#465574] transition hover:bg-[#f8fafe] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isImporting}
-              onClick={() => void handleImport()}
+              onClick={() => void importShopify()}
               type="button"
             >
               {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
@@ -540,14 +283,14 @@ export default function ProductsPage() {
                         </td>
                         <td className="px-4 py-4">
                           {canEdit && product.source === "shopify" ? (
-                            <input
-                              className="h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none transition focus:border-[#90a5cd]"
-                              min={0}
-                              onBlur={() => void handleStockSave(product)}
-                              onChange={(event) => handleStockChange(product.id, event.target.value)}
-                              type="number"
-                              value={product.stock}
-                            />
+                              <input
+                                className="h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none transition focus:border-[#90a5cd]"
+                                min={0}
+                                onBlur={() => void saveStock(product)}
+                                onChange={(event) => updateStockDraft(product.id, event.target.value)}
+                                type="number"
+                                value={product.stock}
+                              />
                           ) : (
                             <div className="mx-auto flex h-8 w-[84px] items-center justify-center rounded-lg px-2 text-center text-sm text-[#3f4d65]">
                               {product.source === "shopify" ? product.stock : "--"}
@@ -564,8 +307,8 @@ export default function ProductsPage() {
                                 <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#95a1b8]">$</span>
                                 <input
                                   className="h-8 w-full rounded-lg border border-[#cfd8e7] bg-white py-1 pl-6 pr-2 text-center text-sm text-[#3f4d65] outline-none transition focus:border-[#90a5cd]"
-                                  onBlur={() => void handleShopifyPriceSave(product)}
-                                  onChange={(event) => handleShopifyPriceChange(product.id, event.target.value)}
+                                  onBlur={() => void saveShopifyPrice(product)}
+                                  onChange={(event) => updateShopifyPriceDraft(product.id, event.target.value)}
                                   type="text"
                                   value={product.shopifyPrice}
                                 />
@@ -645,8 +388,26 @@ export default function ProductsPage() {
         </div>
 
         <div className="flex items-center justify-between rounded-xl border border-[#e1e6f0] bg-white px-4 py-3 text-xs text-[#7b89a6]">
-          <p>Showing {filteredProducts.length} of {products.length} products across Shopify and Product AI Agent</p>
+          <p>Showing {filteredProducts.length} of {pagination.total_items} Product AI items on page {pagination.page}{pagination.total_pages ? ` of ${pagination.total_pages}` : ""}</p>
           <div className="text-right text-[#8c99b2]">Marketplace columns remain placeholders until live marketplace listings are connected.</div>
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            className="rounded-xl border border-[#c7d3e6] px-4 py-1.5 font-semibold text-[#60708d] disabled:opacity-50"
+            disabled={pagination.page <= 1 || isLoading}
+            onClick={() => void changePage(pagination.page - 1)}
+            type="button"
+          >
+            Previous
+          </button>
+          <button
+            className="rounded-xl border border-[#c7d3e6] px-4 py-1.5 font-semibold text-[#60708d] disabled:opacity-50"
+            disabled={pagination.total_pages === 0 || pagination.page >= pagination.total_pages || isLoading}
+            onClick={() => void changePage(pagination.page + 1)}
+            type="button"
+          >
+            Next
+          </button>
         </div>
       </div>
     </section>

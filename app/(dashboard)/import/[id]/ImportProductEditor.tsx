@@ -44,6 +44,9 @@ type ImportRecord = {
   id: string;
   status: string;
   linked_product_id: string | null;
+  primary_record_id?: string | null;
+  duplicate_count?: number;
+  can_upload_as_product?: boolean;
   missing_fields: string[];
   notes: string[];
   product: ApiProduct;
@@ -281,9 +284,14 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
           <button className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:opacity-60" disabled={marketBusy} onClick={() => void regenerateMarketImage()} type="button">
             {marketBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />} Regenerate {activeMarket} Image
           </button>
-          <button className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#172544] px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isUploading || Boolean(record?.linked_product_id)} onClick={() => void uploadAsProduct()} type="button">
-            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Upload as Product
+          <button className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#172544] px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isUploading || !record?.can_upload_as_product} onClick={() => void uploadAsProduct()} type="button">
+            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} {record?.can_upload_as_product ? "Upload as Product" : "Resolve Duplicates First"}
           </button>
+          {!record?.can_upload_as_product && record ? (
+            <Link className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#f4d7a2] bg-[#fff5df] px-4 text-sm font-semibold text-[#f4a632]" href={`/import/resolve/${record.id}`}>
+              Resolve Duplicate Group
+            </Link>
+          ) : null}
           {record?.linked_product_id ? (
             <Link className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d]" href={`/products/add?productId=${record.linked_product_id}`}>
               <CheckCircle2 className="h-4 w-4" /> Open Uploaded Product

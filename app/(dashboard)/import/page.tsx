@@ -4,20 +4,8 @@ import { AlertTriangle, CheckCircle2, CloudUpload, Edit3, FileText, Loader2, Sea
 import Link from "next/link";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
-type ImportStatus = "imported" | "needs_review" | "duplicate" | "parse_issue" | "uploaded";
-type ImportRow = {
-  id: string;
-  status: ImportStatus;
-  created_at: string;
-  updated_at: string;
-  normalized_title: string;
-  category: string;
-  product_type: string;
-  preview_image_path: string;
-  linked_product_id: string | null;
-  missing_fields: string[];
-  notes: string[];
-};
+import DuplicateResolveModal from "./DuplicateResolveModal";
+import { useImportPageStore, type ImportStatus } from "@/lib/stores/import-page-store";
 
 function StatusBadge({ status }: { status: ImportStatus }) {
   const styles: Record<ImportStatus, string> = {
@@ -39,38 +27,27 @@ function StatusBadge({ status }: { status: ImportStatus }) {
 
 export default function ImportPage() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [rows, setRows] = useState<ImportRow[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [busyRecordId, setBusyRecordId] = useState<string | null>(null);
-  const [pageMessage, setPageMessage] = useState("Uploaded import records stay here until you delete them or upload them as products.");
-
-  async function loadImports() {
-    const response = await fetch("/api/product-ai/imports/products", { cache: "no-store" });
-    if (!response.ok) {
-      const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
-      throw new Error(errorBody?.detail ?? "Could not load imported products.");
-    }
-    return (await response.json()) as ImportRow[];
-  }
+  const [resolveRecordId, setResolveRecordId] = useState<string | null>(null);
+  const rows = useImportPageStore((state) => state.rows);
+  const pagination = useImportPageStore((state) => state.pagination);
+  const searchQuery = useImportPageStore((state) => state.searchQuery);
+  const isLoading = useImportPageStore((state) => state.isLoading);
+  const isUploading = useImportPageStore((state) => state.isUploading);
+  const busyRecordId = useImportPageStore((state) => state.busyRecordId);
+  const pageMessage = useImportPageStore((state) => state.pageMessage);
+  const hasLoadedOnce = useImportPageStore((state) => state.hasLoadedOnce);
+  const setSearchQuery = useImportPageStore((state) => state.setSearchQuery);
+  const loadPage = useImportPageStore((state) => state.loadPage);
+  const uploadFile = useImportPageStore((state) => state.uploadFile);
+  const deleteImportRecord = useImportPageStore((state) => state.deleteImportRecord);
+  const uploadAsProduct = useImportPageStore((state) => state.uploadAsProduct);
+  const changePage = useImportPageStore((state) => state.changePage);
 
   useEffect(() => {
-    let active = true;
-    void loadImports()
-      .then((data) => {
-        if (active) {
-          setRows(data);
-        }
-      })
-      .catch((error) => {
-        if (active) {
-          setPageMessage(error instanceof Error ? error.message : "Could not load imported products.");
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+    if (!hasLoadedOnce) {
+      void loadPage();
+    }
+  }, [hasLoadedOnce, loadPage]);
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -94,73 +71,27 @@ export default function ImportPage() {
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    const formData = new FormData();
-    formData.append("file", file);
-    setIsUploading(true);
     try {
-      const response = await fetch("/api/product-ai/imports/products/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!response.ok) {
-        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(errorBody?.detail ?? "Could not upload import file.");
-      }
-      const refreshed = await loadImports();
-      setRows(refreshed);
-      setPageMessage("Import file processed and saved to the database.");
-    } catch (error) {
-      setPageMessage(error instanceof Error ? error.message : "Could not upload import file.");
+      await uploadFile(file);
     } finally {
-      setIsUploading(false);
       event.target.value = "";
     }
   }
 
-  async function deleteImportRecord(recordId: string) {
-    setBusyRecordId(recordId);
-    try {
-      const response = await fetch(`/api/product-ai/imports/products/${recordId}`, { method: "DELETE" });
-      if (!response.ok && response.status !== 204) {
-        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(errorBody?.detail ?? "Could not delete import record.");
-      }
-      setRows((current) => current.filter((row) => row.id !== recordId));
-      setPageMessage("Import record deleted.");
-    } catch (error) {
-      setPageMessage(error instanceof Error ? error.message : "Could not delete import record.");
-    } finally {
-      setBusyRecordId(null);
-    }
-  }
-
-  async function uploadAsProduct(recordId: string) {
-    setBusyRecordId(recordId);
-    try {
-      const response = await fetch(`/api/product-ai/imports/products/${recordId}/upload-as-product`, { method: "POST" });
-      if (!response.ok) {
-        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(errorBody?.detail ?? "Could not upload import record as product.");
-      }
-      const result = (await response.json()) as { import_record: { linked_product_id: string | null; status: ImportStatus } };
-      setRows((current) =>
-        current.map((row) =>
-          row.id === recordId
-            ? { ...row, status: result.import_record.status, linked_product_id: result.import_record.linked_product_id }
-            : row,
-        ),
-      );
-      setPageMessage("Import record uploaded as a real product and linked.");
-    } catch (error) {
-      setPageMessage(error instanceof Error ? error.message : "Could not upload import record as product.");
-    } finally {
-      setBusyRecordId(null);
-    }
+  async function refreshCurrentPage() {
+    await loadPage(pagination.page);
   }
 
   return (
     <section className="px-4 py-5 md:px-8 md:py-8">
       <div className="space-y-4">
+        <DuplicateResolveModal
+          isOpen={resolveRecordId !== null}
+          onClose={() => setResolveRecordId(null)}
+          onResolved={refreshCurrentPage}
+          recordId={resolveRecordId}
+        />
+
         <div className="rounded-xl border border-[#2c3b61] bg-[#1b2748] px-5 py-5 text-white">
           <h1 className="text-2xl font-semibold">Bulk Product Import</h1>
           <p className="mt-1 text-sm text-[#a9b8d6]">Imported records stay in this workspace until you delete them or upload them as real products.</p>
@@ -228,7 +159,21 @@ export default function ImportPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.length > 0 ? filteredRows.map((row) => (
+                {isLoading ? (
+                  <tr>
+                    <td className="px-4 py-10 text-center text-sm text-[#7f92b1]" colSpan={6}>
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading import records...
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredRows.length > 0 ? filteredRows.map((row) => (
+                  (() => {
+                    const hasDuplicateGroup = row.status === "duplicate" || Boolean(row.primary_record_id) || row.duplicate_count > 0;
+                    const canUploadRow = row.can_upload_as_product && row.status !== "duplicate";
+
+                    return (
                   <tr className="border-t border-[#e9eef7] text-sm text-[#44526d]" key={row.id}>
                     <td className="px-4 py-4">
                       <p className="font-semibold text-[#2c3a57]">{row.normalized_title}</p>
@@ -249,7 +194,22 @@ export default function ImportPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-4"><StatusBadge status={row.status} /></td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={row.status} />
+                        {hasDuplicateGroup ? (
+                          <button
+                            className="inline-flex items-center gap-2 rounded-xl border border-[#f4d7a2] bg-[#fff5df] px-3 py-1.5 text-xs font-semibold text-[#f4a632]"
+                            onClick={() => setResolveRecordId(row.id)}
+                            type="button"
+                          >
+                            Resolve
+                          </button>
+                        ) : null}
+                        {row.primary_record_id ? <span className="text-xs text-[#8ea0bf]">Duplicate of {row.primary_record_id.slice(0, 8)}</span> : null}
+                        {!row.primary_record_id && row.duplicate_count > 0 ? <span className="text-xs text-[#8ea0bf]">Main record</span> : null}
+                      </div>
+                    </td>
                     <td className="px-4 py-4">{row.linked_product_id ? row.linked_product_id.slice(0, 12) : "--"}</td>
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-center gap-3">
@@ -259,12 +219,12 @@ export default function ImportPage() {
                         </Link>
                         <button
                           className="inline-flex items-center gap-2 rounded-xl bg-[#35d3ce] px-3 py-2 text-xs font-semibold text-[#153c53] disabled:opacity-60"
-                          disabled={busyRecordId === row.id || Boolean(row.linked_product_id)}
+                          disabled={busyRecordId === row.id || !canUploadRow}
                           onClick={() => void uploadAsProduct(row.id)}
                           type="button"
                         >
                           {busyRecordId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                          Upload as Product
+                          {canUploadRow ? "Upload as Product" : "Resolve First"}
                         </button>
                         <button className="text-[#f03f8f]" disabled={busyRecordId === row.id} onClick={() => void deleteImportRecord(row.id)} type="button">
                           <Trash2 className="h-4 w-4" />
@@ -272,6 +232,8 @@ export default function ImportPage() {
                       </div>
                     </td>
                   </tr>
+                    );
+                  })()
                 )) : (
                   <tr>
                     <td className="px-4 py-10 text-center text-sm text-[#7f92b1]" colSpan={6}>No import records found yet.</td>
@@ -281,6 +243,27 @@ export default function ImportPage() {
             </table>
           </div>
         </article>
+        <div className="flex items-center justify-between rounded-xl border border-[#e1e6f0] bg-white px-4 py-3 text-xs text-[#7b89a6]">
+          <p>Showing {filteredRows.length} of {pagination.total_items} import records on page {pagination.page}{pagination.total_pages ? ` of ${pagination.total_pages}` : ""}</p>
+          <div className="flex items-center gap-2">
+            <button
+              className="rounded-xl border border-[#c7d3e6] px-4 py-1.5 font-semibold text-[#60708d] disabled:opacity-50"
+              disabled={pagination.page <= 1}
+              onClick={() => void changePage(pagination.page - 1)}
+              type="button"
+            >
+              Previous
+            </button>
+            <button
+              className="rounded-xl border border-[#c7d3e6] px-4 py-1.5 font-semibold text-[#60708d] disabled:opacity-50"
+              disabled={pagination.total_pages === 0 || pagination.page >= pagination.total_pages}
+              onClick={() => void changePage(pagination.page + 1)}
+              type="button"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   );
