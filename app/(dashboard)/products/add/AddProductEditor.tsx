@@ -142,6 +142,47 @@ type ApiRecord = {
   variants: Record<MarketKey, ApiVariant[]>;
 };
 
+type ApiRepricingDecision = {
+  recommended_price: number;
+  action: "lower" | "raise" | "hold";
+  strategy_used: string;
+  reason: string;
+  confidence: number;
+  margin_at_new_price: number;
+  guardrails_applied: boolean;
+};
+
+type ApiRepricingResult = {
+  asin: string;
+  product_name: string;
+  category: string;
+  marketplace: string;
+  timestamp: string;
+  demand_signal: string;
+  pricing: {
+    old_price: number;
+    new_price: number;
+    price_delta: number;
+    price_changed: boolean;
+    list_price: number;
+    cost_price: number;
+  };
+  ai_decision: ApiRepricingDecision;
+  data_source: string;
+};
+
+type ApiProductRepricing = {
+  product_id: string;
+  matched_product: {
+    asin: string;
+    title: string;
+    category: string;
+    confidence: number;
+    source: string;
+  };
+  repricing: ApiRepricingResult;
+};
+
 type MarketActionState = Record<MarketKey, boolean>;
 type PublishTarget = "commandctr" | MarketKey;
 type PublishActionState = Record<PublishTarget, boolean>;
@@ -667,6 +708,8 @@ export default function AddProductEditor({
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [marketRegenerating, setMarketRegenerating] = useState<MarketActionState>(emptyActionState);
   const [variantSubmitting, setVariantSubmitting] = useState<MarketActionState>(emptyActionState);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isRepricing, setIsRepricing] = useState(false);
   const [publishSubmitting, setPublishSubmitting] = useState<PublishActionState>(emptyPublishState);
   const [publishVendor, setPublishVendor] = useState("");
   const [publishPrice, setPublishPrice] = useState("");
@@ -675,6 +718,7 @@ export default function AddProductEditor({
   const [shopifyProductId, setShopifyProductId] = useState<string | null>(null);
   const [shopifySubmitMode, setShopifySubmitMode] = useState<ShopifyUploadMode | null>(null);
   const [shopifyPublishMessage, setShopifyPublishMessage] = useState("");
+  const [repricingResult, setRepricingResult] = useState<ApiProductRepricing | null>(null);
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [publishFieldErrors, setPublishFieldErrors] = useState<PublishFieldErrors>(emptyPublishFieldErrors);
@@ -762,6 +806,7 @@ export default function AddProductEditor({
     setPublishSku("");
     setPublishStatus("ACTIVE");
     setShopifyPublishMessage("");
+    setRepricingResult(null);
     setPublishFieldErrors(emptyPublishFieldErrors);
     setVariantInputs({
       amazon: { size: "", color: "" },
@@ -873,6 +918,7 @@ export default function AddProductEditor({
 
         setProductId(record.id);
         setShopifyProductId(null);
+        setRepricingResult(null);
         setDraft(record.product);
         setVariantsByMarket(record.variants);
         setSourceTitle(record.product.core.source_title);
@@ -970,6 +1016,7 @@ export default function AddProductEditor({
     setVariantsByMarket(record.variants);
     setSourceTitle(record.product.core.source_title);
     setPublishSku((current) => current || record.id.slice(0, 12).toUpperCase());
+    setRepricingResult(null);
     setDraftSaveState("saved");
     setStatusMessage(message);
   }
@@ -1177,6 +1224,7 @@ export default function AddProductEditor({
 
       const record = (await response.json()) as ApiRecord;
       setShopifyProductId(null);
+      setRepricingResult(null);
       applyRecord(record, "AI draft generated and connected to the add-product page.");
       router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
     } catch (error) {
@@ -1261,29 +1309,101 @@ export default function AddProductEditor({
     }
   }
 
-  async function regenerateMarketplace(market: MarketKey) {
+  async function optimizeMarketplace(market: MarketKey) {
     if (!productId) {
-      setStatusMessage("Generate a product before regenerating marketplace content.");
+      setStatusMessage("Generate a product before optimizing marketplace content.");
       return;
     }
 
     setMarketRegenerating((prev) => ({ ...prev, [market]: true }));
     try {
-      const response = await fetch(`/api/product-ai/products/${productId}/marketplaces/${market}/regenerate`, {
+      const response = await fetch(`/api/product-ai/products/${productId}/marketplaces/${market}/optimize`, {
         method: "POST",
       });
 
       if (!response.ok) {
         const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(errorBody?.detail ?? `Could not regenerate ${marketLabels[market]}.`);
+        throw new Error(errorBody?.detail ?? `Could not optimize ${marketLabels[market]}.`);
       }
 
       const record = (await response.json()) as ApiRecord;
-      applyRecord(record, `${marketLabels[market]} content and image regenerated.`);
+      applyRecord(record, `${marketLabels[market]} product data optimized.`);
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : `Could not regenerate ${marketLabels[market]}.`);
+      setStatusMessage(error instanceof Error ? error.message : `Could not optimize ${marketLabels[market]}.`);
     } finally {
       setMarketRegenerating((prev) => ({ ...prev, [market]: false }));
+    }
+  }
+
+  async function optimizeAllMarketplaces() {
+    if (!productId) {
+      setStatusMessage("Generate a product before running optimization.");
+      return;
+    }
+
+    setIsOptimizing(true);
+    try {
+      const response = await fetch(`/api/product-ai/products/${productId}/optimize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          marketplaces: marketOrder,
+          optimize_core: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not optimize product data.");
+      }
+
+      const record = (await response.json()) as ApiRecord;
+      applyRecord(record, "Core product data and all marketplace content optimized from the backend.");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Could not optimize product data.");
+    } finally {
+      setIsOptimizing(false);
+    }
+  }
+
+  async function analyzeDynamicPricing() {
+    if (!productId) {
+      setStatusMessage("Generate a product before running dynamic pricing analysis.");
+      return;
+    }
+
+    setIsRepricing(true);
+    try {
+      const response = await fetch(`/api/product-ai/products/${productId}/repricing`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          strategy: "auto",
+          dry_run: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not analyze dynamic pricing.");
+      }
+
+      const result = (await response.json()) as ApiProductRepricing;
+      const recommendedPrice = result.repricing.ai_decision.recommended_price.toFixed(2);
+      setRepricingResult(result);
+      setPublishPrice(recommendedPrice);
+      setPublishFieldErrors((prev) => ({ ...prev, price: false }));
+      setStatusMessage(
+        `Dynamic pricing analyzed from matched ASIN ${result.matched_product.asin}. Default price updated to ${recommendedPrice}.`,
+      );
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Could not analyze dynamic pricing.");
+    } finally {
+      setIsRepricing(false);
     }
   }
 
@@ -1426,6 +1546,15 @@ export default function AddProductEditor({
 
             <div className="flex flex-wrap items-center gap-3">
               <button
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#51658f] bg-white/5 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!hasPersistedProduct || isOptimizing}
+                onClick={() => void optimizeAllMarketplaces()}
+                type="button"
+              >
+                {isOptimizing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {isOptimizing ? "Optimizing..." : "Optimize All Marketplaces"}
+              </button>
+              <button
                 className="inline-flex h-10 items-center justify-center rounded-xl border border-[#51658f] bg-white/5 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!hasSavedDraft}
                 onClick={() => loadSavedDraft()}
@@ -1522,7 +1651,7 @@ export default function AddProductEditor({
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-[#1f2c44]">Marketplace Content</h2>
-                  <p className="text-sm text-[#7f92b1]">You can edit per-marketplace content and also regenerate the active marketplace from the backend.</p>
+                  <p className="text-sm text-[#7f92b1]">You can edit per-marketplace content and optimize the active marketplace data from the backend.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {marketOrder.map((marketKey) => (
@@ -1535,11 +1664,11 @@ export default function AddProductEditor({
                 <button
                   className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={!hasPersistedProduct || marketRegenerating[activeMarket]}
-                  onClick={() => void regenerateMarketplace(activeMarket)}
+                  onClick={() => void optimizeMarketplace(activeMarket)}
                   type="button"
                 >
                   {marketRegenerating[activeMarket] ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                  {marketRegenerating[activeMarket] ? "Regenerating..." : `Regenerate ${marketLabels[activeMarket]}`}
+                  {marketRegenerating[activeMarket] ? "Optimizing..." : `Optimize ${marketLabels[activeMarket]}`}
                 </button>
               </div>
 
@@ -1762,6 +1891,70 @@ export default function AddProductEditor({
                 <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4 text-sm leading-6 text-[#667a99]">
                   MVP publish sends basic Shopify product fields only. Images, inventory, SEO, and variants will be added later.
                 </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Dynamic Pricing</p>
+                    <p className="mt-1 text-sm text-[#6f82a3]">
+                      Match this generated product to the repricing dataset and calculate a recommended sell price.
+                    </p>
+                  </div>
+                  <button
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={!hasPersistedProduct || isRepricing}
+                    onClick={() => void analyzeDynamicPricing()}
+                    type="button"
+                  >
+                    {isRepricing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                    {isRepricing ? "Analyzing..." : "Analyze Dynamic Pricing"}
+                  </button>
+                </div>
+
+                {repricingResult ? (
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Matched ASIN</p>
+                      <p className="mt-2 text-sm font-semibold text-[#31415e]">{repricingResult.matched_product.asin}</p>
+                      <p className="mt-1 text-xs text-[#8ea0bf]">{Math.round(repricingResult.matched_product.confidence * 100)}% confidence</p>
+                    </div>
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Recommended Price</p>
+                      <p className="mt-2 text-sm font-semibold text-[#31415e]">${repricingResult.repricing.ai_decision.recommended_price.toFixed(2)}</p>
+                      <p className="mt-1 text-xs text-[#8ea0bf]">
+                        {repricingResult.repricing.ai_decision.action} from ${repricingResult.repricing.pricing.old_price.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Strategy</p>
+                      <p className="mt-2 text-sm font-semibold capitalize text-[#31415e]">
+                        {repricingResult.repricing.ai_decision.strategy_used.replaceAll("_", " ")}
+                      </p>
+                      <p className="mt-1 text-xs text-[#8ea0bf]">{repricingResult.repricing.demand_signal} demand</p>
+                    </div>
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Margin</p>
+                      <p className="mt-2 text-sm font-semibold text-[#31415e]">{repricingResult.repricing.ai_decision.margin_at_new_price}%</p>
+                      <p className="mt-1 text-xs text-[#8ea0bf]">Source: {repricingResult.repricing.data_source}</p>
+                    </div>
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Guardrails</p>
+                      <p className="mt-2 text-sm font-semibold text-[#31415e]">
+                        {repricingResult.repricing.ai_decision.guardrails_applied ? "Adjusted" : "Clean"}
+                      </p>
+                      <p className="mt-1 text-xs text-[#8ea0bf]">
+                        Delta ${repricingResult.repricing.pricing.price_delta.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {repricingResult ? (
+                  <div className="mt-3 rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-sm leading-6 text-[#667a99]">
+                    {repricingResult.repricing.ai_decision.reason}
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
