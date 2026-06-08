@@ -35,6 +35,7 @@ type ProductRow = {
   shopifyVariantId?: string;
   inventoryItemId?: string;
   inventoryLocationId?: string;
+  source: "shopify" | "product_ai";
 };
 
 type RowFeedback = {
@@ -102,8 +103,34 @@ function mapProductRows(products: ProductListItem[], inventoryLevels: ShopifyInv
       shopifyVariantId: primaryVariant?.shopifyVariantId,
       inventoryItemId,
       inventoryLocationId: inventoryItemId ? (inventoryLocationByItemId.get(inventoryItemId) ?? "") : "",
+      source: "shopify",
     };
   });
+}
+
+type ProductAiListItem = {
+  id: string;
+  status: string;
+  normalized_title: string;
+  category: string;
+  product_type: string;
+  preview_image_path: string;
+};
+
+function mapProductAiRows(products: ProductAiListItem[]) {
+  return products.map<ProductRow>((product) => ({
+    id: product.id,
+    shopifyProductId: `product-ai:${product.id}`,
+    title: product.normalized_title,
+    sku: "",
+    vendor: "Product AI Agent",
+    productType: product.product_type,
+    status: product.status ?? "DRAFT",
+    stock: 0,
+    featuredImage: product.preview_image_path,
+    shopifyPrice: "",
+    source: "product_ai",
+  }));
 }
 
 function MarketPlaceholder() {
@@ -128,12 +155,19 @@ export default function ProductsPage() {
   const [rowFeedbackById, setRowFeedbackById] = useState<Record<string, RowFeedback>>({});
 
   async function fetchProductsData() {
-    const [productItems, inventoryLevels] = await Promise.all([
+    const [productItems, inventoryLevels, productAiResponse] = await Promise.all([
       productsApi.getProducts(),
       productsApi.getShopifyInventory(),
+      fetch("/api/product-ai/products", { cache: "no-store" }),
     ]);
 
-    return mapProductRows(productItems, inventoryLevels);
+    if (!productAiResponse.ok) {
+      const errorBody = (await productAiResponse.json().catch(() => null)) as { detail?: string } | null;
+      throw new Error(errorBody?.detail ?? "Could not load AI-generated products.");
+    }
+
+    const productAiItems = (await productAiResponse.json()) as ProductAiListItem[];
+    return [...mapProductRows(productItems, inventoryLevels), ...mapProductAiRows(productAiItems)];
   }
 
   useEffect(() => {
@@ -182,8 +216,8 @@ export default function ProductsPage() {
   }, [products, searchQuery]);
 
   const metrics = useMemo(() => {
-    const lowStockCount = products.filter((product) => product.stock <= 10).length;
-    const activeListings = products.filter((product) => product.status.toUpperCase() === "ACTIVE").length;
+    const lowStockCount = products.filter((product) => product.source === "shopify" && product.stock <= 10).length;
+    const activeListings = products.filter((product) => product.source === "shopify" && product.status.toUpperCase() === "ACTIVE").length;
     const syncErrors = Object.values(rowFeedbackById).filter((feedback) => feedback.tone === "error").length;
 
     return {
@@ -226,7 +260,7 @@ export default function ProductsPage() {
   };
 
   const handleShopifyPriceSave = async (row: ProductRow) => {
-    if (!globalEditMode || !row.shopifyVariantId) {
+    if (!globalEditMode || row.source !== "shopify" || !row.shopifyVariantId) {
       return;
     }
 
@@ -277,7 +311,7 @@ export default function ProductsPage() {
   };
 
   const handleStockSave = async (row: ProductRow) => {
-    if (!globalEditMode) {
+    if (!globalEditMode || row.source !== "shopify") {
       return;
     }
 
@@ -353,7 +387,7 @@ export default function ProductsPage() {
               <input
                 className="h-11 w-full rounded-xl border border-[#d6dce9] bg-white py-2 pl-10 pr-3 text-sm text-[#243251] outline-none transition placeholder:text-[#8f9bb1] focus:border-[#98abcf]"
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search by name, SKU, or Shopify ID..."
+                placeholder="Search by name, SKU, Shopify ID, or Product AI ID..."
                 type="text"
                 value={searchQuery}
               />
@@ -391,7 +425,7 @@ export default function ProductsPage() {
               type="button"
             >
               {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
-              {isImporting ? "Importing..." : "Import"}
+              {isImporting ? "Importing..." : "Import Shopify"}
             </button>
             <Link
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#172544] px-5 text-sm font-semibold text-white transition hover:bg-[#101e3b]"
@@ -443,7 +477,7 @@ export default function ProductsPage() {
                     <td className="px-4 py-12 text-center text-sm text-[#6f7f9f]" colSpan={9}>
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Loading Shopify products...
+                        Loading products...
                       </div>
                     </td>
                   </tr>
@@ -478,10 +512,12 @@ export default function ProductsPage() {
                           <p className="mt-1 text-xs text-[#7d89a2]">
                             {product.vendor || "No vendor"}{product.productType ? ` • ${product.productType}` : ""}
                           </p>
-                          <p className="mt-1 text-xs text-[#9aa5bc]">Shopify: {product.shopifyProductId}</p>
+                          <p className="mt-1 text-xs text-[#9aa5bc]">
+                            {product.source === "shopify" ? `Shopify: ${product.shopifyProductId}` : `Product AI: ${product.id}`}
+                          </p>
                         </td>
                         <td className="px-4 py-4">
-                          {canEdit ? (
+                          {canEdit && product.source === "shopify" ? (
                             <input
                               className="h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none transition focus:border-[#90a5cd]"
                               min={0}
@@ -492,14 +528,16 @@ export default function ProductsPage() {
                             />
                           ) : (
                             <div className="mx-auto flex h-8 w-[84px] items-center justify-center rounded-lg px-2 text-center text-sm text-[#3f4d65]">
-                              {product.stock}
+                              {product.source === "shopify" ? product.stock : "--"}
                             </div>
                           )}
-                          <p className={`mt-1 text-center text-xs ${stockTone.className}`}>{stockTone.label}</p>
+                          <p className={`mt-1 text-center text-xs ${product.source === "shopify" ? stockTone.className : "text-[#9aa5bc]"}`}>
+                            {product.source === "shopify" ? stockTone.label : "Not synced"}
+                          </p>
                         </td>
                         <td className="border-l border-[#cce7d7] px-4 py-4 text-center">
                           <div className="relative mx-auto w-[112px]">
-                            {canEdit ? (
+                            {canEdit && product.source === "shopify" ? (
                               <>
                                 <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#95a1b8]">$</span>
                                 <input
@@ -512,13 +550,23 @@ export default function ProductsPage() {
                               </>
                             ) : (
                               <div className="mx-auto flex h-8 w-full items-center justify-center rounded-lg px-2 text-sm text-[#3f4d65]">
-                                {toCurrencyValue(product.shopifyPrice)}
+                                {product.source === "shopify" ? toCurrencyValue(product.shopifyPrice) : "--"}
                               </div>
                             )}
                           </div>
                           <div className="mt-1 flex items-center justify-center gap-1.5">
-                            <span className={`h-2 w-2 rounded-full ${product.status.toUpperCase() === "ACTIVE" ? "bg-[#2bc7c4]" : "bg-[#e3b101]"}`} />
-                            <span className="text-xs text-[#5b6e89]">{product.status || "DRAFT"}</span>
+                            <span
+                              className={`h-2 w-2 rounded-full ${
+                                product.source === "shopify"
+                                  ? product.status.toUpperCase() === "ACTIVE"
+                                    ? "bg-[#2bc7c4]"
+                                    : "bg-[#e3b101]"
+                                  : "bg-[#4a84ef]"
+                              }`}
+                            />
+                            <span className="text-xs text-[#5b6e89]">
+                              {product.source === "shopify" ? product.status || "DRAFT" : "AI Draft"}
+                            </span>
                           </div>
                         </td>
                         <td className="border-l border-[#ffe0bc] px-4 py-4 text-center">
@@ -532,7 +580,10 @@ export default function ProductsPage() {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex flex-col items-center gap-2">
-                            <Link className="text-[#223763] transition hover:text-[#121f39]" href={`/products/${product.id}`}>
+                            <Link
+                              className="text-[#223763] transition hover:text-[#121f39]"
+                              href={product.source === "shopify" ? `/products/${product.id}` : `/products/add?productId=${product.id}`}
+                            >
                               <Edit3 className="h-4 w-4" />
                             </Link>
                             <p
@@ -546,7 +597,13 @@ export default function ProductsPage() {
                                       : "text-[#9aa5bc]"
                               }`}
                             >
-                              {rowFeedback.message || (globalEditMode ? "Blur field to sync Shopify." : "Shopify-backed row")}
+                              {rowFeedback.message || (
+                                product.source === "shopify"
+                                  ? globalEditMode
+                                    ? "Blur field to sync Shopify."
+                                    : "Shopify-backed row"
+                                  : "Uploaded from Product AI Agent"
+                              )}
                             </p>
                           </div>
                         </td>
@@ -560,14 +617,14 @@ export default function ProductsPage() {
 
           {!isLoading && filteredProducts.length === 0 ? (
             <div className="border-t border-[#edf1f7] px-4 py-6 text-center text-sm text-[#6f7f9f] md:px-6">
-              {products.length === 0 ? "No Shopify products found yet. Import products or upload one from the Add Product flow." : `No products found for "${searchQuery}".`}
+              {products.length === 0 ? "No products found yet. Import Shopify data or upload one from the AI product flow." : `No products found for "${searchQuery}".`}
             </div>
           ) : null}
         </div>
 
         <div className="flex items-center justify-between rounded-xl border border-[#e1e6f0] bg-white px-4 py-3 text-xs text-[#7b89a6]">
-          <p>Showing {filteredProducts.length} of {products.length} Shopify products</p>
-          <div className="text-right text-[#8c99b2]">Amazon, eBay, and TikTok remain empty until those marketplace listings exist.</div>
+          <p>Showing {filteredProducts.length} of {products.length} products across Shopify and Product AI Agent</p>
+          <div className="text-right text-[#8c99b2]">Marketplace columns remain placeholders until live marketplace listings are connected.</div>
         </div>
       </div>
     </section>

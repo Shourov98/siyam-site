@@ -1,300 +1,297 @@
 "use client";
 
-import { CloudUpload, Edit3, Filter, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CloudUpload, Edit3, FileText, Loader2, Search, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
-type ImportPlatform = "AMAZON" | "EBAY" | "TIKTOK";
-type ImportStatus = "New" | "Duplicate" | "Delivered";
-type ImportTab = "all" | "new" | "duplicate";
-
-type ImportItem = {
+type ImportStatus = "imported" | "needs_review" | "duplicate" | "parse_issue" | "uploaded";
+type ImportRow = {
   id: string;
-  selected: boolean;
-  name: string;
-  sku: string;
-  platform: ImportPlatform;
-  stock: string;
-  amount: string;
   status: ImportStatus;
+  created_at: string;
+  updated_at: string;
+  normalized_title: string;
+  category: string;
+  product_type: string;
+  preview_image_path: string;
+  linked_product_id: string | null;
+  missing_fields: string[];
+  notes: string[];
 };
 
-const initialItems: ImportItem[] = [
-  { id: "1", selected: false, name: "Smart Watch Series 7", sku: "WTCH-S7-BLK", platform: "AMAZON", stock: "3", amount: "+$25.99", status: "New" },
-  { id: "2", selected: true, name: "Smart Watch Series 7", sku: "WTCH-S7-BLK", platform: "EBAY", stock: "3", amount: "+$25.99", status: "Duplicate" },
-  { id: "3", selected: false, name: "Smart Watch Series 7", sku: "WTCH-S7-BLK", platform: "TIKTOK", stock: "3", amount: "+$25.99", status: "Delivered" },
-  { id: "4", selected: true, name: "Smart Watch Series 7", sku: "WTCH-S7-BLK", platform: "AMAZON", stock: "3", amount: "+$25.99", status: "Delivered" },
-  { id: "5", selected: true, name: "Smart Watch Series 7", sku: "WTCH-S7-BLK", platform: "AMAZON", stock: "3", amount: "+$25.99", status: "New" },
-  { id: "6", selected: false, name: "Smart Watch Series 7", sku: "WTCH-S7-BLK", platform: "AMAZON", stock: "3", amount: "+$25.99", status: "New" },
-];
-
-function PlatformBadge({ platform }: { platform: ImportPlatform }) {
-  if (platform === "AMAZON") {
-    return <span className="rounded-full bg-[#f8a100] px-3 py-1 text-xs font-semibold text-white">AMAZON</span>;
-  }
-
-  if (platform === "EBAY") {
-    return <span className="rounded-full bg-[#0b72de] px-3 py-1 text-xs font-semibold text-white">EBAY</span>;
-  }
-
-  return (
-    <span className="rounded-full bg-gradient-to-r from-[#00d4d1] via-[#0ea4d6] to-[#eb0f67] px-3 py-1 text-xs font-semibold text-white">
-      TIKTOK
-    </span>
-  );
-}
-
 function StatusBadge({ status }: { status: ImportStatus }) {
-  if (status === "New") {
-    return <span className="rounded-full bg-[#ddf7f0] px-3 py-1 text-xs font-semibold text-[#56cbc2]">New</span>;
-  }
-
-  if (status === "Duplicate") {
-    return <span className="rounded-full bg-[#fff2d6] px-3 py-1 text-xs font-semibold text-[#f4a632]">Duplicate</span>;
-  }
-
-  return <span className="rounded-full bg-[#d9efff] px-3 py-1 text-xs font-semibold text-[#4aa6ff]">Delivered</span>;
+  const styles: Record<ImportStatus, string> = {
+    imported: "bg-[#ddf7f0] text-[#56cbc2]",
+    needs_review: "bg-[#e9f0ff] text-[#4a84ef]",
+    duplicate: "bg-[#fff2d6] text-[#f4a632]",
+    parse_issue: "bg-[#ffe4e4] text-[#d25353]",
+    uploaded: "bg-[#eefbf4] text-[#267a4f]",
+  };
+  const labels: Record<ImportStatus, string> = {
+    imported: "Imported",
+    needs_review: "Needs Review",
+    duplicate: "Duplicate",
+    parse_issue: "Parse Issue",
+    uploaded: "Uploaded",
+  };
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}>{labels[status]}</span>;
 }
 
 export default function ImportPage() {
-  const [items, setItems] = useState<ImportItem[]>(initialItems);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [rows, setRows] = useState<ImportRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<ImportTab>("all");
-  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [busyRecordId, setBusyRecordId] = useState<string | null>(null);
+  const [pageMessage, setPageMessage] = useState("Uploaded import records stay here until you delete them or upload them as products.");
 
-  const counts = useMemo(() => {
-    const all = items.length;
-    const next = items.filter((item) => item.status === "New").length;
-    const dup = items.filter((item) => item.status === "Duplicate").length;
-    return { all, next, dup };
-  }, [items]);
+  async function loadImports() {
+    const response = await fetch("/api/product-ai/imports/products", { cache: "no-store" });
+    if (!response.ok) {
+      const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+      throw new Error(errorBody?.detail ?? "Could not load imported products.");
+    }
+    return (await response.json()) as ImportRow[];
+  }
 
-  const filteredItems = useMemo(() => {
+  useEffect(() => {
+    let active = true;
+    void loadImports()
+      .then((data) => {
+        if (active) {
+          setRows(data);
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          setPageMessage(error instanceof Error ? error.message : "Could not load imported products.");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return rows;
+    }
+    return rows.filter((row) =>
+      row.normalized_title.toLowerCase().includes(query) ||
+      row.category.toLowerCase().includes(query) ||
+      row.product_type.toLowerCase().includes(query),
+    );
+  }, [rows, searchQuery]);
 
-    return items.filter((item) => {
-      const matchesTab =
-        activeTab === "all" ||
-        (activeTab === "new" && item.status === "New") ||
-        (activeTab === "duplicate" && item.status === "Duplicate");
+  const metrics = useMemo(() => ({
+    total: rows.length,
+    uploaded: rows.filter((row) => row.status === "uploaded").length,
+    review: rows.filter((row) => row.status === "needs_review" || row.status === "parse_issue").length,
+    duplicates: rows.filter((row) => row.status === "duplicate").length,
+  }), [rows]);
 
-      if (!matchesTab) {
-        return false;
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    setIsUploading(true);
+    try {
+      const response = await fetch("/api/product-ai/imports/products/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not upload import file.");
       }
+      const refreshed = await loadImports();
+      setRows(refreshed);
+      setPageMessage("Import file processed and saved to the database.");
+    } catch (error) {
+      setPageMessage(error instanceof Error ? error.message : "Could not upload import file.");
+    } finally {
+      setIsUploading(false);
+      event.target.value = "";
+    }
+  }
 
-      if (!query) {
-        return true;
+  async function deleteImportRecord(recordId: string) {
+    setBusyRecordId(recordId);
+    try {
+      const response = await fetch(`/api/product-ai/imports/products/${recordId}`, { method: "DELETE" });
+      if (!response.ok && response.status !== 204) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not delete import record.");
       }
+      setRows((current) => current.filter((row) => row.id !== recordId));
+      setPageMessage("Import record deleted.");
+    } catch (error) {
+      setPageMessage(error instanceof Error ? error.message : "Could not delete import record.");
+    } finally {
+      setBusyRecordId(null);
+    }
+  }
 
-      return item.name.toLowerCase().includes(query) || item.sku.toLowerCase().includes(query);
-    });
-  }, [items, activeTab, searchQuery]);
-
-  const removeRow = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const updateStock = (id: string, value: string) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, stock: value } : item)));
-  };
+  async function uploadAsProduct(recordId: string) {
+    setBusyRecordId(recordId);
+    try {
+      const response = await fetch(`/api/product-ai/imports/products/${recordId}/upload-as-product`, { method: "POST" });
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not upload import record as product.");
+      }
+      const result = (await response.json()) as { import_record: { linked_product_id: string | null; status: ImportStatus } };
+      setRows((current) =>
+        current.map((row) =>
+          row.id === recordId
+            ? { ...row, status: result.import_record.status, linked_product_id: result.import_record.linked_product_id }
+            : row,
+        ),
+      );
+      setPageMessage("Import record uploaded as a real product and linked.");
+    } catch (error) {
+      setPageMessage(error instanceof Error ? error.message : "Could not upload import record as product.");
+    } finally {
+      setBusyRecordId(null);
+    }
+  }
 
   return (
     <section className="px-4 py-5 md:px-8 md:py-8">
       <div className="space-y-4">
         <div className="rounded-xl border border-[#2c3b61] bg-[#1b2748] px-5 py-5 text-white">
-          <h1 className="text-2xl font-semibold">We Found Products</h1>
-          <p className="mt-1 text-sm text-[#a9b8d6]">We detected 45 items from your connected Amazon store.</p>
+          <h1 className="text-2xl font-semibold">Bulk Product Import</h1>
+          <p className="mt-1 text-sm text-[#a9b8d6]">Imported records stay in this workspace until you delete them or upload them as real products.</p>
         </div>
 
         <article className="rounded-2xl border border-[#dbe2ee] bg-white p-4 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)] md:p-6">
-          <h2 className="text-2xl font-semibold text-[#1f2c44]">Product Optimization</h2>
+          <h2 className="text-2xl font-semibold text-[#1f2c44]">Import Overview</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl bg-[#1a2748] p-5 text-white">
-              <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-[#198eff] text-white">☰</div>
-              <p className="text-sm text-[#c0cce4]">Total Selected</p>
-              <p className="mt-1 text-4xl font-semibold">1,240</p>
-            </div>
-
-            <div className="rounded-2xl bg-[#1a2748] p-5 text-white">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2fd15f] text-white">＋</div>
-                <span className="rounded-full bg-[#113c60] px-2 py-0.5 text-xs font-semibold text-[#53e1d6]">↗ +850 to catalog</span>
-              </div>
-              <p className="text-sm text-[#c0cce4]">New Products</p>
-              <p className="mt-1 text-4xl font-semibold">45</p>
-            </div>
-
-            <div className="rounded-2xl bg-[#1a2748] p-5 text-white">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#6559ff] text-white">⛓</div>
-                <span className="rounded-full bg-[#113c60] px-2 py-0.5 text-xs font-semibold text-[#53e1d6]">Update</span>
-              </div>
-              <p className="text-sm text-[#c0cce4]">Linked</p>
-              <p className="mt-1 text-4xl font-semibold">850</p>
-            </div>
-
-            <div className="rounded-2xl bg-[#1a2748] p-5 text-white">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f8a100] text-white">⊖</div>
-                <span className="rounded-full bg-[#113c60] px-2 py-0.5 text-xs font-semibold text-[#53e1d6]">Review</span>
-              </div>
-              <p className="text-sm text-[#c0cce4]">Skipped</p>
-              <p className="mt-1 text-4xl font-semibold">350</p>
-            </div>
+            <MetricCard label="Total Imported" value={metrics.total} accent="☰" />
+            <MetricCard label="Uploaded As Product" value={metrics.uploaded} accent="✓" />
+            <MetricCard label="Needs Review" value={metrics.review} accent="↺" />
+            <MetricCard label="Duplicates" value={metrics.duplicates} accent="⊖" />
           </div>
         </article>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex w-full flex-col gap-3 md:flex-row lg:max-w-[700px]">
+          <div className="flex w-full flex-col gap-3 md:flex-row lg:max-w-[840px]">
             <div className="relative w-full md:max-w-[390px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#96a3bc]" />
               <input
                 className="h-11 w-full rounded-xl border border-[#d6dce9] bg-white py-2 pl-10 pr-3 text-sm text-[#243251] outline-none placeholder:text-[#8f9bb1] focus:border-[#98abcf]"
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search by name, SKU, or ASIN..."
+                placeholder="Search imported products..."
                 type="text"
                 value={searchQuery}
               />
             </div>
-
             <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-5 text-sm font-semibold text-[#465574]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-5 text-sm font-semibold text-[#465574] disabled:opacity-60"
+              disabled={isUploading}
+              onClick={() => inputRef.current?.click()}
               type="button"
             >
-              <Filter className="h-4 w-4" />
-              Filter
-            </button>
-
-            <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-5 text-sm font-semibold text-[#465574]"
-              type="button"
-            >
-              <CloudUpload className="h-4 w-4" />
-              Import
-            </button>
-          </div>
-
-          <div className="inline-flex items-center rounded-xl border border-[#d8dfeb] bg-white p-1 text-sm font-semibold text-[#5f6e8b]">
-            <button
-              className={`rounded-lg px-4 py-2 transition ${activeTab === "all" ? "bg-[#1b2748] text-white" : "hover:bg-[#f2f5fb]"}`}
-              onClick={() => setActiveTab("all")}
-              type="button"
-            >
-              All ({counts.all})
-            </button>
-            <button
-              className={`rounded-lg px-4 py-2 transition ${activeTab === "new" ? "bg-[#1b2748] text-white" : "hover:bg-[#f2f5fb]"}`}
-              onClick={() => setActiveTab("new")}
-              type="button"
-            >
-              New ({counts.next})
-            </button>
-            <button
-              className={`rounded-lg px-4 py-2 transition ${activeTab === "duplicate" ? "bg-[#1b2748] text-white" : "hover:bg-[#f2f5fb]"}`}
-              onClick={() => setActiveTab("duplicate")}
-              type="button"
-            >
-              Duplicates ({counts.dup})
+              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
+              {isUploading ? "Uploading..." : "Upload File"}
             </button>
           </div>
         </div>
 
+        <input accept=".csv,.xlsx,.xls,.pdf" className="hidden" onChange={handleFileChange} ref={inputRef} type="file" />
+
+        <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-3 text-sm text-[#5d708e]">
+          <div className="flex items-start gap-3">
+            <FileText className="mt-0.5 h-4 w-4 text-[#4a84ef]" />
+            <div>
+              <p className="font-semibold text-[#30435f]">Import workflow</p>
+              <p className="mt-1">CSV, Excel, and PDF uploads are persisted immediately. Edit the import record, generate or optimize data, then click `Upload as Product` when ready.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-sm text-[#546884]">{pageMessage}</div>
+
         <article className="overflow-hidden rounded-2xl border border-[#e1e6f0] bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-left">
+            <table className="w-full min-w-[1200px] text-left">
               <thead className="bg-[#233a69] text-xs font-semibold uppercase tracking-wide text-[#d8e4fb]">
                 <tr>
-                  <th className="w-12 px-4 py-4">●</th>
-                  <th className="px-4 py-4">Order ID</th>
-                  <th className="px-4 py-4">Platform</th>
-                  <th className="px-4 py-4">Stock</th>
-                  <th className="px-4 py-4">Amount</th>
+                  <th className="px-4 py-4">Product</th>
+                  <th className="px-4 py-4">Category</th>
+                  <th className="px-4 py-4">Missing</th>
                   <th className="px-4 py-4">Status</th>
+                  <th className="px-4 py-4">Linked Product</th>
                   <th className="px-4 py-4 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredItems.map((item) => (
-                  <tr className="border-t border-[#e9eef7] text-sm text-[#44526d]" key={item.id}>
+                {filteredRows.length > 0 ? filteredRows.map((row) => (
+                  <tr className="border-t border-[#e9eef7] text-sm text-[#44526d]" key={row.id}>
                     <td className="px-4 py-4">
-                      <span className={`inline-block h-3.5 w-3.5 rounded-full border ${item.selected ? "border-[#1b355f] bg-[#1b355f]" : "border-[#95a3bd]"}`} />
+                      <p className="font-semibold text-[#2c3a57]">{row.normalized_title}</p>
+                      <p className="mt-1 text-xs text-[#8ea0bf]">{row.product_type} • {row.updated_at.slice(0, 10)}</p>
+                      {row.notes[0] ? <p className="mt-2 text-xs text-[#d28e10]">{row.notes[0]}</p> : null}
                     </td>
+                    <td className="px-4 py-4">{row.category}</td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#e6d6be]">
-                          <div className="h-8 w-4 rounded-[3px] bg-white/85" />
+                      {row.missing_fields.length ? (
+                        <div className="inline-flex items-center gap-1 rounded-full bg-[#eef2f7] px-3 py-1 text-xs font-semibold text-[#5e718e]">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          {row.missing_fields.join(", ")}
                         </div>
-                        <div>
-                          <p className="font-semibold text-[#2c3a57]">{item.name}</p>
-                          <p className="text-xs text-[#8ea0bf]">SKU: {item.sku}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <PlatformBadge platform={item.platform} />
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      {editingRowId === item.id ? (
-                        <input
-                          className="mx-auto h-8 w-16 rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm font-semibold text-[#3f4d65] outline-none"
-                          onChange={(event) => updateStock(item.id, event.target.value)}
-                          type="number"
-                          value={item.stock}
-                        />
                       ) : (
-                        <div className="mx-auto h-8 w-16 rounded-lg border border-[#d8e1ee] bg-[#f7f9fd] py-1.5 text-sm font-semibold text-[#6b7c99]">
-                          {item.stock}
+                        <div className="inline-flex items-center gap-1 rounded-full bg-[#eefbf4] px-3 py-1 text-xs font-semibold text-[#267a4f]">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Complete
                         </div>
                       )}
-                      <p className="mt-1 text-[11px] text-[#8acfd6]">Items</p>
                     </td>
-                    <td className="px-4 py-4 font-semibold text-[#4a5b78]">{item.amount}</td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={item.status} />
-                        {item.status === "Duplicate" ? (
-                          <Link
-                            className="rounded-lg border border-[#f4d7a2] bg-[#fff5df] px-2.5 py-1 text-xs font-semibold text-[#f4a632]"
-                            href={`/import/resolve/${item.id}`}
-                          >
-                            Resolve
-                          </Link>
-                        ) : null}
-                      </div>
-                    </td>
+                    <td className="px-4 py-4"><StatusBadge status={row.status} /></td>
+                    <td className="px-4 py-4">{row.linked_product_id ? row.linked_product_id.slice(0, 12) : "--"}</td>
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-center gap-3">
+                        <Link className="inline-flex items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-3 py-2 text-xs font-semibold text-[#465574]" href={`/import/${row.id}`}>
+                          <Edit3 className="h-3.5 w-3.5" />
+                          Edit
+                        </Link>
                         <button
-                          className="text-[#223763]"
-                          onClick={() => setEditingRowId((prev) => (prev === item.id ? null : item.id))}
+                          className="inline-flex items-center gap-2 rounded-xl bg-[#35d3ce] px-3 py-2 text-xs font-semibold text-[#153c53] disabled:opacity-60"
+                          disabled={busyRecordId === row.id || Boolean(row.linked_product_id)}
+                          onClick={() => void uploadAsProduct(row.id)}
                           type="button"
                         >
-                          <Edit3 className="h-4 w-4" />
+                          {busyRecordId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                          Upload as Product
                         </button>
-                        <button className="text-[#f03f8f]" onClick={() => removeRow(item.id)} type="button">
+                        <button className="text-[#f03f8f]" disabled={busyRecordId === row.id} onClick={() => void deleteImportRecord(row.id)} type="button">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td className="px-4 py-10 text-center text-sm text-[#7f92b1]" colSpan={6}>No import records found yet.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
-          </div>
-
-          <div className="flex items-center justify-between border-t border-[#e5ebf5] px-5 py-3 text-sm text-[#6f809f]">
-            <p>Showing 1 to {Math.min(filteredItems.length, 4)} of 128 results</p>
-            <div className="flex items-center gap-2">
-              <button className="rounded-xl border border-[#c7d3e6] px-4 py-1.5 font-semibold text-[#60708d]" type="button">
-                Previous
-              </button>
-              <button className="rounded-xl border border-[#c7d3e6] px-4 py-1.5 font-semibold text-[#60708d]" type="button">
-                Next
-              </button>
-            </div>
           </div>
         </article>
       </div>
     </section>
+  );
+}
+
+function MetricCard({ label, value, accent }: { label: string; value: number; accent: string }) {
+  return (
+    <div className="rounded-2xl bg-[#1a2748] p-5 text-white">
+      <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-full bg-[#198eff] text-white">{accent}</div>
+      <p className="text-sm text-[#c0cce4]">{label}</p>
+      <p className="mt-1 text-4xl font-semibold">{value}</p>
+    </div>
   );
 }
