@@ -36,6 +36,8 @@ type ProductRow = {
   inventoryItemId?: string;
   inventoryLocationId?: string;
   source: "shopify" | "product_ai";
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type RowFeedback = {
@@ -104,6 +106,8 @@ function mapProductRows(products: ProductListItem[], inventoryLevels: ShopifyInv
       inventoryItemId,
       inventoryLocationId: inventoryItemId ? (inventoryLocationByItemId.get(inventoryItemId) ?? "") : "",
       source: "shopify",
+      createdAt: product.updatedAt,
+      updatedAt: product.updatedAt,
     };
   });
 }
@@ -111,6 +115,8 @@ function mapProductRows(products: ProductListItem[], inventoryLevels: ShopifyInv
 type ProductAiListItem = {
   id: string;
   status: string;
+  created_at: string;
+  updated_at: string;
   normalized_title: string;
   category: string;
   product_type: string;
@@ -130,7 +136,23 @@ function mapProductAiRows(products: ProductAiListItem[]) {
     featuredImage: product.preview_image_path,
     shopifyPrice: "",
     source: "product_ai",
+    createdAt: product.created_at,
+    updatedAt: product.updated_at,
   }));
+}
+
+function sortProductRows(rows: ProductRow[]) {
+  return [...rows].sort((left, right) => {
+    if (left.source !== right.source) {
+      return left.source === "product_ai" ? -1 : 1;
+    }
+
+    const leftTime = Date.parse(left.updatedAt ?? left.createdAt ?? "");
+    const rightTime = Date.parse(right.updatedAt ?? right.createdAt ?? "");
+    const safeLeftTime = Number.isFinite(leftTime) ? leftTime : 0;
+    const safeRightTime = Number.isFinite(rightTime) ? rightTime : 0;
+    return safeRightTime - safeLeftTime;
+  });
 }
 
 function MarketPlaceholder() {
@@ -167,7 +189,7 @@ export default function ProductsPage() {
     }
 
     const productAiItems = (await productAiResponse.json()) as ProductAiListItem[];
-    return [...mapProductRows(productItems, inventoryLevels), ...mapProductAiRows(productAiItems)];
+    return sortProductRows([...mapProductRows(productItems, inventoryLevels), ...mapProductAiRows(productAiItems)]);
   }
 
   useEffect(() => {

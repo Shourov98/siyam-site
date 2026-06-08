@@ -1,9 +1,9 @@
 "use client";
 
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Image as ImageIcon, Loader2, RefreshCcw, Save, Sparkles, Upload } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
 
 type MarketKey = "amazon" | "ebay" | "etsy" | "tiktok" | "shopify";
 
@@ -56,12 +56,14 @@ function imageUrlFor(path: string) {
 }
 
 export default function ImportProductEditor({ importId, activeMarket }: { importId: string; activeMarket: MarketKey }) {
+  const sourceImageInputRef = useRef<HTMLInputElement>(null);
   const [record, setRecord] = useState<ImportRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [marketBusy, setMarketBusy] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [message, setMessage] = useState("Loading imported product...");
 
   useEffect(() => {
@@ -220,6 +222,35 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
     }
   }
 
+  async function handleSourceImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !record) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("image", file);
+    setIsUploadingImage(true);
+
+    try {
+      const response = await fetch(`/api/product-ai/imports/products/${record.id}/source-image`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not upload source image.");
+      }
+      setRecord((await response.json()) as ImportRecord);
+      setMessage("Source image uploaded and saved to the import record.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not upload source image.");
+    } finally {
+      setIsUploadingImage(false);
+      event.target.value = "";
+    }
+  }
+
   return (
     <section className="px-4 py-5 md:px-8 md:py-8">
       <div className="space-y-5">
@@ -230,6 +261,14 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:opacity-60"
+            disabled={isUploadingImage}
+            onClick={() => sourceImageInputRef.current?.click()}
+            type="button"
+          >
+            {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Upload Source Image
+          </button>
           <button className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:opacity-60" disabled={isSaving} onClick={() => void saveImport()} type="button">
             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Import Record
           </button>
@@ -254,6 +293,13 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
 
         {record ? (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.8fr)_380px]">
+            <input
+              accept="image/*"
+              className="hidden"
+              onChange={handleSourceImageChange}
+              ref={sourceImageInputRef}
+              type="file"
+            />
             <div className="space-y-5">
               <Panel title="Core Product Data">
                 <Input label="Normalized Title" value={record.product.core.normalized_title} onChange={(value) => setRecord({ ...record, product: { ...record.product, core: { ...record.product.core, normalized_title: value } } })} />
@@ -336,6 +382,17 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
                           <p className="px-6 text-center text-sm text-[#8ea0bf]">No image generated yet.</p>
                         )}
                       </div>
+                      {item.key === "source" ? (
+                        <button
+                          className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-3 text-xs font-semibold text-[#4a5d7d] disabled:opacity-60"
+                          disabled={isUploadingImage}
+                          onClick={() => sourceImageInputRef.current?.click()}
+                          type="button"
+                        >
+                          {isUploadingImage ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                          {src ? "Replace Source Image" : "Upload Source Image"}
+                        </button>
+                      ) : null}
                     </div>
                   );
                 })}
