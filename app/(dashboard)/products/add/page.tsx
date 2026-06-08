@@ -1,12 +1,12 @@
 import AddProductEditor from "./AddProductEditor";
 
-type MarketKey = "amazon" | "ebay" | "tiktok" | "shopify";
+type MarketKey = "amazon" | "ebay" | "etsy" | "tiktok" | "shopify";
 
 type AddProductPageProps = {
   searchParams: Promise<{ market?: string; productId?: string; id?: string }>;
 };
 
-const marketOrder: MarketKey[] = ["amazon", "ebay", "tiktok", "shopify"];
+const marketOrder: MarketKey[] = ["amazon", "ebay", "etsy", "tiktok", "shopify"];
 
 export default async function AddProductPage({ searchParams }: AddProductPageProps) {
   const resolvedSearchParams = await searchParams;

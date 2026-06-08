@@ -22,7 +22,7 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ApiClientError, authStorage } from "@/lib/auth";
 import { shopifyProductsApi } from "@/lib/shopify-products";
 
-type MarketKey = "amazon" | "ebay" | "tiktok" | "shopify";
+type MarketKey = "amazon" | "ebay" | "etsy" | "tiktok" | "shopify";
 
 type ApiImageValidation = {
   passed: boolean;
@@ -53,6 +53,7 @@ type ApiGeneratedImages = {
   transparent_cutout: ApiImageVariant | null;
   amazon: ApiImageVariant;
   ebay: ApiImageVariant;
+  etsy: ApiImageVariant;
   tiktok: ApiImageVariant;
   shopify: ApiImageVariant;
 };
@@ -102,10 +103,20 @@ type ApiShopify = {
   seo_description: string;
 };
 
+type ApiEtsy = {
+  title: string;
+  description: string;
+  tags: string[];
+  materials: string[];
+  occasion: string;
+  seo_keywords: string[];
+};
+
 type ApiProduct = {
   core: ApiCore;
   amazon: ApiAmazon;
   ebay: ApiEbay;
+  etsy: ApiEtsy;
   tiktok: ApiTiktok;
   shopify: ApiShopify;
   images: ApiGeneratedImages;
@@ -156,11 +167,12 @@ type PublishFieldErrors = {
 type DraftSaveState = "idle" | "saving" | "saved";
 type ShopifyUploadMode = "active" | "draft";
 
-const marketOrder: MarketKey[] = ["amazon", "ebay", "tiktok", "shopify"];
+const marketOrder: MarketKey[] = ["amazon", "ebay", "etsy", "tiktok", "shopify"];
 
 const marketLabels: Record<MarketKey, string> = {
   amazon: "Amazon",
   ebay: "eBay",
+  etsy: "Etsy",
   tiktok: "TikTok Shop",
   shopify: "Shopify",
 };
@@ -168,6 +180,7 @@ const marketLabels: Record<MarketKey, string> = {
 const emptyActionState: MarketActionState = {
   amazon: false,
   ebay: false,
+  etsy: false,
   tiktok: false,
   shopify: false,
 };
@@ -176,6 +189,7 @@ const emptyPublishState: PublishActionState = {
   commandctr: false,
   amazon: false,
   ebay: false,
+  etsy: false,
   tiktok: false,
   shopify: false,
 };
@@ -242,6 +256,24 @@ const sampleProduct: ApiProduct = {
     condition: "New",
     listing_notes:
       "Ready for a clean eBay listing with concise item specifics and consistent naming across channels.",
+  },
+  etsy: {
+    title: "AuroraFlow Vacuum Bottle Navy Blue Stainless Steel Gift Ready",
+    description:
+      "AuroraFlow Vacuum Bottle combines a clean navy finish with durable stainless steel construction for a polished, giftable everyday hydration product.",
+    tags: [
+      "water bottle",
+      "stainless steel",
+      "navy blue",
+      "gift idea",
+      "hydration",
+      "modern bottle",
+      "travel bottle",
+      "everyday use",
+    ],
+    materials: ["stainless steel"],
+    occasion: "everyday use",
+    seo_keywords: ["water bottle", "stainless steel bottle", "navy bottle", "giftable drinkware", "modern bottle"],
   },
   tiktok: {
     title: "Navy Blue AuroraFlow Vacuum Bottle",
@@ -344,6 +376,27 @@ const sampleProduct: ApiProduct = {
         mime_type: "image/png",
       },
     },
+    etsy: {
+      marketplace: "etsy",
+      relative_path: "",
+      absolute_path: "",
+      prompt: "Etsy image",
+      generation_mode: "local_composite_from_cutout",
+      mime_type: "image/png",
+      validation: {
+        passed: true,
+        width: 1200,
+        height: 900,
+        format: "PNG",
+        has_alpha: false,
+        file_size_bytes: 0,
+        expected_width: 1200,
+        expected_height: 900,
+        expected_background: "opaque",
+        errors: [],
+        mime_type: "image/png",
+      },
+    },
     tiktok: {
       marketplace: "tiktok",
       relative_path: "",
@@ -392,6 +445,7 @@ const sampleProduct: ApiProduct = {
 const sampleVariants: Record<MarketKey, ApiVariant[]> = {
   amazon: [],
   ebay: [],
+  etsy: [],
   tiktok: [],
   shopify: [],
 };
@@ -629,6 +683,7 @@ export default function AddProductEditor({
   const [variantInputs, setVariantInputs] = useState<Record<MarketKey, { size: string; color: string }>>({
     amazon: { size: "", color: "" },
     ebay: { size: "", color: "" },
+    etsy: { size: "", color: "" },
     tiktok: { size: "", color: "" },
     shopify: { size: "", color: "" },
   });
@@ -711,6 +766,7 @@ export default function AddProductEditor({
     setVariantInputs({
       amazon: { size: "", color: "" },
       ebay: { size: "", color: "" },
+      etsy: { size: "", color: "" },
       tiktok: { size: "", color: "" },
       shopify: { size: "", color: "" },
     });
@@ -901,6 +957,7 @@ export default function AddProductEditor({
       { key: "transparent_cutout", label: "Transparent Cutout", image: draft.images.transparent_cutout, note: "Used for white-background and styled marketplace compositions." },
       { key: "amazon", label: "Amazon Main", image: draft.images.amazon, note: "Marketplace-ready main image." },
       { key: "ebay", label: "eBay Main", image: draft.images.ebay, note: "Marketplace-ready main image." },
+      { key: "etsy", label: "Etsy Hero", image: draft.images.etsy, note: "Styled Etsy marketplace image." },
       { key: "tiktok", label: "TikTok Hero", image: draft.images.tiktok, note: "Styled vertical marketplace image." },
       { key: "shopify", label: "Shopify Hero", image: draft.images.shopify, note: "Storefront hero image." },
     ],
@@ -1150,6 +1207,7 @@ export default function AddProductEditor({
           core: draft.core,
           amazon: draft.amazon,
           ebay: draft.ebay,
+          etsy: draft.etsy,
           tiktok: draft.tiktok,
           shopify: draft.shopify,
         }),
@@ -1563,6 +1621,45 @@ export default function AddProductEditor({
                       label="Hashtags"
                       onChange={(values) => setDraft((prev) => ({ ...prev, tiktok: { ...prev.tiktok, hashtags: values } }))}
                       values={draft.tiktok.hashtags}
+                    />
+                  </>
+                ) : null}
+
+                {activeMarket === "etsy" ? (
+                  <>
+                    <EditableField
+                      label="Marketplace Title"
+                      onChange={(value) => setDraft((prev) => ({ ...prev, etsy: { ...prev.etsy, title: value } }))}
+                      value={draft.etsy.title}
+                    />
+                    <EditableField
+                      label="Description"
+                      multiline
+                      onChange={(value) => setDraft((prev) => ({ ...prev, etsy: { ...prev.etsy, description: value } }))}
+                      value={draft.etsy.description}
+                    />
+                    <EditableListField
+                      helperText="One tag per line"
+                      label="Tags"
+                      onChange={(values) => setDraft((prev) => ({ ...prev, etsy: { ...prev.etsy, tags: values } }))}
+                      values={draft.etsy.tags}
+                    />
+                    <EditableListField
+                      helperText="One material per line"
+                      label="Materials"
+                      onChange={(values) => setDraft((prev) => ({ ...prev, etsy: { ...prev.etsy, materials: values } }))}
+                      values={draft.etsy.materials}
+                    />
+                    <EditableField
+                      label="Occasion"
+                      onChange={(value) => setDraft((prev) => ({ ...prev, etsy: { ...prev.etsy, occasion: value } }))}
+                      value={draft.etsy.occasion}
+                    />
+                    <EditableListField
+                      helperText="One SEO keyword per line"
+                      label="SEO Keywords"
+                      onChange={(values) => setDraft((prev) => ({ ...prev, etsy: { ...prev.etsy, seo_keywords: values } }))}
+                      values={draft.etsy.seo_keywords}
                     />
                   </>
                 ) : null}
