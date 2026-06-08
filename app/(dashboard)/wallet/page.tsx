@@ -1,95 +1,209 @@
+"use client";
+
 import {
-  ArrowLeftRight,
   Banknote,
   Building2,
   CheckCircle2,
   CircleAlert,
-  FileText,
+  Loader2,
+  RefreshCcw,
   Repeat2,
-  Wallet,
+  ShoppingBag,
 } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
-function PlatformCard({
-  title,
-  amount,
-  badge,
-  badgeColor,
-}: {
-  title: string;
-  amount: string;
-  badge: string;
-  badgeColor: string;
-}) {
+import { ApiClientError } from "@/lib/auth";
+import { integrationApi } from "@/lib/integrations";
+import { walletApi, type WalletActivityItem, type WalletOverview, type WalletPlatformBalance } from "@/lib/wallet";
+
+function formatCurrency(amount: number, currency: string) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency || "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function formatRelativeDate(value: string | null) {
+  if (!value) {
+    return "Imported order";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Imported order";
+  }
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function getActivityBadge(item: WalletActivityItem) {
+  if (item.type === "ORDER_PAID") {
+    return { label: "PAID", tone: "text-[#58a6ff]", icon: <CheckCircle2 className="h-4 w-4 text-[#4ddf9a]" /> };
+  }
+
+  if (item.type === "ORDER_PENDING") {
+    return { label: "PENDING", tone: "text-[#f4a632]", icon: <Repeat2 className="h-4 w-4 text-[#f4a632]" /> };
+  }
+
+  if (item.type === "ORDER_REFUNDED") {
+    return { label: "REFUNDED", tone: "text-[#f97373]", icon: <CircleAlert className="h-4 w-4 text-[#f97373]" /> };
+  }
+
+  return { label: "CREATED", tone: "text-[#96a7c2]", icon: <ShoppingBag className="h-4 w-4 text-[#5ea5ff]" /> };
+}
+
+function PlatformCard({ item }: { item: WalletPlatformBalance }) {
+  const badgeColor = item.isConnected ? "bg-[#0d4f3d] text-[#5cf8c9]" : "bg-[#30415f] text-[#c9d5ef]";
+
   return (
     <article className="rounded-2xl bg-[#1a2748] p-4 text-white">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#1a2748]">●</div>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badgeColor}`}>{badge}</span>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badgeColor}`}>{item.status}</span>
       </div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-[#8ea4cb]">{title}</p>
-      <p className="mt-1 text-3xl font-semibold">{amount}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-[#8ea4cb]">{item.label}</p>
+      <p className="mt-1 text-3xl font-semibold">{formatCurrency(item.amount, item.currency)}</p>
     </article>
   );
 }
 
-function FeedItem({
-  icon,
-  title,
-  sub,
-  amount,
-  time,
-  amountTone,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  sub: string;
-  amount: string;
-  time: string;
-  amountTone: string;
-}) {
+function FeedItem({ item }: { item: WalletActivityItem }) {
+  const badge = getActivityBadge(item);
+  const isNegative = item.type === "ORDER_REFUNDED" && item.amount > 0;
+  const amount = isNegative ? -Math.abs(item.amount) : item.amount;
+
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="flex items-start gap-2">
-        <span className="mt-0.5">{icon}</span>
+        <span className="mt-0.5">{badge.icon}</span>
         <div>
-          <p className="text-sm font-semibold text-[#334863]">{title}</p>
-          <p className="text-xs text-[#8ea0bf]">{sub}</p>
+          <p className="text-sm font-semibold text-[#334863]">{item.title}</p>
+          <p className="text-xs text-[#8ea0bf]">{item.subtitle}</p>
         </div>
       </div>
       <div className="text-right">
-        <p className={`text-sm font-semibold ${amountTone}`}>{amount}</p>
-        <p className="text-[11px] text-[#9cadc8]">{time}</p>
+        <p className={`text-sm font-semibold ${item.type === "ORDER_PAID" ? "text-[#4ddf9a]" : "text-[#55698e]"}`}>
+          {formatCurrency(amount, item.currency)}
+        </p>
+        <p className="text-[11px] text-[#9cadc8]">{formatRelativeDate(item.occurredAt)}</p>
       </div>
     </div>
   );
 }
 
 export default function WalletPage() {
+  const [overview, setOverview] = useState<WalletOverview | null>(null);
+  const [shopifyConnected, setShopifyConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const loadWallet = async () => {
+    const [walletOverview, shopifyStatus] = await Promise.all([
+      walletApi.getOverview(),
+      integrationApi.getShopifyStatus(),
+    ]);
+
+    setOverview(walletOverview);
+    setShopifyConnected(shopifyStatus.connected);
+  };
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void loadWallet()
+        .catch((error) => {
+          if (!active) {
+            return;
+          }
+
+          setErrorMessage(error instanceof ApiClientError ? error.message : "Could not load wallet overview.");
+        })
+        .finally(() => {
+          if (active) {
+            setIsLoading(false);
+          }
+        });
+    }, 0);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  const timelineItems = useMemo(() => overview?.recentActivity.slice(0, 3) ?? [], [overview]);
+  const feedItems = useMemo(() => overview?.recentActivity.slice(0, 5) ?? [], [overview]);
+  const hasOrders = (overview?.orderCount ?? 0) > 0;
+
+  const ctaCopy = shopifyConnected
+    ? hasOrders
+      ? "Shopify revenue is connected. Amazon, eBay, and TikTok are coming soon."
+      : "Import Shopify orders to populate wallet revenue."
+    : "Connect Shopify to start importing revenue from your orders.";
+
+  const handleRefreshOrders = async () => {
+    setIsRefreshing(true);
+    setErrorMessage("");
+
+    try {
+      await integrationApi.importShopifyOrders();
+      await loadWallet();
+    } catch (error) {
+      setErrorMessage(error instanceof ApiClientError ? error.message : "Could not refresh Shopify orders.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <section className="px-4 py-5 md:px-8 md:py-8">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.9fr)_minmax(280px,1fr)]">
         <div className="space-y-4">
           <article className="rounded-2xl bg-gradient-to-r from-[#1a2748] via-[#1d2d56] to-[#1f356a] p-5 text-white shadow-[0_18px_45px_-30px_rgba(12,26,58,0.95)] md:p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#8ea4cb]">Total Global Balance</p>
-                <p className="mt-2 text-6xl font-bold tracking-tight">$12,450.80</p>
-                <div className="mt-4 flex items-center gap-3">
-                  <span className="rounded-full bg-[#0f5138] px-3 py-1 text-sm font-semibold text-[#5af7ac]">↗ +8.4%</span>
-                  <span className="text-sm text-[#8ea4cb]">VS LAST WEEK</span>
-                </div>
+            {isLoading ? (
+              <div className="flex items-center gap-3 text-sm text-[#c8d4ec]">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading wallet overview...
               </div>
-              <Building2 className="h-12 w-12 text-[#3f557e]" />
-            </div>
+            ) : (
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8ea4cb]">Total Global Balance</p>
+                  <p className="mt-2 text-6xl font-bold tracking-tight">
+                    {formatCurrency(overview?.paidRevenue ?? 0, overview?.currency ?? "USD")}
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <span className="rounded-full bg-[#0f5138] px-3 py-1 text-sm font-semibold text-[#5af7ac]">
+                      {overview?.paidOrderCount ?? 0} paid orders
+                    </span>
+                    <span className="text-sm text-[#8ea4cb]">
+                      {overview?.pendingOrderCount ?? 0} pending orders
+                    </span>
+                  </div>
+                  <p className="mt-4 max-w-2xl text-sm text-[#b2c1dd]">
+                    {overview?.notice ?? "Wallet totals are based on imported Shopify orders."}
+                  </p>
+                </div>
+                <Building2 className="h-12 w-12 text-[#3f557e]" />
+              </div>
+            )}
           </article>
 
           <article className="rounded-2xl border border-[#dbe2ee] bg-white p-4 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)] md:p-5">
             <h2 className="text-2xl font-semibold text-[#1f2c44]">Wallet Balances</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <PlatformCard title="TikTok Shop" amount="$8,100.50" badge="● Ready" badgeColor="bg-[#0d4f3d] text-[#5cf8c9]" />
-              <PlatformCard title="Amazon Seller" amount="$4,200.00" badge="● Pending" badgeColor="bg-[#4d4216] text-[#ffcf57]" />
-              <PlatformCard title="eBay Payout" amount="$1,940.00" badge="● Processing" badgeColor="bg-[#0f4d62] text-[#52dbff]" />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-2">
+              {(overview?.platformBalances ?? []).map((item) => (
+                <PlatformCard item={item} key={item.platform} />
+              ))}
             </div>
           </article>
 
@@ -102,35 +216,30 @@ export default function WalletPage() {
             </div>
 
             <div className="px-4 py-4 md:px-5">
-              <div className="relative pl-8">
-                <span className="absolute left-3 top-2 h-[86%] w-px bg-[#cfd9e9]" />
-                <div className="relative mb-7 flex items-center justify-between">
-                  <span className="absolute -left-[17px] inline-flex h-4 w-4 rounded-full border-4 border-[#06d9e7] bg-[#09142c]" />
-                  <p className="text-sm font-medium text-[#5f7395]">Transfer initiated via ACH</p>
-                  <div className="flex items-center gap-3 text-xs font-semibold">
-                    <span className="text-[#58a6ff]">PROCESSING</span>
-                    <Building2 className="h-4 w-4 text-[#9daecc]" />
-                  </div>
-                </div>
+              {!timelineItems.length ? (
+                <p className="text-sm text-[#5f7395]">No imported Shopify order activity yet.</p>
+              ) : (
+                <div className="relative pl-8">
+                  <span className="absolute left-3 top-2 h-[86%] w-px bg-[#cfd9e9]" />
+                  {timelineItems.map((item, index) => {
+                    const badge = getActivityBadge(item);
 
-                <div className="relative mb-7 flex items-center justify-between">
-                  <span className="absolute -left-[17px] inline-flex h-4 w-4 rounded-full bg-[#09142c]" />
-                  <p className="text-sm font-medium text-[#5f7395]">Automatic monthly payout</p>
-                  <div className="flex items-center gap-3 text-xs font-semibold">
-                    <span className="text-[#f4a632]">SCHEDULED</span>
-                    <Repeat2 className="h-4 w-4 text-[#9daecc]" />
-                  </div>
+                    return (
+                      <div
+                        className={`relative flex items-center justify-between ${index < timelineItems.length - 1 ? "mb-7" : ""}`}
+                        key={item.id}
+                      >
+                        <span className={`absolute -left-[17px] inline-flex h-4 w-4 rounded-full ${index === 0 ? "border-4 border-[#06d9e7] bg-[#09142c]" : "bg-[#09142c]"}`} />
+                        <p className="text-sm font-medium text-[#5f7395]">{item.title}</p>
+                        <div className="flex items-center gap-3 text-xs font-semibold">
+                          <span className={badge.tone}>{badge.label}</span>
+                          <span className="text-[#9daecc]">{formatCurrency(item.amount, item.currency)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                <div className="relative flex items-center justify-between">
-                  <span className="absolute -left-[17px] inline-flex h-4 w-4 rounded-full bg-[#09142c]" />
-                  <p className="text-sm font-medium text-[#5f7395]">Manual withdrawal request</p>
-                  <div className="flex items-center gap-3 text-xs font-semibold">
-                    <span className="text-[#96a7c2]">PENDING</span>
-                    <Wallet className="h-4 w-4 text-[#9daecc]" />
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           </article>
         </div>
@@ -140,46 +249,11 @@ export default function WalletPage() {
             <h3 className="text-lg font-semibold uppercase tracking-wide text-[#1f2c44]">Recent Activity</h3>
 
             <div className="mt-4 space-y-4">
-              <FeedItem
-                icon={<CheckCircle2 className="h-4 w-4 text-[#4ddf9a]" />}
-                title="Payout Received"
-                sub="TIKTOK SHOP"
-                amount="+$2,100.00"
-                time="00:02:00"
-                amountTone="text-[#4ddf9a]"
-              />
-              <FeedItem
-                icon={<CircleAlert className="h-4 w-4 text-[#f97373]" />}
-                title="Seller Fee"
-                sub="AMAZON MARKET"
-                amount="-$40.00"
-                time="01:00:00"
-                amountTone="text-[#8c9fbe]"
-              />
-              <FeedItem
-                icon={<ArrowLeftRight className="h-4 w-4 text-[#5ea5ff]" />}
-                title="FX Exchange"
-                sub="USD → EUR"
-                amount="$450.00"
-                time="05:00:00"
-                amountTone="text-[#55698e]"
-              />
-              <FeedItem
-                icon={<CheckCircle2 className="h-4 w-4 text-[#4ddf9a]" />}
-                title="eBay Sale"
-                sub="ORDER #99281"
-                amount="+$125.50"
-                time="1D AGO"
-                amountTone="text-[#4ddf9a]"
-              />
-              <FeedItem
-                icon={<FileText className="h-4 w-4 text-[#9daecc]" />}
-                title="Invoice Gen."
-                sub="SERVICE FEE OCT"
-                amount="VIEW"
-                time="2D AGO"
-                amountTone="text-[#8ea0bf]"
-              />
+              {!feedItems.length ? (
+                <p className="text-sm text-[#8ea0bf]">Recent activity will appear here after Shopify orders are imported.</p>
+              ) : (
+                feedItems.map((item) => <FeedItem item={item} key={item.id} />)
+              )}
             </div>
 
             <Link className="mt-6 block w-full rounded-xl bg-[#1a2748] py-3 text-center text-sm font-semibold text-[#2de0e3]" href="/wallet/transactions">
@@ -188,13 +262,25 @@ export default function WalletPage() {
           </article>
 
           <article className="relative overflow-hidden rounded-2xl bg-[#35d3ce] p-5 text-[#0f3d57] shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
-            <h3 className="text-3xl font-semibold text-white">Boost Your Sales</h3>
-            <p className="mt-2 text-sm font-medium text-[#0f4f68]">Connect Shopify to see all your revenue streams in one place.</p>
-            <button className="mt-4 rounded-lg bg-[#1a2748] px-4 py-2 text-sm font-semibold text-white" type="button">
-              CONNECT STORE
+            <h3 className="text-3xl font-semibold text-white">Wallet Revenue</h3>
+            <p className="mt-2 text-sm font-medium text-[#0f4f68]">{ctaCopy}</p>
+            <button
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#1a2748] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              disabled={isRefreshing}
+              onClick={() => void handleRefreshOrders()}
+              type="button"
+            >
+              {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+              {isRefreshing ? "Refreshing..." : "Refresh Shopify Orders"}
             </button>
             <Banknote className="pointer-events-none absolute -bottom-3 right-2 h-20 w-20 text-[#67e8dd]/40" />
           </article>
+
+          {errorMessage ? (
+            <article className="rounded-2xl border border-[#f2c5cf] bg-white p-4 text-sm text-[#9e3d57] shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
+              {errorMessage}
+            </article>
+          ) : null}
         </aside>
       </div>
     </section>
