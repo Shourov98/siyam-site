@@ -71,6 +71,35 @@ function mapInventoryRows(inventory: InventoryRecord[], products: ProductListIte
     liveLevels.map((level) => [`${level.inventoryItemId}:${level.locationId}`, level]),
   );
 
+  if (!inventory.length) {
+    return products.flatMap<InventoryRow>((product) => {
+      return (product.variants ?? [])
+        .filter((variant) => variant.inventoryItemId || variant.shopifyVariantId)
+        .map((variant) => {
+          const matchedLiveLevel =
+            liveLevels.find((level) => level.inventoryItemId === variant.inventoryItemId) ?? null;
+          const derivedId =
+            `${product._id ?? product.id ?? product.shopifyProductId}:${variant.inventoryItemId ?? variant.shopifyVariantId ?? "variant"}`;
+
+          return {
+            id: derivedId,
+            productDocumentId: product._id ?? product.id,
+            shopifyProductId: product.shopifyProductId,
+            inventoryItemId: variant.inventoryItemId ?? variant.shopifyVariantId ?? derivedId,
+            locationId: matchedLiveLevel?.locationId ?? "unknown",
+            locationName: matchedLiveLevel?.locationName ?? "Shopify",
+            title: product.title,
+            sku: variant.sku || "N/A",
+            featuredImage: product.featuredImage,
+            masterCount: matchedLiveLevel?.quantity ?? variant.inventoryQuantity ?? product.totalInventory ?? 0,
+            available: matchedLiveLevel?.quantity ?? variant.inventoryQuantity ?? product.totalInventory ?? 0,
+            safetyBuffer: 0,
+            lowStockThreshold: 5,
+          };
+        });
+    });
+  }
+
   return inventory.map<InventoryRow>((record) => {
     const product = record.shopifyProductId ? productByShopifyId.get(record.shopifyProductId) : undefined;
     const liveLevel = liveByInventoryKey.get(`${record.inventoryItemId}:${record.locationId ?? ""}`);
