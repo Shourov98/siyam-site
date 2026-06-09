@@ -40,6 +40,7 @@ export type ProductAiListItem = {
   category: string;
   product_type: string;
   preview_image_path: string;
+  default_price?: string | null;
 };
 
 type ProductAiProductsResponse = {
@@ -137,7 +138,7 @@ function mapProductAiRows(products: ProductAiListItem[]) {
     status: product.status ?? "DRAFT",
     stock: 0,
     featuredImage: product.preview_image_path,
-    shopifyPrice: "",
+    shopifyPrice: product.default_price?.trim() ?? "",
     source: "product_ai",
     createdAt: product.created_at,
     updatedAt: product.updated_at,

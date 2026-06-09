@@ -316,7 +316,7 @@ export default function ProductsPage() {
                               </>
                             ) : (
                               <div className="mx-auto flex h-8 w-full items-center justify-center rounded-lg px-2 text-sm text-[#3f4d65]">
-                                {product.source === "shopify" ? toCurrencyValue(product.shopifyPrice) : "--"}
+                                {product.shopifyPrice ? toCurrencyValue(product.shopifyPrice) : "--"}
                               </div>
                             )}
                           </div>

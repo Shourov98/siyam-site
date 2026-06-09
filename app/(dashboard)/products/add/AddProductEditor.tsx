@@ -984,13 +984,47 @@ export default function AddProductEditor({
     [draft.images],
   );
 
-  const hasGeneratedCutout = Boolean(draft.images.transparent_cutout?.validation.passed);
+  const hasGeneratedCutout = Boolean(
+    draft.images.transparent_cutout?.absolute_path || draft.images.transparent_cutout?.relative_path,
+  );
+
+  function buildCoreDraftForSave() {
+    const nextAttributes = { ...draft.core.attributes };
+    const trimmedPrice = publishPrice.trim();
+    const trimmedSku = publishSku.trim();
+    const trimmedVendor = publishVendor.trim();
+
+    if (trimmedPrice) {
+      nextAttributes.price = trimmedPrice;
+    } else {
+      delete nextAttributes.price;
+    }
+
+    if (trimmedSku) {
+      nextAttributes.sku = trimmedSku;
+    } else {
+      delete nextAttributes.sku;
+    }
+
+    if (trimmedVendor) {
+      nextAttributes.brand = trimmedVendor;
+    } else if (!String(nextAttributes.brand ?? "").trim()) {
+      delete nextAttributes.brand;
+    }
+
+    return {
+      ...draft.core,
+      attributes: nextAttributes,
+    };
+  }
 
   function applyRecord(record: ApiRecord, message: string) {
     setProductId(record.id);
     setDraft(record.product);
     setVariantsByMarket(record.variants);
     setSourceTitle(record.product.core.source_title);
+    setPublishVendor((current) => current || record.product.core.attributes.brand || "");
+    setPublishPrice((current) => current || record.product.core.attributes.price || "");
     setPublishDescription((current) => current || record.product.shopify.body_html || record.product.core.product_summary || "");
     setPublishSku((current) => current || record.id.slice(0, 12).toUpperCase());
     setRepricingResult(null);
@@ -1244,7 +1278,7 @@ export default function AddProductEditor({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          core: draft.core,
+          core: buildCoreDraftForSave(),
           amazon: draft.amazon,
           ebay: draft.ebay,
           etsy: draft.etsy,
@@ -1388,6 +1422,16 @@ export default function AddProductEditor({
       const recommendedPrice = result.repricing.ai_decision.recommended_price.toFixed(2);
       setRepricingResult(result);
       setPublishPrice(recommendedPrice);
+      setDraft((prev) => ({
+        ...prev,
+        core: {
+          ...prev.core,
+          attributes: {
+            ...prev.core.attributes,
+            price: recommendedPrice,
+          },
+        },
+      }));
       setPublishFieldErrors((prev) => ({ ...prev, price: false }));
       setStatusMessage(
         `Dynamic pricing analyzed from matched ASIN ${result.matched_product.asin}. Default price updated to ${recommendedPrice}.`,
@@ -1935,7 +1979,25 @@ export default function AddProductEditor({
               <div className="mt-5 grid gap-4 lg:grid-cols-3">
                 <EditableField
                   label="Vendor / Brand"
-                  onChange={setPublishVendor}
+                  onChange={(value) => {
+                    setPublishVendor(value);
+                    setDraft((prev) => {
+                      const nextAttributes = { ...prev.core.attributes };
+                      if (value.trim()) {
+                        nextAttributes.brand = value.trim();
+                      } else {
+                        delete nextAttributes.brand;
+                      }
+
+                      return {
+                        ...prev,
+                        core: {
+                          ...prev.core,
+                          attributes: nextAttributes,
+                        },
+                      };
+                    });
+                  }}
                   value={publishVendor}
                 />
                 <EditableField
@@ -1944,6 +2006,22 @@ export default function AddProductEditor({
                   invalid={publishFieldErrors.price}
                   onChange={(value) => {
                     setPublishPrice(value);
+                    setDraft((prev) => {
+                      const nextAttributes = { ...prev.core.attributes };
+                      if (value.trim()) {
+                        nextAttributes.price = value.trim();
+                      } else {
+                        delete nextAttributes.price;
+                      }
+
+                      return {
+                        ...prev,
+                        core: {
+                          ...prev.core,
+                          attributes: nextAttributes,
+                        },
+                      };
+                    });
                     if (publishFieldErrors.price && value.trim()) {
                       setPublishFieldErrors((prev) => ({ ...prev, price: false }));
                     }
@@ -1952,7 +2030,25 @@ export default function AddProductEditor({
                 />
                 <EditableField
                   label="Default SKU"
-                  onChange={setPublishSku}
+                  onChange={(value) => {
+                    setPublishSku(value);
+                    setDraft((prev) => {
+                      const nextAttributes = { ...prev.core.attributes };
+                      if (value.trim()) {
+                        nextAttributes.sku = value.trim();
+                      } else {
+                        delete nextAttributes.sku;
+                      }
+
+                      return {
+                        ...prev,
+                        core: {
+                          ...prev.core,
+                          attributes: nextAttributes,
+                        },
+                      };
+                    });
+                  }}
                   value={publishSku}
                 />
               </div>
