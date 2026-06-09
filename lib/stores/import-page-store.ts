@@ -30,6 +30,12 @@ type ImportListResponse = {
     total_items: number;
     total_pages: number;
   };
+  summary: {
+    total_imported: number;
+    uploaded_as_product: number;
+    needs_review: number;
+    duplicates: number;
+  };
 };
 
 type PaginationState = {
@@ -42,6 +48,7 @@ type PaginationState = {
 type ImportPageState = {
   rows: ImportRow[];
   pagination: PaginationState;
+  summary: ImportListResponse["summary"];
   searchQuery: string;
   isLoading: boolean;
   isUploading: boolean;
@@ -69,6 +76,7 @@ async function fetchImportPage(page: number, pageSize: number) {
 export const useImportPageStore = create<ImportPageState>((set, get) => ({
   rows: [],
   pagination: { page: 1, page_size: 20, total_items: 0, total_pages: 0 },
+  summary: { total_imported: 0, uploaded_as_product: 0, needs_review: 0, duplicates: 0 },
   searchQuery: "",
   isLoading: true,
   isUploading: false,
@@ -85,6 +93,7 @@ export const useImportPageStore = create<ImportPageState>((set, get) => ({
       set({
         rows: payload.items,
         pagination: payload.pagination,
+        summary: payload.summary,
         hasLoadedOnce: true,
       });
     } catch (error) {

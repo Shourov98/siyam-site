@@ -30,6 +30,7 @@ export default function ImportPage() {
   const [resolveRecordId, setResolveRecordId] = useState<string | null>(null);
   const rows = useImportPageStore((state) => state.rows);
   const pagination = useImportPageStore((state) => state.pagination);
+  const summary = useImportPageStore((state) => state.summary);
   const searchQuery = useImportPageStore((state) => state.searchQuery);
   const isLoading = useImportPageStore((state) => state.isLoading);
   const isUploading = useImportPageStore((state) => state.isUploading);
@@ -62,11 +63,11 @@ export default function ImportPage() {
   }, [rows, searchQuery]);
 
   const metrics = useMemo(() => ({
-    total: rows.length,
-    uploaded: rows.filter((row) => row.status === "uploaded").length,
-    review: rows.filter((row) => row.status === "needs_review" || row.status === "parse_issue").length,
-    duplicates: rows.filter((row) => row.status === "duplicate").length,
-  }), [rows]);
+    total: summary.total_imported,
+    uploaded: summary.uploaded_as_product,
+    review: summary.needs_review,
+    duplicates: summary.duplicates,
+  }), [summary]);
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
