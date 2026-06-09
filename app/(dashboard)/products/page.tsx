@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CircleAlert,
   CloudUpload,
+  Eye,
   Edit3,
   Filter,
   Loader2,
@@ -345,12 +346,22 @@ export default function ProductsPage() {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex flex-col items-center gap-2">
-                            <Link
-                              className="text-[#223763] transition hover:text-[#121f39]"
-                              href={product.source === "shopify" ? `/products/${product.id}` : `/products/add?productId=${product.id}`}
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </Link>
+                            <div className="flex items-center gap-3">
+                              <Link
+                                className="text-[#223763] transition hover:text-[#121f39]"
+                                href={`/products/${product.id}?source=${product.source}`}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Link>
+                              {product.source === "product_ai" ? (
+                                <Link
+                                  className="text-[#223763] transition hover:text-[#121f39]"
+                                  href={`/products/add?productId=${product.id}`}
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                </Link>
+                              ) : null}
+                            </div>
                             <p
                               className={`text-center text-xs ${
                                 rowFeedback.tone === "error"
@@ -366,8 +377,8 @@ export default function ProductsPage() {
                                 product.source === "shopify"
                                   ? globalEditMode
                                     ? "Blur field to sync Shopify."
-                                    : "Shopify-backed row"
-                                  : "Uploaded from Product AI Agent"
+                                    : "View details. Inline edit is available here."
+                                  : "View or edit Product AI record"
                               )}
                             </p>
                           </div>

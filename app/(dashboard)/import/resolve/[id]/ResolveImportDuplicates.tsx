@@ -28,6 +28,7 @@ type DuplicateGroup = {
 export default function ResolveImportDuplicates({ recordId }: { recordId: string }) {
   const [group, setGroup] = useState<DuplicateGroup | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyAction, setBusyAction] = useState<"promote" | "delete" | "delete_all" | null>(null);
   const [message, setMessage] = useState("Loading duplicate group...");
 
   const loadGroup = useCallback(async () => {
@@ -66,6 +67,7 @@ export default function ResolveImportDuplicates({ recordId }: { recordId: string
 
   async function promote(recordIdToPromote: string) {
     setBusyId(recordIdToPromote);
+    setBusyAction("promote");
     try {
       const response = await fetch(`/api/product-ai/imports/products/${recordIdToPromote}/duplicates/promote`, { method: "POST" });
       if (!response.ok) {
@@ -79,11 +81,13 @@ export default function ResolveImportDuplicates({ recordId }: { recordId: string
       setMessage(error instanceof Error ? error.message : "Could not promote duplicate record.");
     } finally {
       setBusyId(null);
+      setBusyAction(null);
     }
   }
 
   async function remove(recordIdToDelete: string) {
     setBusyId(recordIdToDelete);
+    setBusyAction("delete");
     try {
       const response = await fetch(`/api/product-ai/imports/products/${recordIdToDelete}`, { method: "DELETE" });
       if (!response.ok && response.status !== 204) {
@@ -97,6 +101,27 @@ export default function ResolveImportDuplicates({ recordId }: { recordId: string
       setMessage(error instanceof Error ? error.message : "Could not delete duplicate record.");
     } finally {
       setBusyId(null);
+      setBusyAction(null);
+    }
+  }
+
+  async function removeAllDuplicates() {
+    setBusyId("__all__");
+    setBusyAction("delete_all");
+    try {
+      const response = await fetch(`/api/product-ai/imports/products/${recordId}/duplicates/delete-all`, { method: "POST" });
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not delete duplicate records.");
+      }
+      const payload = (await response.json()) as DuplicateGroup;
+      setGroup(payload);
+      setMessage("All duplicate records deleted. Only the main record remains.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete duplicate records.");
+    } finally {
+      setBusyId(null);
+      setBusyAction(null);
     }
   }
 
@@ -127,7 +152,20 @@ export default function ResolveImportDuplicates({ recordId }: { recordId: string
             </article>
 
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
-              <h2 className="text-lg font-semibold text-[#1f2c44]">Duplicates</h2>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-[#1f2c44]">Duplicates</h2>
+                {group.duplicates.length > 0 ? (
+                  <button
+                    className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#fff0f3] px-4 text-sm font-semibold text-[#df2b67] disabled:opacity-60"
+                    disabled={busyAction !== null}
+                    onClick={() => void removeAllDuplicates()}
+                    type="button"
+                  >
+                    {busyAction === "delete_all" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    Delete All Duplicates
+                  </button>
+                ) : null}
+              </div>
               <div className="mt-4 space-y-4">
                 {group.duplicates.length > 0 ? group.duplicates.map((record) => (
                   <div className="rounded-2xl border border-[#e5ebf5] bg-[#f8fbff] p-4" key={record.id}>
@@ -138,20 +176,20 @@ export default function ResolveImportDuplicates({ recordId }: { recordId: string
                       </Link>
                       <button
                         className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:opacity-60"
-                        disabled={busyId === record.id}
+                        disabled={busyAction !== null}
                         onClick={() => void promote(record.id)}
                         type="button"
                       >
-                        {busyId === record.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        {busyId === record.id && busyAction === "promote" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                         Keep This Instead
                       </button>
                       <button
                         className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#fff0f3] px-4 text-sm font-semibold text-[#df2b67] disabled:opacity-60"
-                        disabled={busyId === record.id}
+                        disabled={busyAction !== null}
                         onClick={() => void remove(record.id)}
                         type="button"
                       >
-                        {busyId === record.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        {busyId === record.id && busyAction === "delete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                         Delete Duplicate
                       </button>
                     </div>

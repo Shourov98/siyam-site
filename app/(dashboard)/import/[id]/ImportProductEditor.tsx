@@ -52,6 +52,14 @@ type ImportRecord = {
   product: ApiProduct;
 };
 
+const marketLabels: Record<MarketKey, string> = {
+  amazon: "Amazon",
+  ebay: "eBay",
+  etsy: "Etsy",
+  tiktok: "TikTok Shop",
+  shopify: "Shopify",
+};
+
 function imageUrlFor(path: string) {
   if (!path) return null;
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
@@ -320,17 +328,32 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
               </Panel>
 
               <Panel title="Marketplace Content">
-                <div className="flex flex-wrap gap-2">
-                  {(["amazon", "ebay", "etsy", "tiktok", "shopify"] as MarketKey[]).map((market) => (
-                    <Link
-                      className={`rounded-full px-4 py-2 text-sm font-semibold ${market === activeMarket ? "bg-[#1b2748] text-white" : "bg-[#eef5ff] text-[#4d6284]"}`}
-                      href={`/import/${importId}?market=${market}`}
-                      key={market}
-                    >
-                      {market}
-                    </Link>
-                  ))}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    {(["amazon", "ebay", "etsy", "tiktok", "shopify"] as MarketKey[]).map((market) => (
+                      <Link
+                        className={`rounded-full px-4 py-2 text-sm font-semibold ${market === activeMarket ? "bg-[#1b2748] text-white" : "bg-[#eef5ff] text-[#4d6284]"}`}
+                        href={`/import/${importId}?market=${market}`}
+                        key={market}
+                      >
+                        {marketLabels[market]}
+                      </Link>
+                    ))}
+                  </div>
+                  <button
+                    className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:opacity-60"
+                    disabled={marketBusy}
+                    onClick={() => void optimizeMarket()}
+                    type="button"
+                  >
+                    {marketBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                    Optimize {marketLabels[activeMarket]}
+                  </button>
                 </div>
+
+                <p className="mt-3 text-sm text-[#8093b2]">
+                  You can edit per-marketplace content and optimize the active marketplace SEO data from the backend.
+                </p>
 
                 <div className="mt-5 grid gap-4">
                   {activeMarket === "amazon" ? (

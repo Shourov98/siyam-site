@@ -194,6 +194,7 @@ type SavedDraftSnapshot = {
   shopifyProductId: string | null;
   sourceTitle: string;
   publishVendor: string;
+  publishDescription: string;
   publishPrice: string;
   publishSku: string;
   publishStatus: PublishStatus;
@@ -712,6 +713,7 @@ export default function AddProductEditor({
   const [isRepricing, setIsRepricing] = useState(false);
   const [publishSubmitting, setPublishSubmitting] = useState<PublishActionState>(emptyPublishState);
   const [publishVendor, setPublishVendor] = useState("");
+  const [publishDescription, setPublishDescription] = useState("");
   const [publishPrice, setPublishPrice] = useState("");
   const [publishSku, setPublishSku] = useState("");
   const [publishStatus, setPublishStatus] = useState<PublishStatus>("ACTIVE");
@@ -742,6 +744,7 @@ export default function AddProductEditor({
       shopifyProductId,
       sourceTitle,
       publishVendor,
+      publishDescription,
       publishPrice,
       publishSku,
       publishStatus,
@@ -757,6 +760,7 @@ export default function AddProductEditor({
       shopifyProductId: snapshot.shopifyProductId,
       sourceTitle: snapshot.sourceTitle,
       publishVendor: snapshot.publishVendor,
+      publishDescription: snapshot.publishDescription ?? "",
       publishPrice: snapshot.publishPrice,
       publishSku: snapshot.publishSku,
       publishStatus: snapshot.publishStatus,
@@ -780,6 +784,7 @@ export default function AddProductEditor({
     setShopifyProductId(snapshot.shopifyProductId);
     setSourceTitle(snapshot.sourceTitle);
     setPublishVendor(snapshot.publishVendor);
+    setPublishDescription(snapshot.publishDescription ?? "");
     setPublishPrice(snapshot.publishPrice);
     setPublishSku(snapshot.publishSku);
     setPublishStatus(snapshot.publishStatus);
@@ -802,6 +807,7 @@ export default function AddProductEditor({
     setSourceTitle(sampleProduct.core.source_title);
     setSelectedImage(null);
     setPublishVendor("");
+    setPublishDescription("");
     setPublishPrice("");
     setPublishSku("");
     setPublishStatus("ACTIVE");
@@ -960,6 +966,7 @@ export default function AddProductEditor({
       shopifyProductId,
       sourceTitle,
       publishVendor,
+      publishDescription,
       publishPrice,
       publishSku,
       publishStatus,
@@ -969,7 +976,7 @@ export default function AddProductEditor({
     window.setTimeout(() => {
       setHasSavedDraft(true);
     }, 0);
-  }, [draft, hasInitializedDraftStorage, productId, publishPrice, publishSku, publishStatus, publishVendor, shopifyProductId, sourceTitle, variantsByMarket]);
+  }, [draft, hasInitializedDraftStorage, productId, publishDescription, publishPrice, publishSku, publishStatus, publishVendor, shopifyProductId, sourceTitle, variantsByMarket]);
 
   const currentDraftComparableSignature = useMemo(
     () =>
@@ -980,12 +987,13 @@ export default function AddProductEditor({
         shopifyProductId,
         sourceTitle,
         publishVendor,
+        publishDescription,
         publishPrice,
         publishSku,
         publishStatus,
         savedAt: "",
       }),
-    [draft, variantsByMarket, productId, shopifyProductId, sourceTitle, publishVendor, publishPrice, publishSku, publishStatus],
+    [draft, variantsByMarket, productId, shopifyProductId, sourceTitle, publishVendor, publishDescription, publishPrice, publishSku, publishStatus],
   );
 
   useEffect(() => {
@@ -1015,6 +1023,7 @@ export default function AddProductEditor({
     setDraft(record.product);
     setVariantsByMarket(record.variants);
     setSourceTitle(record.product.core.source_title);
+    setPublishDescription((current) => current || record.product.shopify.body_html || record.product.core.product_summary || "");
     setPublishSku((current) => current || record.id.slice(0, 12).toUpperCase());
     setRepricingResult(null);
     setDraftSaveState("saved");
@@ -1030,7 +1039,22 @@ export default function AddProductEditor({
   }
 
   function getPublishDescription() {
-    return draft.shopify.body_html.trim() || draft.core.product_summary.trim() || "";
+    return publishDescription.trim() || draft.shopify.body_html.trim() || draft.core.product_summary.trim() || "";
+  }
+
+  function getEstimatedPriceRange() {
+    if (!repricingResult) {
+      return null;
+    }
+
+    const oldPrice = repricingResult.repricing.pricing.old_price;
+    const costPrice = repricingResult.repricing.pricing.cost_price;
+    const minimum = Math.max(costPrice * 1.15, oldPrice * 0.8);
+    const maximum = oldPrice * 1.2;
+    return {
+      minimum: minimum.toFixed(2),
+      maximum: maximum.toFixed(2),
+    };
   }
 
   function getPublishVendor() {
@@ -1888,8 +1912,36 @@ export default function AddProductEditor({
                   </select>
                 </label>
 
+                <EditableField
+                  label="Publish Description"
+                  helperText="Used as the default storefront description during publish."
+                  multiline
+                  onChange={setPublishDescription}
+                  value={publishDescription}
+                />
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4 text-sm leading-6 text-[#667a99]">
                   MVP publish sends basic Shopify product fields only. Images, inventory, SEO, and variants will be added later.
+                </div>
+                <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Suggested Price Range</p>
+                  <p className="mt-1 text-xs text-[#8ea0bf]">
+                    {repricingResult ? "Estimated convenience range based on current repricing guardrails." : "Run dynamic pricing to calculate a recommended convenience range."}
+                  </p>
+                  {getEstimatedPriceRange() ? (
+                    <>
+                      <p className="mt-3 text-lg font-semibold text-[#31415e]">
+                        ${getEstimatedPriceRange()?.minimum} - ${getEstimatedPriceRange()?.maximum}
+                      </p>
+                      <p className="mt-1 text-xs text-[#8ea0bf]">
+                        Recommended: ${repricingResult?.repricing.ai_decision.recommended_price.toFixed(2)}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-3 text-sm text-[#667a99]">No calculated range yet.</p>
+                  )}
                 </div>
               </div>
 
