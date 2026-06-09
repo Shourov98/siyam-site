@@ -39,6 +39,14 @@ type RowFeedback = {
   message: string;
 };
 
+function clampNonNegative(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, value);
+}
+
 function getDocumentId(record: InventoryRecord) {
   return record._id ?? record.id ?? `${record.inventoryItemId}:${record.locationId ?? ""}`;
 }
@@ -70,39 +78,45 @@ function mapInventoryRows(inventory: InventoryRecord[], products: ProductListIte
   const liveByInventoryKey = new Map(
     liveLevels.map((level) => [`${level.inventoryItemId}:${level.locationId}`, level]),
   );
+  const activeInventory = inventory.filter((record) => record.isActive !== false);
+  const reconciledInventory = liveLevels.length
+    ? activeInventory.filter((record) => {
+        const rowKey = `${record.inventoryItemId}:${record.locationId ?? ""}`;
+        return liveByInventoryKey.has(rowKey);
+      })
+    : activeInventory;
 
-  if (!inventory.length) {
-    return products.flatMap<InventoryRow>((product) => {
-      return (product.variants ?? [])
-        .filter((variant) => variant.inventoryItemId || variant.shopifyVariantId)
-        .map((variant) => {
-          const matchedLiveLevel =
-            liveLevels.find((level) => level.inventoryItemId === variant.inventoryItemId) ?? null;
-          const derivedId =
-            `${product._id ?? product.id ?? product.shopifyProductId}:${variant.inventoryItemId ?? variant.shopifyVariantId ?? "variant"}`;
+  if (!reconciledInventory.length) {
+    return liveLevels.map<InventoryRow>((level) => {
+      const product = productByShopifyId.get(level.productId);
+      const masterCount = clampNonNegative(level.quantity);
+      const derivedId = `${level.inventoryItemId}:${level.locationId || "unknown"}`;
 
-          return {
-            id: derivedId,
-            productDocumentId: product._id ?? product.id,
-            shopifyProductId: product.shopifyProductId,
-            inventoryItemId: variant.inventoryItemId ?? variant.shopifyVariantId ?? derivedId,
-            locationId: matchedLiveLevel?.locationId ?? "unknown",
-            locationName: matchedLiveLevel?.locationName ?? "Shopify",
-            title: product.title,
-            sku: variant.sku || "N/A",
-            featuredImage: product.featuredImage,
-            masterCount: matchedLiveLevel?.quantity ?? variant.inventoryQuantity ?? product.totalInventory ?? 0,
-            available: matchedLiveLevel?.quantity ?? variant.inventoryQuantity ?? product.totalInventory ?? 0,
-            safetyBuffer: 0,
-            lowStockThreshold: 5,
-          };
-        });
+      return {
+        id: derivedId,
+        productDocumentId: product?._id ?? product?.id,
+        shopifyProductId: level.productId,
+        inventoryItemId: level.inventoryItemId,
+        locationId: level.locationId ?? "",
+        locationName: level.locationName ?? "Shopify",
+        title: product?.title ?? level.productTitle ?? "Untitled product",
+        sku: level.sku ?? product?.variants[0]?.sku ?? "N/A",
+        featuredImage: product?.featuredImage,
+        masterCount,
+        available: masterCount,
+        safetyBuffer: 0,
+        lowStockThreshold: 5,
+      };
     });
   }
 
-  return inventory.map<InventoryRow>((record) => {
+  return reconciledInventory.map<InventoryRow>((record) => {
     const product = record.shopifyProductId ? productByShopifyId.get(record.shopifyProductId) : undefined;
     const liveLevel = liveByInventoryKey.get(`${record.inventoryItemId}:${record.locationId ?? ""}`);
+    const masterCount = clampNonNegative(liveLevel?.quantity ?? record.shopifyQuantity ?? 0);
+    const safetyBuffer = clampNonNegative(record.safetyBuffer ?? 0);
+    const available = clampNonNegative(masterCount - safetyBuffer);
+    const lowStockThreshold = clampNonNegative(record.lowStockThreshold ?? 5);
 
     return {
       id: getDocumentId(record),
@@ -114,10 +128,10 @@ function mapInventoryRows(inventory: InventoryRecord[], products: ProductListIte
       title: product?.title ?? record.title ?? liveLevel?.productTitle ?? "Untitled product",
       sku: record.sku ?? liveLevel?.sku ?? product?.variants[0]?.sku ?? "",
       featuredImage: product?.featuredImage,
-      masterCount: liveLevel?.quantity ?? record.availableQuantity ?? 0,
-      available: record.availableQuantity ?? liveLevel?.quantity ?? 0,
-      safetyBuffer: record.safetyBuffer ?? 0,
-      lowStockThreshold: record.lowStockThreshold ?? 5,
+      masterCount,
+      available,
+      safetyBuffer,
+      lowStockThreshold,
     };
   });
 }
@@ -222,13 +236,13 @@ export default function InventoryPage() {
   }, [items, searchQuery]);
 
   const metrics = useMemo(() => {
-    const availableStock = items.reduce((sum, item) => sum + item.available, 0);
-    const lowStock = items.filter((item) => item.available <= item.lowStockThreshold && item.available > 0).length;
-    const outOfStock = items.filter((item) => item.available <= 0).length;
+    const availableStock = items.reduce((sum, item) => sum + clampNonNegative(item.available), 0);
+    const lowStock = items.filter((item) => clampNonNegative(item.available) <= item.lowStockThreshold && clampNonNegative(item.available) > 0).length;
+    const outOfStock = items.filter((item) => clampNonNegative(item.available) <= 0).length;
 
     return {
       totalSkus: items.length,
-      availableStock,
+      availableStock: clampNonNegative(availableStock),
       lowStock,
       outOfStock,
     };
@@ -253,7 +267,8 @@ export default function InventoryPage() {
       const result = await productsApi.importShopifyProducts();
       const rows = await fetchInventoryData();
       setItems(rows);
-      setPageMessage(`Imported ${result.count} Shopify products and refreshed inventory.`);
+      const staleCount = result.staleMarkedInactiveCount ?? 0;
+      setPageMessage(staleCount > 0 ? `Inventory refreshed. ${staleCount} stale rows hidden.` : `Imported ${result.count} Shopify products and refreshed inventory.`);
     } catch (error) {
       setPageMessage(error instanceof ApiClientError ? error.message : "Could not import Shopify inventory.");
     } finally {
@@ -305,6 +320,8 @@ export default function InventoryPage() {
         locationId: row.locationId,
         quantity: row.masterCount,
       });
+      const rows = await fetchInventoryData();
+      setItems(rows);
 
       setRowFeedback(row.id, {
         tone: "success",
@@ -330,6 +347,8 @@ export default function InventoryPage() {
 
     try {
       await productsApi.updateInventorySafetyBuffer(row.id, row.safetyBuffer);
+      const rows = await fetchInventoryData();
+      setItems(rows);
       setRowFeedback(row.id, {
         tone: "success",
         message: "Safety buffer updated.",

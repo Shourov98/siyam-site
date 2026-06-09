@@ -55,12 +55,25 @@ export type InventoryRecord = {
   inventoryItemId: string;
   sku?: string;
   title?: string;
+  shopifyQuantity?: number;
   availableQuantity?: number;
   safetyBuffer?: number;
   lowStockThreshold?: number;
+  isActive?: boolean;
+  sourceStatus?: "active" | "stale" | "deleted" | "untracked";
+  staleReason?: string;
+  staleMarkedAt?: string;
   locationId?: string;
   locationName?: string;
   updatedAt?: string;
+};
+
+export type ShopifyImportProductsResult = {
+  count: number;
+  importedCount?: number;
+  updatedCount?: number;
+  staleMarkedInactiveCount?: number;
+  activeCount?: number;
 };
 
 export const productsApi = {
@@ -69,7 +82,7 @@ export const productsApi = {
   },
 
   importShopifyProducts() {
-    return requestWithAuth<{ count: number }>("/shopify/import-products", {
+    return requestWithAuth<ShopifyImportProductsResult>("/shopify/import-products", {
       method: "POST",
     });
   },
