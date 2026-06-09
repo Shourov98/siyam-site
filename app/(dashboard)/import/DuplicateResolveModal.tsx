@@ -68,8 +68,6 @@ export default function DuplicateResolveModal({ isOpen, recordId, onClose, onRes
     }
 
     let active = true;
-    setIsLoading(true);
-    setMessage("Loading duplicate group...");
 
     void loadGroup()
       .then((payload) => {
@@ -103,6 +101,8 @@ export default function DuplicateResolveModal({ isOpen, recordId, onClose, onRes
       active = false;
     };
   }, [isOpen, loadGroup, recordId]);
+
+  const shouldShowLoading = isLoading || (!group && Boolean(recordId));
 
   async function promote(recordIdToPromote: string) {
     setBusyId(recordIdToPromote);
@@ -195,7 +195,7 @@ export default function DuplicateResolveModal({ isOpen, recordId, onClose, onRes
         </div>
 
         <div className="max-h-[calc(90vh-110px)] overflow-y-auto p-6">
-          {isLoading ? (
+          {shouldShowLoading ? (
             <div className="flex items-center justify-center gap-2 py-12 text-sm text-[#60708d]">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading duplicate group...

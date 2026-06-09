@@ -87,6 +87,7 @@ export default function ImportPage() {
     <section className="px-4 py-5 md:px-8 md:py-8">
       <div className="space-y-4">
         <DuplicateResolveModal
+          key={resolveRecordId ?? "closed"}
           isOpen={resolveRecordId !== null}
           onClose={() => setResolveRecordId(null)}
           onResolved={refreshCurrentPage}
