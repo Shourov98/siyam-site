@@ -187,6 +187,7 @@ type MarketActionState = Record<MarketKey, boolean>;
 type PublishTarget = "commandctr" | MarketKey;
 type PublishActionState = Record<PublishTarget, boolean>;
 type PublishStatus = "DRAFT" | "ACTIVE";
+type ImageCardKey = "source" | "transparent_cutout" | MarketKey;
 type SavedDraftSnapshot = {
   draft: ApiProduct;
   variantsByMarket: Record<MarketKey, ApiVariant[]>;
@@ -199,6 +200,13 @@ type SavedDraftSnapshot = {
   publishSku: string;
   publishStatus: PublishStatus;
   savedAt: string;
+};
+
+type ImageCardConfig = {
+  key: ImageCardKey;
+  label: string;
+  image: ApiImageVariant | null;
+  note: string;
 };
 
 type PublishFieldErrors = {
@@ -243,95 +251,50 @@ const emptyPublishFieldErrors: PublishFieldErrors = {
   price: false,
 };
 
-const sampleProduct: ApiProduct = {
+const emptyProduct: ApiProduct = {
   core: {
-    normalized_title: "AuroraFlow Vacuum Bottle",
-    category: "Drinkware & Hydration",
-    product_type: "water bottle",
-    product_summary:
-      "AuroraFlow Vacuum Bottle is positioned within drinkware and hydration, built around a water bottle use case with navy blue, stainless steel, and modern styling cues.",
-    features: [
-      "Crafted with a stainless steel finish for everyday durability.",
-      "Presented in a navy blue colorway for a clear merchandising identity.",
-      "Designed as a water bottle with a versatile, easy-to-list profile.",
-      "Visual styling leans modern, making it suitable for premium marketplace presentation.",
-      "Search-relevant title terms include auroraflow vacuum bottle.",
-    ],
-    attributes: {
-      color: "navy blue",
-      material: "stainless steel",
-      style: "modern",
-      capacity: "32 oz",
-      lid: "leak-resistant twist cap",
-    },
-    source_title: "AuroraFlow Vacuum Bottle",
-    vision_confidence: 0.91,
+    normalized_title: "",
+    category: "",
+    product_type: "",
+    product_summary: "",
+    features: [],
+    attributes: {},
+    source_title: "",
+    vision_confidence: 0,
   },
   amazon: {
-    title: "AuroraFlow Vacuum Bottle Navy Blue Stainless Steel",
-    bullet_points: [
-      "Stainless steel construction designed for dependable everyday use.",
-      "Navy blue finish gives the product a premium, clean shelf presence.",
-      "Leak-resistant twist cap helps reduce spills during travel or commuting.",
-      "32 oz capacity supports all-day hydration without constant refills.",
-      "Modern silhouette works well across lifestyle and utility-driven marketplaces.",
-    ],
-    description:
-      "AuroraFlow Vacuum Bottle brings together a clean navy presentation, durable stainless steel construction, and a travel-friendly twist cap for a premium hydration product that merchandises well online.",
-    backend_search_terms: ["vacuum bottle", "stainless steel bottle", "navy bottle", "travel bottle", "32 oz bottle"],
-    structured_attributes: {
-      Color: "Navy Blue",
-      Material: "Stainless Steel",
-      Capacity: "32 oz",
-      Style: "Modern",
-    },
+    title: "",
+    bullet_points: [],
+    description: "",
+    backend_search_terms: [],
+    structured_attributes: {},
   },
   ebay: {
-    title: "AuroraFlow Vacuum Bottle - Navy Blue",
-    item_specifics: {
-      Brand: "AuroraFlow",
-      Type: "Water Bottle",
-      Color: "Navy Blue",
-      Material: "Stainless Steel",
-      Capacity: "32 oz",
-    },
-    condition: "New",
-    listing_notes:
-      "Ready for a clean eBay listing with concise item specifics and consistent naming across channels.",
+    title: "",
+    item_specifics: {},
+    condition: "",
+    listing_notes: "",
   },
   etsy: {
-    title: "AuroraFlow Vacuum Bottle Navy Blue Stainless Steel Gift Ready",
-    description:
-      "AuroraFlow Vacuum Bottle combines a clean navy finish with durable stainless steel construction for a polished, giftable everyday hydration product.",
-    tags: [
-      "water bottle",
-      "stainless steel",
-      "navy blue",
-      "gift idea",
-      "hydration",
-      "modern bottle",
-      "travel bottle",
-      "everyday use",
-    ],
-    materials: ["stainless steel"],
-    occasion: "everyday use",
-    seo_keywords: ["water bottle", "stainless steel bottle", "navy bottle", "giftable drinkware", "modern bottle"],
+    title: "",
+    description: "",
+    tags: [],
+    materials: [],
+    occasion: "",
+    seo_keywords: [],
   },
   tiktok: {
-    title: "Navy Blue AuroraFlow Vacuum Bottle",
-    social_description:
-      "Premium hydration with a clean navy finish, leak-resistant cap, and stainless steel build that feels elevated in short-form commerce.",
-    hashtags: ["#AuroraFlow", "#WaterBottle", "#Hydration", "#NavyBlue", "#TikTokMadeMeBuyIt"],
+    title: "",
+    social_description: "",
+    hashtags: [],
   },
   shopify: {
-    title: "AuroraFlow Vacuum Bottle | Navy Blue",
-    body_html:
-      "<p>AuroraFlow Vacuum Bottle combines durable stainless steel construction with a modern navy finish for a premium hydration product.</p><ul><li>32 oz capacity</li><li>Leak-resistant twist cap</li><li>Designed for everyday carry</li></ul>",
-    tags: ["water bottle", "hydration", "stainless steel", "navy blue", "modern drinkware"],
-    product_type: "Water Bottle",
-    seo_title: "AuroraFlow Vacuum Bottle | Drinkware & Hydration",
-    seo_description:
-      "Explore AuroraFlow Vacuum Bottle with stainless steel construction, navy finish, and a leak-resistant cap built for daily hydration.",
+    title: "",
+    body_html: "",
+    tags: [],
+    product_type: "",
+    seo_title: "",
+    seo_description: "",
   },
   images: {
     source: {
@@ -342,16 +305,16 @@ const sampleProduct: ApiProduct = {
       generation_mode: "source_passthrough",
       mime_type: "image/jpeg",
       validation: {
-        passed: true,
-        width: 2048,
-        height: 2048,
-        format: "JPEG",
+        passed: false,
+        width: null,
+        height: null,
+        format: null,
         has_alpha: false,
         file_size_bytes: 0,
         expected_width: null,
         expected_height: null,
         expected_background: "source",
-        errors: [],
+        errors: ["No source image uploaded yet."],
         mime_type: "image/jpeg",
       },
     },
@@ -363,16 +326,16 @@ const sampleProduct: ApiProduct = {
       generation_mode: "edited",
       mime_type: "image/png",
       validation: {
-        passed: true,
-        width: 1024,
-        height: 1024,
-        format: "PNG",
-        has_alpha: true,
+        passed: false,
+        width: null,
+        height: null,
+        format: null,
+        has_alpha: null,
         file_size_bytes: 0,
         expected_width: 1024,
         expected_height: 1024,
         expected_background: "transparent",
-        errors: [],
+        errors: ["No transparent cutout generated yet."],
         mime_type: "image/png",
       },
     },
@@ -384,16 +347,16 @@ const sampleProduct: ApiProduct = {
       generation_mode: "local_composite_from_cutout",
       mime_type: "image/png",
       validation: {
-        passed: true,
-        width: 1024,
-        height: 1024,
-        format: "PNG",
+        passed: false,
+        width: null,
+        height: null,
+        format: null,
         has_alpha: false,
         file_size_bytes: 0,
         expected_width: 1024,
         expected_height: 1024,
         expected_background: "white",
-        errors: [],
+        errors: ["No Amazon image generated yet."],
         mime_type: "image/png",
       },
     },
@@ -405,16 +368,16 @@ const sampleProduct: ApiProduct = {
       generation_mode: "local_composite_from_cutout",
       mime_type: "image/png",
       validation: {
-        passed: true,
-        width: 1024,
-        height: 1024,
-        format: "PNG",
+        passed: false,
+        width: null,
+        height: null,
+        format: null,
         has_alpha: false,
         file_size_bytes: 0,
         expected_width: 1024,
         expected_height: 1024,
         expected_background: "white",
-        errors: [],
+        errors: ["No eBay image generated yet."],
         mime_type: "image/png",
       },
     },
@@ -426,16 +389,16 @@ const sampleProduct: ApiProduct = {
       generation_mode: "local_composite_from_cutout",
       mime_type: "image/png",
       validation: {
-        passed: true,
-        width: 1200,
-        height: 900,
-        format: "PNG",
+        passed: false,
+        width: null,
+        height: null,
+        format: null,
         has_alpha: false,
         file_size_bytes: 0,
         expected_width: 1200,
         expected_height: 900,
         expected_background: "opaque",
-        errors: [],
+        errors: ["No Etsy image generated yet."],
         mime_type: "image/png",
       },
     },
@@ -448,15 +411,15 @@ const sampleProduct: ApiProduct = {
       mime_type: "image/png",
       validation: {
         passed: false,
-        width: 1024,
-        height: 1536,
-        format: "PNG",
+        width: null,
+        height: null,
+        format: null,
         has_alpha: false,
         file_size_bytes: 0,
         expected_width: 1024,
         expected_height: 1536,
         expected_background: "opaque",
-        errors: ["Review product color consistency before publish."],
+        errors: ["No TikTok Shop image generated yet."],
         mime_type: "image/png",
       },
     },
@@ -468,16 +431,16 @@ const sampleProduct: ApiProduct = {
       generation_mode: "edited",
       mime_type: "image/png",
       validation: {
-        passed: true,
-        width: 1536,
-        height: 1536,
-        format: "PNG",
+        passed: false,
+        width: null,
+        height: null,
+        format: null,
         has_alpha: false,
         file_size_bytes: 0,
         expected_width: 1536,
         expected_height: 1536,
         expected_background: "opaque",
-        errors: [],
+        errors: ["No Shopify image generated yet."],
         mime_type: "image/png",
       },
     },
@@ -696,19 +659,22 @@ export default function AddProductEditor({
 }) {
   const router = useRouter();
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const productImageUploadInputRef = useRef<HTMLInputElement>(null);
   const lastSavedDraftRef = useRef<string | null>(null);
-  const [draft, setDraft] = useState<ApiProduct>(sampleProduct);
+  const [draft, setDraft] = useState<ApiProduct>(emptyProduct);
   const [variantsByMarket, setVariantsByMarket] = useState<Record<MarketKey, ApiVariant[]>>(sampleVariants);
   const [productId, setProductId] = useState<string | null>(initialProductId);
   const [statusMessage, setStatusMessage] = useState("Choose an image and generate a product draft.");
-  const [sourceTitle, setSourceTitle] = useState(sampleProduct.core.source_title);
+  const [sourceTitle, setSourceTitle] = useState(emptyProduct.core.source_title);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [draftSaveState, setDraftSaveState] = useState<DraftSaveState>("idle");
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [marketRegenerating, setMarketRegenerating] = useState<MarketActionState>(emptyActionState);
+  const [marketImageGenerating, setMarketImageGenerating] = useState<MarketActionState>(emptyActionState);
   const [variantSubmitting, setVariantSubmitting] = useState<MarketActionState>(emptyActionState);
+  const [isUploadingSourceImage, setIsUploadingSourceImage] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isRepricing, setIsRepricing] = useState(false);
   const [publishSubmitting, setPublishSubmitting] = useState<PublishActionState>(emptyPublishState);
@@ -800,11 +766,11 @@ export default function AddProductEditor({
       window.localStorage.removeItem(getStoredDraftKey());
     }
 
-    setDraft(sampleProduct);
+    setDraft(emptyProduct);
     setVariantsByMarket(sampleVariants);
     setProductId(null);
     setShopifyProductId(null);
-    setSourceTitle(sampleProduct.core.source_title);
+    setSourceTitle(emptyProduct.core.source_title);
     setSelectedImage(null);
     setPublishVendor("");
     setPublishDescription("");
@@ -1005,7 +971,7 @@ export default function AddProductEditor({
     setDraftSaveState(lastSavedDraftRef.current === currentDraftComparableSignature ? "saved" : "idle");
   }, [currentDraftComparableSignature]);
 
-  const imageCards = useMemo(
+  const imageCards = useMemo<ImageCardConfig[]>(
     () => [
       { key: "source", label: "Source Upload", image: draft.images.source, note: "Original upload stored for audit and regeneration." },
       { key: "transparent_cutout", label: "Transparent Cutout", image: draft.images.transparent_cutout, note: "Used for white-background and styled marketplace compositions." },
@@ -1017,6 +983,8 @@ export default function AddProductEditor({
     ],
     [draft.images],
   );
+
+  const hasGeneratedCutout = Boolean(draft.images.transparent_cutout?.validation.passed);
 
   function applyRecord(record: ApiRecord, message: string) {
     setProductId(record.id);
@@ -1497,10 +1465,93 @@ export default function AddProductEditor({
     }
   }
 
+  async function uploadProductSourceImage() {
+    if (!productId) {
+      setStatusMessage("Generate or load a product draft before uploading a source image.");
+      return;
+    }
+
+    if (!selectedImage) {
+      setStatusMessage("Choose a source image first.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("image", selectedImage);
+
+    setIsUploadingSourceImage(true);
+    try {
+      const response = await fetch(`/api/product-ai/products/${productId}/source-image`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not upload the source image.");
+      }
+
+      const record = (await response.json()) as ApiRecord;
+      applyRecord(
+        record,
+        "Source image uploaded. Transparent cutout was refreshed and marketplace images are ready for on-demand generation.",
+      );
+      setSelectedImage(null);
+      if (uploadInputRef.current) {
+        uploadInputRef.current.value = "";
+      }
+      if (productImageUploadInputRef.current) {
+        productImageUploadInputRef.current.value = "";
+      }
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Could not upload the source image.");
+    } finally {
+      setIsUploadingSourceImage(false);
+    }
+  }
+
+  async function regenerateMarketplaceImage(market: MarketKey) {
+    if (!productId) {
+      setStatusMessage("Generate or load a product draft before creating marketplace images.");
+      return;
+    }
+
+    if (!hasGeneratedCutout) {
+      setStatusMessage("Upload a source image first so the transparent cutout can be created.");
+      return;
+    }
+
+    setMarketImageGenerating((prev) => ({ ...prev, [market]: true }));
+    try {
+      const response = await fetch(`/api/product-ai/products/${productId}/marketplaces/${market}/regenerate`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} image.`);
+      }
+
+      const record = (await response.json()) as ApiRecord;
+      applyRecord(record, `${marketLabels[market]} image generated from the transparent cutout.`);
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} image.`);
+    } finally {
+      setMarketImageGenerating((prev) => ({ ...prev, [market]: false }));
+    }
+  }
+
   const currentVariants = variantsByMarket[activeMarket] ?? [];
 
   return (
     <section className="px-4 py-5 md:px-8 md:py-8">
+      <input
+        accept="image/*"
+        className="hidden"
+        onChange={onFileSelected}
+        ref={productImageUploadInputRef}
+        type="file"
+      />
       <input
         accept="image/*"
         className="hidden"
@@ -1557,6 +1608,17 @@ export default function AddProductEditor({
                 <Upload className="h-4 w-4" />
                 {selectedImage ? selectedImage.name : "Upload Product"}
               </button>
+              {hasPersistedProduct ? (
+                <button
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#51658f] bg-white/5 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isUploadingSourceImage || !selectedImage}
+                  onClick={() => void uploadProductSourceImage()}
+                  type="button"
+                >
+                  {isUploadingSourceImage ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  {isUploadingSourceImage ? "Uploading..." : "Upload Source Image"}
+                </button>
+              ) : null}
               <button
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#35d3ce] px-5 text-sm font-semibold text-[#153c53] disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isGenerating}
@@ -2246,6 +2308,44 @@ export default function AddProductEditor({
                       >
                         {image?.validation.passed ? "Ready" : "Review"}
                       </span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {key === "source" ? (
+                        <>
+                          <button
+                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d]"
+                            onClick={() => productImageUploadInputRef.current?.click()}
+                            type="button"
+                          >
+                            <Upload className="h-4 w-4" />
+                            {draft.images.source.absolute_path ? "Replace Source Image" : "Choose Source Image"}
+                          </button>
+                          <button
+                            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#172544] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={!hasPersistedProduct || !selectedImage || isUploadingSourceImage}
+                            onClick={() => void uploadProductSourceImage()}
+                            type="button"
+                          >
+                            {isUploadingSourceImage ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                            {isUploadingSourceImage ? "Uploading..." : "Create Source + Cutout"}
+                          </button>
+                        </>
+                      ) : null}
+                      {key !== "source" && key !== "transparent_cutout" ? (
+                        <button
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={!hasPersistedProduct || !hasGeneratedCutout || marketImageGenerating[key]}
+                          onClick={() => void regenerateMarketplaceImage(key)}
+                          type="button"
+                        >
+                          {marketImageGenerating[key] ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                          {marketImageGenerating[key]
+                            ? "Generating..."
+                            : image?.absolute_path
+                              ? `Regenerate ${marketLabels[key]}`
+                              : `Generate ${marketLabels[key]}`}
+                        </button>
+                      ) : null}
                     </div>
                     <div className="mt-4">
                       <ProductPreview
