@@ -335,6 +335,7 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
                         className={`rounded-full px-4 py-2 text-sm font-semibold ${market === activeMarket ? "bg-[#1b2748] text-white" : "bg-[#eef5ff] text-[#4d6284]"}`}
                         href={`/import/${importId}?market=${market}`}
                         key={market}
+                        scroll={false}
                       >
                         {marketLabels[market]}
                       </Link>
