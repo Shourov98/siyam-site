@@ -1605,111 +1605,124 @@ export default function AddProductEditor({
       />
 
       <div className="space-y-6">
-        <header className="rounded-2xl border border-[#2b3a5f] bg-[#1a2545] px-5 py-5 text-white shadow-[0_16px_35px_-24px_rgba(7,17,41,0.95)]">
-          <p className="text-xs font-semibold text-[#aab8d6]">Products &nbsp;&gt;&nbsp; Add Product</p>
-          <div className="mt-3 flex flex-col gap-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl">
-                <h1 className="text-2xl font-semibold">Add Product</h1>
-                <p className="mt-1 text-sm text-[#8ea0bf]">
-                  This page is now connected to `product-ai-agent` for generation, editing, variants, and marketplace regeneration.
-                </p>
-              </div>
+        <header className="sticky top-16 md:top-4 z-30 rounded-2xl border border-[#2b3a5f] bg-[#1a2545]/95 backdrop-blur-md px-5 py-3 text-white shadow-[0_16px_35px_-24px_rgba(7,17,41,0.95)]">
+          <div className="flex flex-col gap-3">
+            {/* Top Row: Breadcrumbs, Title, ID and Status Message */}
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="rounded-full border border-[#51658f] bg-white/5 px-3 py-2 text-xs font-semibold text-[#dce7fb]">
-                  {statusMessage}
-                </span>
+                <div>
+                  <p className="text-[10px] font-semibold text-[#aab8d6] uppercase tracking-wide">Products &nbsp;&gt;&nbsp; Add Product</p>
+                  <h1 className="text-lg font-bold leading-tight">Add Product</h1>
+                </div>
                 {productId ? (
-                  <span className="rounded-full border border-[#51658f] bg-white/5 px-3 py-2 text-xs font-semibold text-[#dce7fb]">
-                    Product ID: {productId.slice(0, 8)}
+                  <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold text-[#dce7fb] border border-[#51658f]/30">
+                    ID: {productId.slice(0, 8)}
                   </span>
                 ) : null}
               </div>
+
+              <div className="flex items-center gap-3">
+                <span className="rounded-full bg-[#1b325f]/50 px-3 py-1 text-xs font-medium text-[#7adfff] border border-[#3059a4]/50">
+                  {statusMessage}
+                </span>
+              </div>
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
-              <input
-                className={`h-11 rounded-xl bg-white/5 px-3 text-sm text-white outline-none transition placeholder:text-[#aab8d6] ${
-                  publishFieldErrors.title ? "border border-[#ff7d7d] focus:border-[#ff9b9b]" : "border border-[#51658f] focus:border-[#8ea0bf]"
-                }`}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setSourceTitle(value);
-                  setDraft((prev) => ({ ...prev, core: { ...prev.core, source_title: value } }));
-                  if (publishFieldErrors.title && value.trim()) {
-                    setPublishFieldErrors((prev) => ({ ...prev, title: false }));
-                  }
-                }}
-                placeholder="Source title used for generation"
-                type="text"
-                value={sourceTitle}
-              />
-              <button
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#51658f] bg-white/5 px-4 text-sm font-semibold text-white"
-                onClick={() => uploadInputRef.current?.click()}
-                type="button"
-              >
-                <Upload className="h-4 w-4" />
-                {selectedImage ? selectedImage.name : "Upload Product"}
-              </button>
-              {hasPersistedProduct ? (
+            {/* Bottom Row: Source Input, Upload, and Primary/Secondary Actions */}
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-t border-[#2b3a5f]/40 pt-3">
+              {/* Product title input */}
+              <div className="flex-1 max-w-xl">
+                <input
+                  className={`w-full h-10 rounded-xl bg-white/5 px-3.5 text-sm text-white outline-none transition placeholder:text-[#aab8d6] ${
+                    publishFieldErrors.title ? "border border-[#ff7d7d] focus:border-[#ff9b9b]" : "border border-[#51658f] focus:border-[#8ea0bf]"
+                  }`}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setSourceTitle(value);
+                    setDraft((prev) => ({ ...prev, core: { ...prev.core, source_title: value } }));
+                    if (publishFieldErrors.title && value.trim()) {
+                      setPublishFieldErrors((prev) => ({ ...prev, title: false }));
+                    }
+                  }}
+                  placeholder="Source title used for generation"
+                  type="text"
+                  value={sourceTitle}
+                />
+              </div>
+
+              {/* Grouped buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Draft management controls inside a unified segment container */}
+                <div className="flex items-center bg-white/5 rounded-xl border border-[#51658f]/40 p-0.5">
+                  <button
+                    className="h-8 rounded-lg px-3 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-30 cursor-pointer"
+                    disabled={!hasSavedDraft}
+                    onClick={() => loadSavedDraft()}
+                    type="button"
+                  >
+                    Load
+                  </button>
+                  <button
+                    className="h-8 rounded-lg px-3 text-xs font-semibold text-[#dce7fb] transition hover:bg-white/10 cursor-pointer"
+                    onClick={() => clearSavedDraft()}
+                    type="button"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    className="h-8 rounded-lg px-3 text-xs font-semibold text-[#ffd8de] transition hover:bg-[#39151d] disabled:opacity-30 cursor-pointer"
+                    disabled={isDeletingDraft}
+                    onClick={() => void deleteDraft()}
+                    type="button"
+                  >
+                    {isDeletingDraft ? "..." : "Delete"}
+                  </button>
+                </div>
+
+                {/* Upload action */}
                 <button
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#51658f] bg-white/5 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={isUploadingSourceImage || !selectedImage}
-                  onClick={() => void uploadProductSourceImage()}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[#51658f] bg-white/5 px-3 text-xs font-semibold text-white cursor-pointer"
+                  onClick={() => uploadInputRef.current?.click()}
                   type="button"
                 >
-                  {isUploadingSourceImage ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  {isUploadingSourceImage ? "Uploading..." : "Upload Source Image"}
+                  <Upload className="h-3.5 w-3.5" />
+                  {selectedImage ? selectedImage.name.slice(0, 12) + "..." : "Upload Product"}
                 </button>
-              ) : null}
-              <button
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#35d3ce] px-5 text-sm font-semibold text-[#153c53] disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isGenerating}
-                onClick={() => void generateProduct()}
-                type="button"
-              >
-                {isGenerating ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {isGenerating ? "Generating..." : "Generate with AI"}
-              </button>
-            </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#51658f] bg-white/5 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!hasPersistedProduct || isOptimizing}
-                onClick={() => void optimizeAllMarketplaces()}
-                type="button"
-              >
-                {isOptimizing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {isOptimizing ? "Optimizing..." : "Optimize All Marketplaces"}
-              </button>
-              <button
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-[#51658f] bg-white/5 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!hasSavedDraft}
-                onClick={() => loadSavedDraft()}
-                type="button"
-              >
-                Load Draft
-              </button>
-              <button
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-[#51658f] bg-transparent px-4 text-sm font-semibold text-[#dce7fb] transition hover:bg-white/5"
-                onClick={() => clearSavedDraft()}
-                type="button"
-              >
-                Clear Draft
-              </button>
-              <button
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-[#7d3b45] bg-[#2b1016] px-4 text-sm font-semibold text-[#ffd8de] transition hover:bg-[#39151d] disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isDeletingDraft}
-                onClick={() => void deleteDraft()}
-                type="button"
-              >
-                {isDeletingDraft ? "Deleting..." : "Delete Draft"}
-              </button>
-              <p className="text-xs text-[#aab8d6]">
-                Draft changes are also saved locally for this account so they survive reloads and sign-ins.
-              </p>
+                {hasPersistedProduct && (
+                  <button
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[#51658f] bg-white/5 px-3 text-xs font-semibold text-white disabled:opacity-60 cursor-pointer"
+                    disabled={isUploadingSourceImage || !selectedImage}
+                    onClick={() => void uploadProductSourceImage()}
+                    type="button"
+                  >
+                    {isUploadingSourceImage ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                    Upload Src
+                  </button>
+                )}
+
+                {/* Optimize Action */}
+                <button
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[#51658f] bg-white/5 px-3 text-xs font-semibold text-white disabled:opacity-50 cursor-pointer"
+                  disabled={!hasPersistedProduct || isOptimizing}
+                  onClick={() => void optimizeAllMarketplaces()}
+                  type="button"
+                >
+                  {isOptimizing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  Optimize All
+                </button>
+
+                {/* Main AI Generation CTA */}
+                <button
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#35d3ce] px-4 text-xs font-bold text-[#153c53] transition hover:bg-[#2bc7c2] disabled:opacity-60 cursor-pointer"
+                  disabled={isGenerating}
+                  onClick={() => void generateProduct()}
+                  type="button"
+                >
+                  {isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {isGenerating ? "Generating..." : "Generate AI"}
+                </button>
+              </div>
             </div>
           </div>
         </header>
