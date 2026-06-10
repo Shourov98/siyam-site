@@ -1,10 +1,11 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { startTransition, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 
 const TOUR_ENABLED_KEY = "integration-shepherd-enabled";
 const TOUR_STAGE_KEY = "integration-shepherd-stage";
+const TOUR_COMPLETED_KEY = "integration-shepherd-completed";
 const TOUR_TRIGGER_EVENT = "integration-shepherd:start";
 const SHEPHERD_CSS_ID = "shepherd-cdn-css";
 const SHEPHERD_SCRIPT_ID = "shepherd-cdn-js";
@@ -61,10 +62,15 @@ export default function IntegrationShepherdTour() {
   const [triggerCount, setTriggerCount] = useState(0);
   const tourRef = useRef<ShepherdTourInstance | null>(null);
 
-  const clearTourState = () => {
+  const clearTourState = useCallback(() => {
     window.sessionStorage.removeItem(TOUR_ENABLED_KEY);
     window.sessionStorage.removeItem(TOUR_STAGE_KEY);
-  };
+  }, []);
+
+  const completeTourPermanently = useCallback(() => {
+    window.localStorage.setItem(TOUR_COMPLETED_KEY, "1");
+    clearTourState();
+  }, [clearTourState]);
 
   const destroyCurrentTour = () => {
     if (!tourRef.current) {
@@ -173,7 +179,7 @@ export default function IntegrationShepherdTour() {
     const skipButton = {
       text: "Skip",
       action: () => {
-        clearTourState();
+        completeTourPermanently();
         tour.complete?.();
       },
     };
@@ -247,12 +253,12 @@ export default function IntegrationShepherdTour() {
         text: "Final step: complete identity verification to finish the integration setup.",
         attachTo: { element: "[data-tour='identity-final']", on: "top" },
         buttons: [
-          {
-            text: "Finish",
-            action: () => {
-              clearTourState();
-              tour.complete?.();
-            },
+            {
+              text: "Finish",
+              action: () => {
+                completeTourPermanently();
+                tour.complete?.();
+              },
           },
         ],
       });
@@ -262,7 +268,7 @@ export default function IntegrationShepherdTour() {
       return;
     }
 
-    const onCancel = () => clearTourState();
+    const onCancel = () => completeTourPermanently();
     tour.on("cancel", onCancel);
     tour.start();
     tourRef.current = tour;
@@ -273,7 +279,7 @@ export default function IntegrationShepherdTour() {
         destroyCurrentTour();
       }
     };
-  }, [assetsReady, pathname, router, triggerCount]);
+  }, [assetsReady, completeTourPermanently, pathname, router, triggerCount]);
 
   return null;
 }

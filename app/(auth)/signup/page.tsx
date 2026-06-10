@@ -9,6 +9,9 @@ import AuthShell from "../../components/auth/AuthShell";
 import { Eye, EyeOff } from "lucide-react";
 
 const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+const INTEGRATION_TOUR_ENABLED_KEY = "integration-shepherd-enabled";
+const INTEGRATION_TOUR_STAGE_KEY = "integration-shepherd-stage";
+const INTEGRATION_TOUR_COMPLETED_KEY = "integration-shepherd-completed";
 
 export default function SignupPage() {
   const { register } = useAuth();
@@ -50,6 +53,13 @@ export default function SignupPage() {
         email: email.trim(),
         password,
       });
+      if (window.localStorage.getItem(INTEGRATION_TOUR_COMPLETED_KEY) !== "1") {
+        window.sessionStorage.setItem(INTEGRATION_TOUR_ENABLED_KEY, "1");
+        window.sessionStorage.setItem(INTEGRATION_TOUR_STAGE_KEY, "1");
+      } else {
+        window.sessionStorage.removeItem(INTEGRATION_TOUR_ENABLED_KEY);
+        window.sessionStorage.removeItem(INTEGRATION_TOUR_STAGE_KEY);
+      }
       window.location.replace("/dashboard");
     } catch (submissionError) {
       setError(submissionError instanceof ApiClientError ? submissionError.message : "Unable to create your account right now.");

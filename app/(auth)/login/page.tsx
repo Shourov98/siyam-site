@@ -14,6 +14,10 @@ const socialButtons = [
   { label: "Tiktok", icon: "♪" },
 ];
 
+const INTEGRATION_TOUR_ENABLED_KEY = "integration-shepherd-enabled";
+const INTEGRATION_TOUR_STAGE_KEY = "integration-shepherd-stage";
+const INTEGRATION_TOUR_COMPLETED_KEY = "integration-shepherd-completed";
+
 export default function LoginPage() {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
@@ -35,6 +39,13 @@ export default function LoginPage() {
 
     try {
       await login({ email: email.trim(), password });
+      if (window.localStorage.getItem(INTEGRATION_TOUR_COMPLETED_KEY) !== "1") {
+        window.sessionStorage.setItem(INTEGRATION_TOUR_ENABLED_KEY, "1");
+        window.sessionStorage.setItem(INTEGRATION_TOUR_STAGE_KEY, "1");
+      } else {
+        window.sessionStorage.removeItem(INTEGRATION_TOUR_ENABLED_KEY);
+        window.sessionStorage.removeItem(INTEGRATION_TOUR_STAGE_KEY);
+      }
       window.location.replace("/dashboard");
     } catch (submissionError) {
       setError(submissionError instanceof ApiClientError ? submissionError.message : "Unable to log in right now.");

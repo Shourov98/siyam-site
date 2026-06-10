@@ -46,15 +46,10 @@ export default function DashboardSidebar() {
     _event: React.MouseEvent<HTMLAnchorElement>,
     href: string,
   ) => {
-    if (href === "/integration") {
-      window.sessionStorage.setItem("integration-shepherd-enabled", "1");
-      window.sessionStorage.setItem("integration-shepherd-stage", "1");
-      window.dispatchEvent(new Event("integration-shepherd:start"));
-      return;
+    if (href !== "/integration") {
+      window.sessionStorage.removeItem("integration-shepherd-enabled");
+      window.sessionStorage.removeItem("integration-shepherd-stage");
     }
-
-    window.sessionStorage.removeItem("integration-shepherd-enabled");
-    window.sessionStorage.removeItem("integration-shepherd-stage");
   };
 
   const handleLogout = () => {
