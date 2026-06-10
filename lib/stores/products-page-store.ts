@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 import { ApiClientError } from "@/lib/auth";
 import { productsApi, type ProductListItem, type ShopifyInventoryLevel } from "@/lib/products";
@@ -64,6 +65,8 @@ type LoadPageOptions = {
   refreshShopify?: boolean;
 };
 
+const PRODUCTS_PAGE_REFRESH_INTERVAL_MS = 60_000;
+
 type ProductsPageState = {
   products: ProductRow[];
   pagination: PaginationState;
@@ -76,8 +79,12 @@ type ProductsPageState = {
   shopifyRowsCache: ProductRow[];
   hasLoadedShopifyCache: boolean;
   hasLoadedOnce: boolean;
+  hasHydrated: boolean;
+  lastLoadedAt: number | null;
   setSearchQuery: (value: string) => void;
   toggleGlobalEditMode: () => void;
+  markHydrated: () => void;
+  shouldRefresh: () => boolean;
   loadPage: (page?: number, options?: LoadPageOptions) => Promise<void>;
   importShopify: () => Promise<void>;
   changePage: (nextPage: number) => Promise<void>;
@@ -170,198 +177,231 @@ async function fetchProductAiPage(page: number, pageSize: number) {
   return (await response.json()) as ProductAiProductsResponse;
 }
 
-export const useProductsPageStore = create<ProductsPageState>((set, get) => ({
-  products: [],
-  pagination: { page: 1, page_size: 20, total_items: 0, total_pages: 0 },
-  searchQuery: "",
-  globalEditMode: false,
-  isLoading: true,
-  isImporting: false,
-  pageMessage: "",
-  rowFeedbackById: {},
-  shopifyRowsCache: [],
-  hasLoadedShopifyCache: false,
-  hasLoadedOnce: false,
-  setSearchQuery: (value) => set({ searchQuery: value }),
-  toggleGlobalEditMode: () => set((state) => ({ globalEditMode: !state.globalEditMode })),
-  async loadPage(page, options) {
-    const state = get();
-    const targetPage = page ?? state.pagination.page;
-    const refreshShopify = options?.refreshShopify ?? false;
-
-    set({ isLoading: true });
-
-    try {
-      let shopifyRows = state.shopifyRowsCache;
-      if (!state.hasLoadedShopifyCache || refreshShopify) {
-        const [productItems, inventoryLevels] = await Promise.all([
-          productsApi.getProducts(),
-          productsApi.getShopifyInventory(),
-        ]);
-        shopifyRows = mapProductRows(productItems, inventoryLevels);
-      }
-
-      const productAiPayload = await fetchProductAiPage(targetPage, state.pagination.page_size);
-      set({
-        products: sortProductRows([...shopifyRows, ...mapProductAiRows(productAiPayload.items)]),
-        pagination: productAiPayload.pagination,
-        shopifyRowsCache: shopifyRows,
-        hasLoadedShopifyCache: true,
-        hasLoadedOnce: true,
-        pageMessage: "",
-      });
-    } catch (error) {
-      set({
-        pageMessage: error instanceof ApiClientError ? error.message : error instanceof Error ? error.message : "Could not load product listings.",
-      });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-  async importShopify() {
-    set({ isImporting: true, pageMessage: "" });
-
-    try {
-      const result = await productsApi.importShopifyProducts();
-      await get().loadPage(get().pagination.page, { refreshShopify: true });
-      set({ pageMessage: `Imported ${result.count} Shopify products.` });
-    } catch (error) {
-      set({
-        pageMessage: error instanceof ApiClientError ? error.message : "Could not import Shopify products.",
-      });
-    } finally {
-      set({ isImporting: false });
-    }
-  },
-  async changePage(nextPage) {
-    const { pagination } = get();
-    if (nextPage < 1 || (pagination.total_pages > 0 && nextPage > pagination.total_pages)) {
-      return;
-    }
-
-    await get().loadPage(nextPage);
-  },
-  updateShopifyPriceDraft(rowId, nextPrice) {
-    set((state) => ({
-      products: state.products.map((row) => (row.id === rowId ? { ...row, shopifyPrice: nextPrice } : row)),
-    }));
-  },
-  async saveShopifyPrice(row) {
-    const { globalEditMode } = get();
-    if (!globalEditMode || row.source !== "shopify" || !row.shopifyVariantId) {
-      return;
-    }
-
-    const normalizedPrice = row.shopifyPrice.trim();
-    const numericPrice = Number(normalizedPrice);
-
-    if (!normalizedPrice || !Number.isFinite(numericPrice) || numericPrice < 0) {
-      set((state) => ({
-        rowFeedbackById: {
-          ...state.rowFeedbackById,
-          [row.id]: { tone: "error", message: "Shopify price must be a valid number." },
-        },
-      }));
-      return;
-    }
-
-    set((state) => ({
-      rowFeedbackById: {
-        ...state.rowFeedbackById,
-        [row.id]: { tone: "saving", message: "Updating Shopify price..." },
+export const useProductsPageStore = create<ProductsPageState>()(
+  persist(
+    (set, get) => ({
+      products: [],
+      pagination: { page: 1, page_size: 20, total_items: 0, total_pages: 0 },
+      searchQuery: "",
+      globalEditMode: false,
+      isLoading: true,
+      isImporting: false,
+      pageMessage: "",
+      rowFeedbackById: {},
+      shopifyRowsCache: [],
+      hasLoadedShopifyCache: false,
+      hasLoadedOnce: false,
+      hasHydrated: false,
+      lastLoadedAt: null,
+      setSearchQuery: (value) => set({ searchQuery: value }),
+      toggleGlobalEditMode: () => set((state) => ({ globalEditMode: !state.globalEditMode })),
+      markHydrated: () => set({ hasHydrated: true }),
+      shouldRefresh: () => {
+        const { lastLoadedAt } = get();
+        return !lastLoadedAt || Date.now() - lastLoadedAt > PRODUCTS_PAGE_REFRESH_INTERVAL_MS;
       },
-    }));
+      async loadPage(page, options) {
+        const state = get();
+        const targetPage = page ?? state.pagination.page;
+        const refreshShopify = options?.refreshShopify ?? false;
 
-    try {
-      const result = await productsApi.updateShopifyVariantPrice(row.shopifyProductId, {
-        variantId: row.shopifyVariantId,
-        price: numericPrice.toFixed(2),
-      });
+        set({ isLoading: true });
 
-      set((state) => ({
-        products: state.products.map((current) =>
-          current.id === row.id
-            ? {
-                ...current,
-                shopifyPrice: result.price ?? numericPrice.toFixed(2),
-              }
-            : current,
-        ),
-        rowFeedbackById: {
-          ...state.rowFeedbackById,
-          [row.id]: { tone: "success", message: "Shopify price updated." },
-        },
-      }));
-    } catch (error) {
-      set((state) => ({
-        rowFeedbackById: {
-          ...state.rowFeedbackById,
-          [row.id]: {
-            tone: "error",
-            message: error instanceof ApiClientError ? error.message : "Could not update Shopify price.",
-          },
-        },
-      }));
-    }
-  },
-  updateStockDraft(rowId, nextStock) {
-    const numericValue = Number(nextStock);
-    set((state) => ({
-      products: state.products.map((row) =>
-        row.id === rowId
-          ? {
-              ...row,
-              stock: Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0,
-            }
-          : row,
-      ),
-    }));
-  },
-  async saveStock(row) {
-    const { globalEditMode } = get();
-    if (!globalEditMode || row.source !== "shopify") {
-      return;
-    }
+        try {
+          let shopifyRows = state.shopifyRowsCache;
+          if (!state.hasLoadedShopifyCache || refreshShopify) {
+            const [productItems, inventoryLevels] = await Promise.all([
+              productsApi.getProducts(),
+              productsApi.getShopifyInventory(),
+            ]);
+            shopifyRows = mapProductRows(productItems, inventoryLevels);
+          }
 
-    if (!row.inventoryItemId || !row.inventoryLocationId) {
-      set((state) => ({
-        rowFeedbackById: {
-          ...state.rowFeedbackById,
-          [row.id]: { tone: "error", message: "No Shopify inventory location was found for this product." },
-        },
-      }));
-      return;
-    }
-
-    set((state) => ({
-      rowFeedbackById: {
-        ...state.rowFeedbackById,
-        [row.id]: { tone: "saving", message: "Updating Shopify stock..." },
+          const productAiPayload = await fetchProductAiPage(targetPage, state.pagination.page_size);
+          set({
+            products: sortProductRows([...shopifyRows, ...mapProductAiRows(productAiPayload.items)]),
+            pagination: productAiPayload.pagination,
+            shopifyRowsCache: shopifyRows,
+            hasLoadedShopifyCache: true,
+            hasLoadedOnce: true,
+            lastLoadedAt: Date.now(),
+            pageMessage: "",
+          });
+        } catch (error) {
+          set({
+            pageMessage: error instanceof ApiClientError ? error.message : error instanceof Error ? error.message : "Could not load product listings.",
+          });
+        } finally {
+          set({ isLoading: false });
+        }
       },
-    }));
+      async importShopify() {
+        set({ isImporting: true, pageMessage: "" });
 
-    try {
-      await productsApi.updateShopifyInventory(row.inventoryItemId, {
-        locationId: row.inventoryLocationId,
-        quantity: row.stock,
-      });
+        try {
+          const result = await productsApi.importShopifyProducts();
+          await get().loadPage(get().pagination.page, { refreshShopify: true });
+          set({ pageMessage: `Imported ${result.count} Shopify products.` });
+        } catch (error) {
+          set({
+            pageMessage: error instanceof ApiClientError ? error.message : "Could not import Shopify products.",
+          });
+        } finally {
+          set({ isImporting: false });
+        }
+      },
+      async changePage(nextPage) {
+        const { pagination } = get();
+        if (nextPage < 1 || (pagination.total_pages > 0 && nextPage > pagination.total_pages)) {
+          return;
+        }
 
-      set((state) => ({
-        rowFeedbackById: {
-          ...state.rowFeedbackById,
-          [row.id]: { tone: "success", message: "Shopify stock updated." },
-        },
-      }));
-    } catch (error) {
-      set((state) => ({
-        rowFeedbackById: {
-          ...state.rowFeedbackById,
-          [row.id]: {
-            tone: "error",
-            message: error instanceof ApiClientError ? error.message : "Could not update Shopify stock.",
+        await get().loadPage(nextPage);
+      },
+      updateShopifyPriceDraft(rowId, nextPrice) {
+        set((state) => ({
+          products: state.products.map((row) => (row.id === rowId ? { ...row, shopifyPrice: nextPrice } : row)),
+        }));
+      },
+      async saveShopifyPrice(row) {
+        const { globalEditMode } = get();
+        if (!globalEditMode || row.source !== "shopify" || !row.shopifyVariantId) {
+          return;
+        }
+
+        const normalizedPrice = row.shopifyPrice.trim();
+        const numericPrice = Number(normalizedPrice);
+
+        if (!normalizedPrice || !Number.isFinite(numericPrice) || numericPrice < 0) {
+          set((state) => ({
+            rowFeedbackById: {
+              ...state.rowFeedbackById,
+              [row.id]: { tone: "error", message: "Shopify price must be a valid number." },
+            },
+          }));
+          return;
+        }
+
+        set((state) => ({
+          rowFeedbackById: {
+            ...state.rowFeedbackById,
+            [row.id]: { tone: "saving", message: "Updating Shopify price..." },
           },
-        },
-      }));
-    }
-  },
-}));
+        }));
+
+        try {
+          const result = await productsApi.updateShopifyVariantPrice(row.shopifyProductId, {
+            variantId: row.shopifyVariantId,
+            price: numericPrice.toFixed(2),
+          });
+
+          set((state) => ({
+            products: state.products.map((current) =>
+              current.id === row.id
+                ? {
+                    ...current,
+                    shopifyPrice: result.price ?? numericPrice.toFixed(2),
+                  }
+                : current,
+            ),
+            rowFeedbackById: {
+              ...state.rowFeedbackById,
+              [row.id]: { tone: "success", message: "Shopify price updated." },
+            },
+          }));
+        } catch (error) {
+          set((state) => ({
+            rowFeedbackById: {
+              ...state.rowFeedbackById,
+              [row.id]: {
+                tone: "error",
+                message: error instanceof ApiClientError ? error.message : "Could not update Shopify price.",
+              },
+            },
+          }));
+        }
+      },
+      updateStockDraft(rowId, nextStock) {
+        const numericValue = Number(nextStock);
+        set((state) => ({
+          products: state.products.map((row) =>
+            row.id === rowId
+              ? {
+                  ...row,
+                  stock: Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0,
+                }
+              : row,
+          ),
+        }));
+      },
+      async saveStock(row) {
+        const { globalEditMode } = get();
+        if (!globalEditMode || row.source !== "shopify") {
+          return;
+        }
+
+        if (!row.inventoryItemId || !row.inventoryLocationId) {
+          set((state) => ({
+            rowFeedbackById: {
+              ...state.rowFeedbackById,
+              [row.id]: { tone: "error", message: "No Shopify inventory location was found for this product." },
+            },
+          }));
+          return;
+        }
+
+        set((state) => ({
+          rowFeedbackById: {
+            ...state.rowFeedbackById,
+            [row.id]: { tone: "saving", message: "Updating Shopify stock..." },
+          },
+        }));
+
+        try {
+          await productsApi.updateShopifyInventory(row.inventoryItemId, {
+            locationId: row.inventoryLocationId,
+            quantity: row.stock,
+          });
+
+          set((state) => ({
+            rowFeedbackById: {
+              ...state.rowFeedbackById,
+              [row.id]: { tone: "success", message: "Shopify stock updated." },
+            },
+          }));
+        } catch (error) {
+          set((state) => ({
+            rowFeedbackById: {
+              ...state.rowFeedbackById,
+              [row.id]: {
+                tone: "error",
+                message: error instanceof ApiClientError ? error.message : "Could not update Shopify stock.",
+              },
+            },
+          }));
+        }
+      },
+    }),
+    {
+      name: "commandctr-products-page",
+      partialize: (state) => ({
+        products: state.products,
+        pagination: state.pagination,
+        searchQuery: state.searchQuery,
+        globalEditMode: state.globalEditMode,
+        shopifyRowsCache: state.shopifyRowsCache,
+        hasLoadedShopifyCache: state.hasLoadedShopifyCache,
+        hasLoadedOnce: state.hasLoadedOnce,
+        lastLoadedAt: state.lastLoadedAt,
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (!state) {
+          return;
+        }
+
+        state.markHydrated();
+        useProductsPageStore.setState({ isLoading: false });
+      },
+    },
+  ),
+);

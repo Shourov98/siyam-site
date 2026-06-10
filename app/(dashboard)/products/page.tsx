@@ -67,9 +67,11 @@ export default function ProductsPage() {
   const pageMessage = useProductsPageStore((state) => state.pageMessage);
   const rowFeedbackById = useProductsPageStore((state) => state.rowFeedbackById);
   const hasLoadedOnce = useProductsPageStore((state) => state.hasLoadedOnce);
+  const hasHydrated = useProductsPageStore((state) => state.hasHydrated);
   const setSearchQuery = useProductsPageStore((state) => state.setSearchQuery);
   const toggleGlobalEditMode = useProductsPageStore((state) => state.toggleGlobalEditMode);
   const loadPage = useProductsPageStore((state) => state.loadPage);
+  const shouldRefresh = useProductsPageStore((state) => state.shouldRefresh);
   const importShopify = useProductsPageStore((state) => state.importShopify);
   const changePage = useProductsPageStore((state) => state.changePage);
   const updateShopifyPriceDraft = useProductsPageStore((state) => state.updateShopifyPriceDraft);
@@ -78,10 +80,22 @@ export default function ProductsPage() {
   const saveStock = useProductsPageStore((state) => state.saveStock);
 
   useEffect(() => {
+    if (!hasHydrated) {
+      return;
+    }
+
     if (!hasLoadedOnce) {
       void loadPage();
+      return;
     }
-  }, [hasLoadedOnce, loadPage]);
+
+    if (shouldRefresh()) {
+      void loadPage();
+    }
+  }, [hasHydrated, hasLoadedOnce, loadPage, shouldRefresh]);
+
+  const showInitialLoading = !hasHydrated || (isLoading && products.length === 0);
+  const showRefreshing = isLoading && products.length > 0;
 
   const filteredProducts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -210,6 +224,14 @@ export default function ProductsPage() {
         ) : null}
 
         <div className="overflow-hidden rounded-2xl border border-[#e1e6f0] bg-white">
+          {showRefreshing ? (
+            <div className="border-b border-[#edf1f7] px-4 py-3 text-sm text-[#6f7f9f] md:px-6">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Refreshing products...
+              </div>
+            </div>
+          ) : null}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1280px] text-left">
               <thead className="text-xs font-semibold uppercase tracking-wide text-[#d8e4fb]">
@@ -238,7 +260,7 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? (
+                {showInitialLoading ? (
                   <tr>
                     <td className="px-4 py-12 text-center text-sm text-[#6f7f9f]" colSpan={9}>
                       <div className="flex items-center justify-center gap-2">
@@ -391,7 +413,7 @@ export default function ProductsPage() {
             </table>
           </div>
 
-          {!isLoading && filteredProducts.length === 0 ? (
+          {!showInitialLoading && filteredProducts.length === 0 ? (
             <div className="border-t border-[#edf1f7] px-4 py-6 text-center text-sm text-[#6f7f9f] md:px-6">
               {products.length === 0 ? "No products found yet. Import Shopify data or upload one from the AI product flow." : `No products found for "${searchQuery}".`}
             </div>
@@ -405,7 +427,7 @@ export default function ProductsPage() {
         <div className="flex items-center justify-end gap-2">
           <button
             className="rounded-xl border border-[#c7d3e6] px-4 py-1.5 font-semibold text-[#60708d] disabled:opacity-50"
-            disabled={pagination.page <= 1 || isLoading}
+            disabled={pagination.page <= 1 || showInitialLoading}
             onClick={() => void changePage(pagination.page - 1)}
             type="button"
           >
@@ -413,7 +435,7 @@ export default function ProductsPage() {
           </button>
           <button
             className="rounded-xl border border-[#c7d3e6] px-4 py-1.5 font-semibold text-[#60708d] disabled:opacity-50"
-            disabled={pagination.total_pages === 0 || pagination.page >= pagination.total_pages || isLoading}
+            disabled={pagination.total_pages === 0 || pagination.page >= pagination.total_pages || showInitialLoading}
             onClick={() => void changePage(pagination.page + 1)}
             type="button"
           >
