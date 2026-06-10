@@ -13,31 +13,9 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 
-import { ApiClientError } from "@/lib/auth";
-import { productsApi, type InventoryRecord, type ProductListItem, type ShopifyInventoryLevel } from "@/lib/products";
-
-type InventoryRow = {
-  id: string;
-  productDocumentId?: string;
-  shopifyProductId: string;
-  inventoryItemId: string;
-  locationId: string;
-  locationName: string;
-  title: string;
-  sku: string;
-  featuredImage?: string;
-  masterCount: number;
-  available: number;
-  safetyBuffer: number;
-  lowStockThreshold: number;
-};
-
-type RowFeedback = {
-  tone: "idle" | "saving" | "success" | "error";
-  message: string;
-};
+import { useInventoryPageStore, type InventoryRow } from "@/lib/stores/inventory-page-store";
 
 function clampNonNegative(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -45,10 +23,6 @@ function clampNonNegative(value: unknown) {
   }
 
   return Math.max(0, value);
-}
-
-function getDocumentId(record: InventoryRecord) {
-  return record._id ?? record.id ?? `${record.inventoryItemId}:${record.locationId ?? ""}`;
 }
 
 function AvailabilityText({ value }: { value: number }) {
@@ -71,69 +45,6 @@ function EmptyChannelCell() {
       </p>
     </>
   );
-}
-
-function mapInventoryRows(inventory: InventoryRecord[], products: ProductListItem[], liveLevels: ShopifyInventoryLevel[]) {
-  const productByShopifyId = new Map(products.map((product) => [product.shopifyProductId, product]));
-  const liveByInventoryKey = new Map(
-    liveLevels.map((level) => [`${level.inventoryItemId}:${level.locationId}`, level]),
-  );
-  const activeInventory = inventory.filter((record) => record.isActive !== false);
-  const reconciledInventory = liveLevels.length
-    ? activeInventory.filter((record) => {
-        const rowKey = `${record.inventoryItemId}:${record.locationId ?? ""}`;
-        return liveByInventoryKey.has(rowKey);
-      })
-    : activeInventory;
-
-  if (!reconciledInventory.length) {
-    return liveLevels.map<InventoryRow>((level) => {
-      const product = productByShopifyId.get(level.productId);
-      const masterCount = clampNonNegative(level.quantity);
-      const derivedId = `${level.inventoryItemId}:${level.locationId || "unknown"}`;
-
-      return {
-        id: derivedId,
-        productDocumentId: product?._id ?? product?.id,
-        shopifyProductId: level.productId,
-        inventoryItemId: level.inventoryItemId,
-        locationId: level.locationId ?? "",
-        locationName: level.locationName ?? "Shopify",
-        title: product?.title ?? level.productTitle ?? "Untitled product",
-        sku: level.sku ?? product?.variants[0]?.sku ?? "N/A",
-        featuredImage: product?.featuredImage,
-        masterCount,
-        available: masterCount,
-        safetyBuffer: 0,
-        lowStockThreshold: 5,
-      };
-    });
-  }
-
-  return reconciledInventory.map<InventoryRow>((record) => {
-    const product = record.shopifyProductId ? productByShopifyId.get(record.shopifyProductId) : undefined;
-    const liveLevel = liveByInventoryKey.get(`${record.inventoryItemId}:${record.locationId ?? ""}`);
-    const masterCount = clampNonNegative(liveLevel?.quantity ?? record.shopifyQuantity ?? 0);
-    const safetyBuffer = clampNonNegative(record.safetyBuffer ?? 0);
-    const available = clampNonNegative(masterCount - safetyBuffer);
-    const lowStockThreshold = clampNonNegative(record.lowStockThreshold ?? 5);
-
-    return {
-      id: getDocumentId(record),
-      productDocumentId: product?._id ?? product?.id ?? record.productId,
-      shopifyProductId: record.shopifyProductId ?? product?.shopifyProductId ?? "",
-      inventoryItemId: record.inventoryItemId,
-      locationId: record.locationId ?? "",
-      locationName: record.locationName ?? liveLevel?.locationName ?? "",
-      title: product?.title ?? record.title ?? liveLevel?.productTitle ?? "Untitled product",
-      sku: record.sku ?? liveLevel?.sku ?? product?.variants[0]?.sku ?? "",
-      featuredImage: product?.featuredImage,
-      masterCount,
-      available,
-      safetyBuffer,
-      lowStockThreshold,
-    };
-  });
 }
 
 function downloadCsv(rows: InventoryRow[]) {
@@ -173,52 +84,37 @@ function downloadCsv(rows: InventoryRow[]) {
 }
 
 export default function InventoryPage() {
-  const [items, setItems] = useState<InventoryRow[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [globalEditMode, setGlobalEditMode] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isImporting, setIsImporting] = useState(false);
-  const [pageMessage, setPageMessage] = useState("");
-  const [rowFeedbackById, setRowFeedbackById] = useState<Record<string, RowFeedback>>({});
-
-  async function fetchInventoryData() {
-    const [inventory, products, liveInventory] = await Promise.all([
-      productsApi.getInventory(),
-      productsApi.getProducts(),
-      productsApi.getShopifyInventory(),
-    ]);
-
-    return mapInventoryRows(inventory, products, liveInventory);
-  }
+  const items = useInventoryPageStore((state) => state.items);
+  const searchQuery = useInventoryPageStore((state) => state.searchQuery);
+  const globalEditMode = useInventoryPageStore((state) => state.globalEditMode);
+  const isLoading = useInventoryPageStore((state) => state.isLoading);
+  const isImporting = useInventoryPageStore((state) => state.isImporting);
+  const hasLoadedOnce = useInventoryPageStore((state) => state.hasLoadedOnce);
+  const pageMessage = useInventoryPageStore((state) => state.pageMessage);
+  const rowFeedbackById = useInventoryPageStore((state) => state.rowFeedbackById);
+  const setSearchQuery = useInventoryPageStore((state) => state.setSearchQuery);
+  const toggleGlobalEditMode = useInventoryPageStore((state) => state.toggleGlobalEditMode);
+  const shouldRefresh = useInventoryPageStore((state) => state.shouldRefresh);
+  const loadInventory = useInventoryPageStore((state) => state.loadInventory);
+  const importInventory = useInventoryPageStore((state) => state.importInventory);
+  const updateMasterCountDraft = useInventoryPageStore((state) => state.updateMasterCountDraft);
+  const updateSafetyBufferDraft = useInventoryPageStore((state) => state.updateSafetyBufferDraft);
+  const saveMasterCount = useInventoryPageStore((state) => state.saveMasterCount);
+  const saveSafetyBuffer = useInventoryPageStore((state) => state.saveSafetyBuffer);
 
   useEffect(() => {
-    let active = true;
+    if (!hasLoadedOnce || items.length === 0) {
+      void loadInventory();
+      return;
+    }
 
-    void fetchInventoryData()
-      .then((rows) => {
-        if (!active) {
-          return;
-        }
+    if (shouldRefresh()) {
+      void loadInventory();
+    }
+  }, [hasLoadedOnce, items.length, loadInventory, shouldRefresh]);
 
-        setItems(rows);
-      })
-      .catch((error) => {
-        if (!active) {
-          return;
-        }
-
-        setPageMessage(error instanceof ApiClientError ? error.message : "Could not load inventory.");
-      })
-      .finally(() => {
-        if (active) {
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
+  const showInitialLoading = isLoading && items.length === 0;
+  const showRefreshing = isLoading && items.length > 0;
 
   const filteredItems = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -248,119 +144,6 @@ export default function InventoryPage() {
     };
   }, [items]);
 
-  const setRowFeedback = (rowId: string, feedback: RowFeedback) => {
-    setRowFeedbackById((prev) => ({
-      ...prev,
-      [rowId]: feedback,
-    }));
-  };
-
-  const updateLocalRow = (rowId: string, updater: (row: InventoryRow) => InventoryRow) => {
-    setItems((prev) => prev.map((item) => (item.id === rowId ? updater(item) : item)));
-  };
-
-  const handleImport = async () => {
-    setIsImporting(true);
-    setPageMessage("");
-
-    try {
-      const result = await productsApi.importShopifyProducts();
-      const rows = await fetchInventoryData();
-      setItems(rows);
-      const staleCount = result.staleMarkedInactiveCount ?? 0;
-      setPageMessage(staleCount > 0 ? `Inventory refreshed. ${staleCount} stale rows hidden.` : `Imported ${result.count} Shopify products and refreshed inventory.`);
-    } catch (error) {
-      setPageMessage(error instanceof ApiClientError ? error.message : "Could not import Shopify inventory.");
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  const handleMasterCountChange = (rowId: string, value: string) => {
-    const numericValue = Number(value);
-    updateLocalRow(rowId, (row) => ({
-      ...row,
-      masterCount: Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0,
-      available: Math.max(0, (Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0) - row.safetyBuffer),
-    }));
-  };
-
-  const handleSafetyBufferChange = (rowId: string, value: string) => {
-    const numericValue = Number(value);
-    updateLocalRow(rowId, (row) => {
-      const nextSafetyBuffer = Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0;
-      return {
-        ...row,
-        safetyBuffer: nextSafetyBuffer,
-        available: Math.max(0, row.masterCount - nextSafetyBuffer),
-      };
-    });
-  };
-
-  const handleMasterCountSave = async (row: InventoryRow) => {
-    if (!globalEditMode) {
-      return;
-    }
-
-    if (!row.locationId) {
-      setRowFeedback(row.id, {
-        tone: "error",
-        message: "No Shopify location is available for this inventory row.",
-      });
-      return;
-    }
-
-    setRowFeedback(row.id, {
-      tone: "saving",
-      message: "Updating Shopify inventory...",
-    });
-
-    try {
-      await productsApi.updateShopifyInventory(row.inventoryItemId, {
-        locationId: row.locationId,
-        quantity: row.masterCount,
-      });
-      const rows = await fetchInventoryData();
-      setItems(rows);
-
-      setRowFeedback(row.id, {
-        tone: "success",
-        message: "Shopify inventory updated.",
-      });
-    } catch (error) {
-      setRowFeedback(row.id, {
-        tone: "error",
-        message: error instanceof ApiClientError ? error.message : "Could not update Shopify inventory.",
-      });
-    }
-  };
-
-  const handleSafetyBufferSave = async (row: InventoryRow) => {
-    if (!globalEditMode) {
-      return;
-    }
-
-    setRowFeedback(row.id, {
-      tone: "saving",
-      message: "Saving safety buffer...",
-    });
-
-    try {
-      await productsApi.updateInventorySafetyBuffer(row.id, row.safetyBuffer);
-      const rows = await fetchInventoryData();
-      setItems(rows);
-      setRowFeedback(row.id, {
-        tone: "success",
-        message: "Safety buffer updated.",
-      });
-    } catch (error) {
-      setRowFeedback(row.id, {
-        tone: "error",
-        message: error instanceof ApiClientError ? error.message : "Could not update safety buffer.",
-      });
-    }
-  };
-
   return (
     <section className="px-4 py-5 md:px-8 md:py-8">
       <div className="space-y-5">
@@ -373,7 +156,7 @@ export default function InventoryPage() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#cbd6ea] bg-white px-4 text-sm font-semibold text-[#425370]"
-                onClick={() => setGlobalEditMode(true)}
+                onClick={toggleGlobalEditMode}
                 type="button"
               >
                 <Filter className="h-4 w-4" />
@@ -455,7 +238,7 @@ export default function InventoryPage() {
               Global Edit Mode
               <button
                 className={`relative h-6 w-12 rounded-full transition ${globalEditMode ? "bg-[#1f2d4d]" : "bg-[#c8d2e5]"}`}
-                onClick={() => setGlobalEditMode((prev) => !prev)}
+                onClick={toggleGlobalEditMode}
                 type="button"
               >
                 <span
@@ -469,7 +252,7 @@ export default function InventoryPage() {
             <button
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-5 text-sm font-semibold text-[#465574] disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isImporting}
-              onClick={() => void handleImport()}
+              onClick={() => void importInventory()}
               type="button"
             >
               {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
@@ -489,6 +272,14 @@ export default function InventoryPage() {
         ) : null}
 
         <article className="overflow-hidden rounded-2xl border border-[#e1e6f0] bg-white">
+          {showRefreshing ? (
+            <div className="border-b border-[#edf1f7] px-4 py-3 text-sm text-[#6f7f9f]">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Refreshing inventory...
+              </div>
+            </div>
+          ) : null}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1280px] text-left">
               <thead className="text-xs font-semibold uppercase tracking-wide text-[#d8e4fb]">
@@ -518,7 +309,7 @@ export default function InventoryPage() {
               </thead>
 
               <tbody>
-                {isLoading ? (
+                {showInitialLoading ? (
                   <tr>
                     <td className="px-4 py-12 text-center text-sm text-[#6f7f9f]" colSpan={9}>
                       <div className="flex items-center justify-center gap-2">
@@ -568,8 +359,8 @@ export default function InventoryPage() {
                             <input
                               className="h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none"
                               min={0}
-                              onBlur={() => void handleMasterCountSave(item)}
-                              onChange={(event) => handleMasterCountChange(item.id, event.target.value)}
+                              onBlur={() => void saveMasterCount(item)}
+                              onChange={(event) => updateMasterCountDraft(item.id, event.target.value)}
                               type="number"
                               value={item.masterCount}
                             />
@@ -596,8 +387,8 @@ export default function InventoryPage() {
                             <input
                               className="h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none"
                               min={0}
-                              onBlur={() => void handleSafetyBufferSave(item)}
-                              onChange={(event) => handleSafetyBufferChange(item.id, event.target.value)}
+                              onBlur={() => void saveSafetyBuffer(item)}
+                              onChange={(event) => updateSafetyBufferDraft(item.id, event.target.value)}
                               type="number"
                               value={item.safetyBuffer}
                             />
@@ -642,7 +433,7 @@ export default function InventoryPage() {
             </table>
           </div>
 
-          {!isLoading && filteredItems.length === 0 ? (
+          {!showInitialLoading && filteredItems.length === 0 ? (
             <div className="border-t border-[#edf1f7] px-4 py-6 text-center text-sm text-[#6f7f9f]">
               {items.length === 0 ? "No live inventory rows found. Import Shopify products first." : `No inventory rows found for "${searchQuery}".`}
             </div>
