@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useWalletPageStore } from "@/lib/stores/wallet-page-store";
 
 type PlatformCard = {
   platform: string;
   status: string;
-  tone: "amazon" | "tiktok" | "ebay";
+  tone: "shopify" | "amazon" | "tiktok" | "ebay";
   className: string;
 };
 
-type ChannelKey = "amazon" | "tiktok" | "ebay";
+type ChannelKey = "shopify" | "amazon" | "tiktok" | "ebay";
 
 type ChannelMetric = {
-  name: "Amazon" | "TikTok" | "eBay";
+  name: "Shopify" | "Amazon" | "TikTok" | "eBay";
   mark: string;
   dot: string;
   row: string;
@@ -22,12 +23,21 @@ type ChannelMetric = {
 
 const ANIMATION_DURATION_MS = 4200;
 const ORDER_ANIMATION_DELAYS: Record<ChannelKey, number> = {
-  amazon: 0,
-  tiktok: 1200,
-  ebay: 2400,
+  shopify: 0,
+  amazon: 1200,
+  tiktok: 2400,
+  ebay: 3600,
 };
 
 const CHANNEL_METRICS: Record<ChannelKey, ChannelMetric> = {
+  shopify: {
+    name: "Shopify",
+    mark: "S",
+    dot: "#96bf48",
+    row: "bg-emerald-500/10",
+    startAmount: 3200,
+    endAmount: 4850,
+  },
   amazon: {
     name: "Amazon",
     mark: "a",
@@ -56,6 +66,12 @@ const CHANNEL_METRICS: Record<ChannelKey, ChannelMetric> = {
 
 const platformCards: PlatformCard[] = [
   {
+    platform: "Shopify",
+    status: "Connected",
+    tone: "shopify",
+    className: "left-[8.8%] top-[10.2%] md:left-[12.2%] md:top-[10.7%]",
+  },
+  {
     platform: "Amazon",
     status: "Syncing...",
     tone: "amazon",
@@ -76,6 +92,14 @@ const platformCards: PlatformCard[] = [
 ];
 
 function LogoChip({ tone }: { tone: PlatformCard["tone"] }) {
+  if (tone === "shopify") {
+    return (
+      <div className="grid h-[42px] w-[42px] place-items-center rounded-xl bg-[#96bf48] text-[24px] font-black text-white italic tracking-tighter">
+        S
+      </div>
+    );
+  }
+
   if (tone === "amazon") {
     return (
       <div className="grid h-[42px] w-[42px] place-items-center rounded-xl bg-[#f4f5f7] text-[38px] font-black leading-none text-[#212327]">
@@ -124,6 +148,10 @@ function PlatformCardItem({ platform, status, tone, className }: PlatformCard) {
         <span className="absolute -bottom-5 right-4 z-30 -rotate-[2.5deg] rounded-lg bg-[#b9f56e] px-2.5 py-1 text-[13px] font-bold leading-none text-[#193205] shadow-[0_10px_24px_-16px_rgba(185,245,110,0.95)] md:-bottom-6 md:right-5 md:text-[12px]">
           Stock: 842
         </span>
+      ) : tone === "shopify" ? (
+        <span className="absolute -bottom-5 right-4 z-30 -rotate-[2.5deg] rounded-lg bg-[#96bf48] px-2.5 py-1 text-[13px] font-bold leading-none text-white shadow-[0_10px_24px_-16px_rgba(150,191,72,0.95)] md:-bottom-6 md:right-5 md:text-[12px]">
+          Active
+        </span>
       ) : null}
     </article>
   );
@@ -160,7 +188,7 @@ function CenterOverview({
     const channel = CHANNEL_METRICS[key];
     return {
       name: channel.name,
-      amount: formatCompactDollar(amounts[key]),
+      amount: formatCompactDollar(amounts[key] || 0),
       mark: channel.mark,
       dot: channel.dot,
       row: channel.row,
@@ -191,10 +219,10 @@ function CenterOverview({
           +7.8% vs yesterday
         </p>
 
-        <div className="mx-auto mt-3 flex w-full max-w-[150px] flex-col gap-1 md:max-w-[164px]">
+        <div className="mx-auto mt-2.5 flex w-full max-w-[150px] flex-col gap-0.5 md:max-w-[164px]">
           {rows.map((row) => (
             <div
-              className={`flex items-center justify-between rounded-md border border-white/25 px-2 py-1 ${row.row}`}
+              className={`flex items-center justify-between rounded-md border border-white/25 px-2 py-0.5 ${row.row}`}
               key={row.name}
             >
               <div className="flex items-center gap-2">
@@ -208,7 +236,7 @@ function CenterOverview({
                   <p className="text-[8px] font-semibold text-[#0b3450]">
                     {row.name}
                   </p>
-                  <p className="text-[7px] text-[#1c657f]">Inventory</p>
+                  <p className="text-[7px] text-[#1c657f] leading-none">Inventory</p>
                 </div>
               </div>
               <p className="text-[8px] font-bold text-[#0c3751]">
@@ -223,60 +251,128 @@ function CenterOverview({
 }
 
 export default function DashboardHeroGraphic() {
-  const initialAmounts = useMemo(
-    () =>
-      (Object.keys(CHANNEL_METRICS) as ChannelKey[]).reduce(
-        (acc, key) => {
-          acc[key] = CHANNEL_METRICS[key].startAmount;
-          return acc;
-        },
-        {} as Record<ChannelKey, number>,
-      ),
-    [],
-  );
+  const overview = useWalletPageStore((state) => state.overview);
+  const shopifyConnected = useWalletPageStore((state) => state.shopifyConnected);
 
-  const [amounts, setAmounts] =
-    useState<Record<ChannelKey, number>>(initialAmounts);
+  const shopifyBalance = overview?.platformBalances?.find(b => b.platform === "shopify")?.amount ?? 0;
+  const amazonBalance = overview?.platformBalances?.find(b => b.platform === "amazon")?.amount ?? 0;
+  const ebayBalance = overview?.platformBalances?.find(b => b.platform === "ebay")?.amount ?? 0;
+  const tiktokBalance = overview?.platformBalances?.find(b => b.platform === "tiktok")?.amount ?? 0;
+
+  const targetAmounts = useMemo(() => {
+    if (!overview) {
+      return {
+        shopify: CHANNEL_METRICS.shopify.endAmount,
+        amazon: CHANNEL_METRICS.amazon.endAmount,
+        tiktok: CHANNEL_METRICS.tiktok.endAmount,
+        ebay: CHANNEL_METRICS.ebay.endAmount,
+      };
+    }
+    return {
+      shopify: shopifyBalance,
+      amazon: amazonBalance,
+      tiktok: tiktokBalance,
+      ebay: ebayBalance,
+    };
+  }, [overview, shopifyBalance, amazonBalance, tiktokBalance, ebayBalance]);
+
+  const initialAmounts = useMemo(() => {
+    if (!overview) {
+      return {
+        shopify: CHANNEL_METRICS.shopify.startAmount,
+        amazon: CHANNEL_METRICS.amazon.startAmount,
+        tiktok: CHANNEL_METRICS.tiktok.startAmount,
+        ebay: CHANNEL_METRICS.ebay.startAmount,
+      };
+    }
+    return {
+      shopify: 0,
+      amazon: 0,
+      tiktok: 0,
+      ebay: 0,
+    };
+  }, [overview]);
+
+  const [amounts, setAmounts] = useState<Record<ChannelKey, number>>(initialAmounts);
+
+  useEffect(() => {
+    setAmounts(initialAmounts);
+  }, [initialAmounts]);
 
   useEffect(() => {
     const timers = (Object.keys(CHANNEL_METRICS) as ChannelKey[]).map((key) =>
       window.setTimeout(() => {
         setAmounts((previous) => ({
           ...previous,
-          [key]: CHANNEL_METRICS[key].endAmount,
+          [key]: targetAmounts[key],
         }));
-      }, ORDER_ANIMATION_DELAYS[key] + ANIMATION_DURATION_MS),
+      }, ORDER_ANIMATION_DELAYS[key] + (overview ? 200 : ANIMATION_DURATION_MS)),
     );
 
     return () => {
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, []);
+  }, [targetAmounts, overview]);
 
-  const total = useMemo(
-    () => Object.values(amounts).reduce((sum, value) => sum + value, 0),
-    [amounts],
-  );
+  const total = useMemo(() => {
+    return Object.values(amounts).reduce((sum, value) => sum + value, 0);
+  }, [amounts]);
+
+  const dynamicPlatformCards = useMemo(() => {
+    return platformCards.map((card) => {
+      if (card.tone === "shopify") {
+        return {
+          ...card,
+          status: shopifyConnected ? "Connected" : "Not Connected",
+        };
+      }
+      if (card.tone === "amazon") {
+        return {
+          ...card,
+          status: amazonBalance > 0 ? "Synced" : "Coming Soon",
+        };
+      }
+      if (card.tone === "ebay") {
+        return {
+          ...card,
+          status: ebayBalance > 0 ? "Synced" : "Coming Soon",
+        };
+      }
+      if (card.tone === "tiktok") {
+        return {
+          ...card,
+          status: tiktokBalance > 0 ? "Live" : "Coming Soon",
+        };
+      }
+      return card;
+    });
+  }, [shopifyConnected, amazonBalance, ebayBalance, tiktokBalance]);
 
   return (
     <div className="relative h-[440px] w-full overflow-hidden bg-[radial-gradient(ellipse_at_52%_52%,rgba(50,228,232,0.56)_0%,rgba(8,64,106,0.8)_45%,#040d2a_100%)] md:h-[660px]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(60,255,245,0.34)_0%,rgba(24,172,196,0.1)_41%,rgba(0,0,0,0)_72%)]" />
       <div className="glow-outside-pulse absolute left-1/2 top-1/2 h-[860px] w-[860px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300/24 blur-[128px]" />
 
-      <div className="absolute left-[56%] top-[38%] z-[5] h-px w-[20%] -rotate-[41deg] border-t border-dashed border-cyan-400/60" />
+      <div className="absolute left-[24%] top-[35%] z-[5] h-px w-[20%] rotate-[41deg] border-t border-dashed border-cyan-400/60" />
+      <div className="absolute left-[56%] top-[35%] z-[5] h-px w-[20%] -rotate-[41deg] border-t border-dashed border-cyan-400/60" />
       <div className="absolute left-[23%] top-[63%] z-[5] h-px w-[20%] rotate-[139deg] border-t border-dashed border-cyan-400/60" />
-      <div className="absolute left-[53%] top-[67%] z-[5] h-px w-[20%] rotate-[40deg] border-t border-dashed border-cyan-400/60" />
+      <div className="absolute left-[57%] top-[63%] z-[5] h-px w-[20%] -rotate-[139deg] border-t border-dashed border-cyan-400/60" />
 
       <span className="absolute left-[36.7%] top-[30.7%] z-30 rounded-sm border border-lime-500/35 bg-[#020617]/65 px-1.5 py-0.5 text-[8px] font-semibold tracking-[0.06em] text-[#9bf68e]">
         API_OK
       </span>
 
-      <PlatformCardItem {...platformCards[0]} />
-      <PlatformCardItem {...platformCards[1]} />
-      <PlatformCardItem {...platformCards[2]} />
+      <PlatformCardItem {...dynamicPlatformCards[0]} />
+      <PlatformCardItem {...dynamicPlatformCards[1]} />
+      <PlatformCardItem {...dynamicPlatformCards[2]} />
+      <PlatformCardItem {...dynamicPlatformCards[3]} />
 
       <span className="absolute right-[8.2%] top-[11.1%] z-30 rotate-[-6deg] rounded-lg bg-[#27d8ff] px-2.5 py-1 text-[13px] font-bold leading-none text-[#052038] shadow-[0_8px_26px_-16px_rgba(39,216,255,0.95)] md:right-[10.7%] md:top-[9.8%] md:text-[12px]">
         Orders: +12%
+      </span>
+
+      <span className="new-order-motion new-order-motion-shopify absolute left-[24.5%] top-[11.3%] z-30 rounded-full border border-[#96bf48] bg-[#071a38]/95 px-3 py-1 text-[12px] font-semibold leading-none text-[#a3d656] md:left-[24.6%] md:top-[11.1%] md:text-[11px]">
+        New Order: #8433
       </span>
 
       <span className="new-order-motion new-order-motion-amazon absolute left-[58.5%] top-[11.3%] z-30 rounded-full border border-[#2ab6ff] bg-[#071a38]/95 px-3 py-1 text-[12px] font-semibold leading-none text-[#19cbff] md:left-[58.6%] md:top-[11.1%] md:text-[11px]">

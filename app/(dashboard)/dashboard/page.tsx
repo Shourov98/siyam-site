@@ -1,34 +1,95 @@
+"use client";
+
+import { useEffect, useMemo } from "react";
 import DashboardHeroGraphic from "../components/DashboardHeroGraphic";
+import { useWalletPageStore } from "@/lib/stores/wallet-page-store";
 
-const walletCards = [
-  {
-    platform: "TIKTOK SHOP",
-    amount: "$3,520.15",
-    tag: "Synced",
-    tone: "from-[#101d3f] via-[#1b2a53] to-[#223a79]",
-  },
-  {
-    platform: "AMAZON",
-    amount: "$6,830.22",
-    tag: "Synced",
-    tone: "from-[#1b2340] via-[#2a355e] to-[#4c3d4f]",
-  },
-  {
-    platform: "EBAY",
-    amount: "$2,100.43",
-    tag: "Synced",
-    tone: "from-[#1a2547] via-[#22335a] to-[#1e5a54]",
-  },
-];
-
-const transactions = [
+const transactionsFallback = [
   { platform: "TikTok", order: "#ORD-2026-5432", description: "Sale - Blue-Shirt", amount: "+$25.99" },
   { platform: "eBay", order: "#ORD-2026-5432", description: "Sale - Blue-Shirt", amount: "+$25.99" },
   { platform: "TikTok", order: "#ORD-2026-5432", description: "Sale - Blue-Shirt", amount: "+$25.99" },
   { platform: "Amazon", order: "#ORD-2026-5435", description: "Sale - Headphones", amount: "+$59.00" },
 ];
 
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount);
+}
+
+function getPlatformFromTitle(title: string) {
+  const lower = title.toLowerCase();
+  if (lower.includes("shopify")) return "Shopify";
+  if (lower.includes("amazon")) return "Amazon";
+  if (lower.includes("ebay")) return "eBay";
+  if (lower.includes("tiktok")) return "TikTok";
+  return "Shopify";
+}
+
 export default function DashboardPage() {
+  const overview = useWalletPageStore((state) => state.overview);
+  const loadWallet = useWalletPageStore((state) => state.loadWallet);
+  const hasLoadedOnce = useWalletPageStore((state) => state.hasLoadedOnce);
+  const shouldRefresh = useWalletPageStore((state) => state.shouldRefresh);
+
+  useEffect(() => {
+    if (!hasLoadedOnce || !overview) {
+      void loadWallet();
+      return;
+    }
+
+    if (shouldRefresh()) {
+      void loadWallet();
+    }
+  }, [hasLoadedOnce, loadWallet, overview, shouldRefresh]);
+
+  const shopifyBalance = useMemo(() => overview?.platformBalances?.find((b) => b.platform === "shopify"), [overview]);
+  const amazonBalance = useMemo(() => overview?.platformBalances?.find((b) => b.platform === "amazon"), [overview]);
+  const ebayBalance = useMemo(() => overview?.platformBalances?.find((b) => b.platform === "ebay"), [overview]);
+  const tiktokBalance = useMemo(() => overview?.platformBalances?.find((b) => b.platform === "tiktok"), [overview]);
+
+  const displayTotal = overview ? formatCurrency(overview.paidRevenue) : "$12,450.80";
+
+  const walletCards = [
+    {
+      platform: "SHOPIFY",
+      amount: overview ? formatCurrency(shopifyBalance?.amount ?? 0) : "$4,850.00",
+      tag: shopifyBalance?.status || "Synced",
+      tone: "from-[#13271d] via-[#1b3d2b] to-[#2d6144]",
+    },
+    {
+      platform: "TIKTOK SHOP",
+      amount: overview ? formatCurrency(tiktokBalance?.amount ?? 0) : "$3,520.15",
+      tag: tiktokBalance?.status || "Synced",
+      tone: "from-[#101d3f] via-[#1b2a53] to-[#223a79]",
+    },
+    {
+      platform: "AMAZON",
+      amount: overview ? formatCurrency(amazonBalance?.amount ?? 0) : "$6,830.22",
+      tag: amazonBalance?.status || "Synced",
+      tone: "from-[#1b2340] via-[#2a355e] to-[#4c3d4f]",
+    },
+    {
+      platform: "EBAY",
+      amount: overview ? formatCurrency(ebayBalance?.amount ?? 0) : "$2,100.43",
+      tag: ebayBalance?.status || "Synced",
+      tone: "from-[#1a2547] via-[#22335a] to-[#1e5a54]",
+    },
+  ];
+
+  const displayTransactions = useMemo(() => {
+    if (!overview || overview.recentActivity.length === 0) {
+      return transactionsFallback;
+    }
+    return overview.recentActivity.map((item) => ({
+      platform: getPlatformFromTitle(item.title),
+      order: item.subtitle,
+      description: item.title,
+      amount: `+$${item.amount.toFixed(2)}`,
+    }));
+  }, [overview]);
+
   return (
     <section className="px-4 py-5 md:px-8 md:py-8">
       <div className="rounded-2xl border border-[#d5deec] bg-white p-4 shadow-[0_20px_50px_-40px_rgba(22,35,70,0.6)] md:p-6">
@@ -38,7 +99,7 @@ export default function DashboardPage() {
 
         <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-4xl font-bold tracking-tight text-[#1a2642]">$12,450.80</h1>
+            <h1 className="text-4xl font-bold tracking-tight text-[#1a2642]">{displayTotal}</h1>
             <p className="mt-1 text-sm font-medium text-[#19c8d6]">Available for Withdrawal</p>
           </div>
           <button
@@ -49,7 +110,7 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="mt-6 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {walletCards.map((card) => (
             <article
               className={`rounded-2xl bg-gradient-to-br p-4 text-white shadow-[0_20px_40px_-35px_rgba(14,28,65,0.9)] ${card.tone}`}
@@ -77,7 +138,7 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {transactions.map((row, index) => (
+              {displayTransactions.map((row, index) => (
                 <tr className="border-t border-[#edf1f7] text-sm text-[#44526d]" key={`${row.order}-${index}`}>
                   <td className="px-4 py-4 font-medium text-[#243251] md:px-6">{row.platform}</td>
                   <td className="px-4 py-4 font-semibold text-[#657391] md:px-6">{row.order}</td>

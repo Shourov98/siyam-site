@@ -98,12 +98,33 @@ p {
   }
 }
 
+@keyframes new-order-to-center-shopify {
+  0%,
+  18% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  62% {
+    opacity: 1;
+  }
+  78%,
+  100% {
+    opacity: 0;
+    transform: translate(250px, 175px) scale(0.72);
+  }
+}
+
 .new-order-motion {
   animation-duration: 4.2s;
   animation-timing-function: cubic-bezier(0.22, 0.78, 0.25, 0.99);
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
   will-change: transform, opacity;
+}
+
+.new-order-motion-shopify {
+  animation-name: new-order-to-center-shopify;
+  animation-delay: 3.6s;
 }
 
 .new-order-motion-amazon {
