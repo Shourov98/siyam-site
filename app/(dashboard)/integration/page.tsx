@@ -6,6 +6,11 @@ import { startTransition, useEffect, useMemo, useState } from "react";
 
 import { ApiClientError } from "@/lib/auth";
 import { integrationApi } from "@/lib/integrations";
+import {
+  initialShopifyState,
+  useIntegrationPageStore,
+  type BannerState,
+} from "@/lib/stores/integration-page-store";
 import "./integration.css";
 
 function Step({
@@ -27,67 +32,44 @@ function Step({
   );
 }
 
-type BannerState = {
-  type: "success" | "error" | "info";
-  message: string;
-} | null;
-
-type ShopifyState = {
-  connected: boolean;
-  shopDomain: string;
-  status: "connected" | "disconnected" | "error" | "not_connected";
-  source: "marketplace_connection" | "env_fallback" | "none";
-};
-
-const initialShopifyState: ShopifyState = {
-  connected: false,
-  shopDomain: "",
-  status: "not_connected",
-  source: "none",
-};
-
 export default function IntegrationPage() {
   const searchParams = useSearchParams();
   const [openPlatform, setOpenPlatform] = useState<string | null>(null);
   const [hoveredPlatform, setHoveredPlatform] = useState<string | null>(null);
-  const [banner, setBanner] = useState<BannerState>(null);
-  const [shopifyState, setShopifyState] = useState<ShopifyState>(initialShopifyState);
-  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
-  const [isConnectingShopify, setIsConnectingShopify] = useState(false);
-  const [isDisconnectingShopify, setIsDisconnectingShopify] = useState(false);
-  const [isSyncingProducts, setIsSyncingProducts] = useState(false);
-  const [isSyncingOrders, setIsSyncingOrders] = useState(false);
+  const banner = useIntegrationPageStore((state) => state.banner);
+  const shopifyState = useIntegrationPageStore((state) => state.shopifyState);
+  const isLoadingStatus = useIntegrationPageStore((state) => state.isLoadingStatus);
+  const isConnectingShopify = useIntegrationPageStore((state) => state.isConnectingShopify);
+  const isDisconnectingShopify = useIntegrationPageStore((state) => state.isDisconnectingShopify);
+  const isSyncingProducts = useIntegrationPageStore((state) => state.isSyncingProducts);
+  const isSyncingOrders = useIntegrationPageStore((state) => state.isSyncingOrders);
+  const hasLoadedOnce = useIntegrationPageStore((state) => state.hasLoadedOnce);
+  const shouldRefresh = useIntegrationPageStore((state) => state.shouldRefresh);
+  const setBanner = useIntegrationPageStore((state) => state.setBanner);
+  const setConnectingShopify = useIntegrationPageStore((state) => state.setConnectingShopify);
+  const loadShopifyStatus = useIntegrationPageStore((state) => state.loadShopifyStatus);
+  const disconnectShopify = useIntegrationPageStore((state) => state.disconnectShopify);
+  const syncProducts = useIntegrationPageStore((state) => state.syncProducts);
+  const syncOrders = useIntegrationPageStore((state) => state.syncOrders);
 
   const expandedPlatform = hoveredPlatform || "shopify";
 
-  const loadShopifyStatus = async () => {
-    setIsLoadingStatus(true);
-
-    try {
-      const status = await integrationApi.getShopifyStatus();
-      setShopifyState({
-        connected: status.connected,
-        shopDomain: status.shop?.myshopifyDomain ?? status.connection?.shopDomain ?? "",
-        status: status.connection?.status ?? (status.connected ? "connected" : "not_connected"),
-        source: status.source,
-      });
-    } catch (error) {
-      setBanner({
-        type: "error",
-        message: error instanceof ApiClientError ? error.message : "Failed to load Shopify status.",
-      });
-    } finally {
-      setIsLoadingStatus(false);
-    }
-  };
-
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadShopifyStatus();
-    }, 0);
+    const isInitialState =
+      shopifyState.connected === initialShopifyState.connected &&
+      shopifyState.shopDomain === initialShopifyState.shopDomain &&
+      shopifyState.status === initialShopifyState.status &&
+      shopifyState.source === initialShopifyState.source;
 
-    return () => window.clearTimeout(timer);
-  }, []);
+    if (!hasLoadedOnce || isInitialState) {
+      void loadShopifyStatus();
+      return;
+    }
+
+    if (shouldRefresh()) {
+      void loadShopifyStatus();
+    }
+  }, [hasLoadedOnce, loadShopifyStatus, shopifyState, shouldRefresh]);
 
   useEffect(() => {
     const marketplace = searchParams.get("marketplace");
@@ -121,12 +103,13 @@ export default function IntegrationPage() {
           message: message ?? "Shopify connection failed.",
         });
       });
+      setConnectingShopify(false);
     }
-  }, [searchParams]);
+  }, [loadShopifyStatus, searchParams, setBanner, setConnectingShopify]);
 
   const handleConnectShopify = async () => {
     setBanner(null);
-    setIsConnectingShopify(true);
+    setConnectingShopify(true);
 
     try {
       const data = await integrationApi.getShopifyConnectUrl();
@@ -135,71 +118,8 @@ export default function IntegrationPage() {
       setBanner({
         type: "error",
         message: error instanceof ApiClientError ? error.message : "Failed to start Shopify connection.",
-      });
-      setIsConnectingShopify(false);
-    }
-  };
-
-  const handleDisconnectShopify = async () => {
-    setBanner(null);
-    setIsDisconnectingShopify(true);
-
-    try {
-      await integrationApi.disconnectShopify();
-      setBanner({
-        type: "success",
-        message: "Shopify disconnected successfully.",
-      });
-      await loadShopifyStatus();
-    } catch (error) {
-      setBanner({
-        type: "error",
-        message: error instanceof ApiClientError ? error.message : "Failed to disconnect Shopify.",
-      });
-    } finally {
-      setIsDisconnectingShopify(false);
-    }
-  };
-
-  const handleSyncProducts = async () => {
-    setBanner(null);
-    setIsSyncingProducts(true);
-
-    try {
-      await integrationApi.importShopifyProducts();
-      setBanner({
-        type: "success",
-        message: "Shopify products imported successfully",
-      });
-      await loadShopifyStatus();
-    } catch (error) {
-      setBanner({
-        type: "error",
-        message: error instanceof ApiClientError ? error.message : "Failed to import Shopify products.",
-      });
-    } finally {
-      setIsSyncingProducts(false);
-    }
-  };
-
-  const handleSyncOrders = async () => {
-    setBanner(null);
-    setIsSyncingOrders(true);
-
-    try {
-      await integrationApi.importShopifyOrders();
-      setBanner({
-        type: "success",
-        message: "Shopify orders imported successfully",
-      });
-      await loadShopifyStatus();
-    } catch (error) {
-      setBanner({
-        type: "error",
-        message: error instanceof ApiClientError ? error.message : "Failed to import Shopify orders.",
-      });
-    } finally {
-      setIsSyncingOrders(false);
+      } satisfies NonNullable<BannerState>);
+      setConnectingShopify(false);
     }
   };
 
@@ -246,7 +166,7 @@ export default function IntegrationPage() {
         interactive: true,
       },
     ],
-    [shopifyState.connected]
+    [shopifyState.connected],
   );
 
   const renderCollapsedFooter = (platformId: string) => {
@@ -281,7 +201,7 @@ export default function IntegrationPage() {
       <div className="collapsed-footer-content">
         <span className="text-xs font-semibold text-[#8ea4cb]">Coming Soon</span>
         <button
-          className="btn-premium btn-collapsed-action opacity-60 cursor-not-allowed"
+          className="btn-premium btn-collapsed-action cursor-not-allowed opacity-60"
           onClick={(event) => {
             event.stopPropagation();
             setOpenPlatform(platformId);
@@ -320,7 +240,7 @@ export default function IntegrationPage() {
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              void handleSyncProducts();
+              void syncProducts();
             }}
             disabled={isSyncingProducts}
           >
@@ -331,18 +251,18 @@ export default function IntegrationPage() {
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              void handleSyncOrders();
+              void syncOrders();
             }}
             disabled={isSyncingOrders}
           >
             {isSyncingOrders ? "Syncing Orders..." : "Sync Orders"}
           </button>
           <button
-            className="btn-premium btn-secondary-outline text-red-600 hover:text-red-700 hover:bg-red-50 hover:border-red-200"
+            className="btn-premium btn-secondary-outline text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              void handleDisconnectShopify();
+              void disconnectShopify();
             }}
             disabled={isDisconnectingShopify}
           >
@@ -354,7 +274,7 @@ export default function IntegrationPage() {
 
     return (
       <button
-        className="btn-premium btn-secondary-outline opacity-60 cursor-not-allowed"
+        className="btn-premium btn-secondary-outline cursor-not-allowed opacity-60"
         type="button"
         onClick={(event) => {
           event.stopPropagation();
@@ -389,7 +309,7 @@ export default function IntegrationPage() {
               <div className="flex-1 font-semibold">{banner.message}</div>
               <button
                 type="button"
-                className="text-current opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+                className="cursor-pointer text-current opacity-70 transition-opacity hover:opacity-100"
                 onClick={() => setBanner(null)}
               >
                 <X className="h-4 w-4" />
@@ -437,8 +357,8 @@ export default function IntegrationPage() {
                           <span
                             className={`badge-label ${
                               platform.id === "shopify"
-                                ? "bg-[#e6fcf5] text-[#0d9488] border border-[#ccfbf1]"
-                                : "bg-[#f1f5f9] text-[#475569] border border-[#e2e8f0]"
+                                ? "border border-[#ccfbf1] bg-[#e6fcf5] text-[#0d9488]"
+                                : "border border-[#e2e8f0] bg-[#f1f5f9] text-[#475569]"
                             }`}
                           >
                             {platform.badgeText}
@@ -494,15 +414,15 @@ export default function IntegrationPage() {
 
       {openPlatform ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b162d]/55 p-4 backdrop-blur-xs">
-          <article className="w-full max-w-xl overflow-hidden rounded-2xl border border-[#2d3a5a] bg-[#131c35] text-white shadow-[0_30px_80px_-35px_rgba(17,31,56,0.9)] animate-in fade-in zoom-in-95 duration-200">
+          <article className="animate-in fade-in zoom-in-95 w-full max-w-xl overflow-hidden rounded-2xl border border-[#2d3a5a] bg-[#131c35] text-white shadow-[0_30px_80px_-35px_rgba(17,31,56,0.9)] duration-200">
             <header className="flex items-center justify-between border-b border-[#243356] px-6 py-5">
               <div>
                 <h3 className="text-2xl font-bold">{openPlatform}</h3>
                 <p className="mt-1 text-sm text-[#8ea0c6]">This channel is planned for a future release. Shopify is the only active marketplace in the current MVP.</p>
               </div>
-              <button 
-                className="text-[#8ea0c6] hover:text-white transition-colors cursor-pointer" 
-                onClick={() => setOpenPlatform(null)} 
+              <button
+                className="cursor-pointer text-[#8ea0c6] transition-colors hover:text-white"
+                onClick={() => setOpenPlatform(null)}
                 type="button"
               >
                 <X className="h-5 w-5" />
@@ -510,15 +430,15 @@ export default function IntegrationPage() {
             </header>
 
             <div className="space-y-4 px-6 py-5">
-              <div className="rounded-xl bg-[#1d2744] border border-[#243356] px-5 py-4 text-sm text-[#cbd5e1] leading-relaxed">
+              <div className="rounded-xl border border-[#243356] bg-[#1d2744] px-5 py-4 text-sm leading-relaxed text-[#cbd5e1]">
                 {openPlatform} integration is currently marked as <strong>Coming Soon</strong>. Please use Shopify for the MVP flow.
               </div>
             </div>
 
             <footer className="flex items-center justify-end gap-3 border-t border-[#243356] px-6 py-5">
-              <button 
-                className="btn-premium btn-secondary-outline text-white hover:text-white hover:bg-white/5 border-white/10" 
-                onClick={() => setOpenPlatform(null)} 
+              <button
+                className="btn-premium btn-secondary-outline border-white/10 text-white hover:bg-white/5 hover:text-white"
+                onClick={() => setOpenPlatform(null)}
                 type="button"
               >
                 Close

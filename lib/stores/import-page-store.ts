@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export type ImportStatus = "imported" | "needs_review" | "duplicate" | "parse_issue" | "uploaded";
 
@@ -55,6 +56,8 @@ type ImportPageState = {
   busyRecordId: string | null;
   pageMessage: string;
   hasLoadedOnce: boolean;
+  lastLoadedAt: number | null;
+  shouldRefresh: () => boolean;
   setSearchQuery: (value: string) => void;
   loadPage: (page?: number) => Promise<void>;
   uploadFile: (file: File) => Promise<void>;
@@ -62,6 +65,8 @@ type ImportPageState = {
   uploadAsProduct: (recordId: string) => Promise<void>;
   changePage: (nextPage: number) => Promise<void>;
 };
+
+const IMPORT_PAGE_REFRESH_INTERVAL_MS = 60_000;
 
 async function fetchImportPage(page: number, pageSize: number) {
   const response = await fetch(`/api/product-ai/imports/products?page=${page}&page_size=${pageSize}`, { cache: "no-store" });
@@ -73,37 +78,50 @@ async function fetchImportPage(page: number, pageSize: number) {
   return (await response.json()) as ImportListResponse;
 }
 
-export const useImportPageStore = create<ImportPageState>((set, get) => ({
-  rows: [],
-  pagination: { page: 1, page_size: 20, total_items: 0, total_pages: 0 },
-  summary: { total_imported: 0, uploaded_as_product: 0, needs_review: 0, duplicates: 0 },
-  searchQuery: "",
-  isLoading: true,
-  isUploading: false,
-  busyRecordId: null,
-  pageMessage: "Uploaded import records stay here until you delete them or upload them as products.",
-  hasLoadedOnce: false,
-  setSearchQuery: (value) => set({ searchQuery: value }),
-  async loadPage(page) {
-    const targetPage = page ?? get().pagination.page;
-    set({ isLoading: true });
+export const useImportPageStore = create<ImportPageState>()(
+  persist(
+    (set, get) => ({
+      rows: [],
+      pagination: { page: 1, page_size: 20, total_items: 0, total_pages: 0 },
+      summary: { total_imported: 0, uploaded_as_product: 0, needs_review: 0, duplicates: 0 },
+      searchQuery: "",
+      isLoading: false,
+      isUploading: false,
+      busyRecordId: null,
+      pageMessage: "Uploaded import records stay here until you delete them or upload them as products.",
+      hasLoadedOnce: false,
+      lastLoadedAt: null,
+      shouldRefresh: () => {
+        const { lastLoadedAt } = get();
+        return !lastLoadedAt || Date.now() - lastLoadedAt > IMPORT_PAGE_REFRESH_INTERVAL_MS;
+      },
+      setSearchQuery: (value) => set({ searchQuery: value }),
+      async loadPage(page) {
+        const targetPage = page ?? get().pagination.page;
+        const state = get();
+        if (state.isLoading && state.hasLoadedOnce) {
+          return;
+        }
 
-    try {
-      const payload = await fetchImportPage(targetPage, get().pagination.page_size);
-      set({
-        rows: payload.items,
-        pagination: payload.pagination,
-        summary: payload.summary,
-        hasLoadedOnce: true,
-      });
-    } catch (error) {
-      set({
-        pageMessage: error instanceof Error ? error.message : "Could not load imported products.",
-      });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
+        set({ isLoading: true });
+
+        try {
+          const payload = await fetchImportPage(targetPage, get().pagination.page_size);
+          set({
+            rows: payload.items,
+            pagination: payload.pagination,
+            summary: payload.summary,
+            hasLoadedOnce: true,
+            lastLoadedAt: Date.now(),
+          });
+        } catch (error) {
+          set({
+            pageMessage: error instanceof Error ? error.message : "Could not load imported products.",
+          });
+        } finally {
+          set({ isLoading: false });
+        }
+      },
   async uploadFile(file) {
     const formData = new FormData();
     formData.append("file", file);
@@ -175,4 +193,18 @@ export const useImportPageStore = create<ImportPageState>((set, get) => ({
 
     await get().loadPage(nextPage);
   },
-}));
+    }),
+    {
+      name: "commandctr-import-page",
+      partialize: (state) => ({
+        rows: state.rows,
+        pagination: state.pagination,
+        summary: state.summary,
+        searchQuery: state.searchQuery,
+        pageMessage: state.pageMessage,
+        hasLoadedOnce: state.hasLoadedOnce,
+        lastLoadedAt: state.lastLoadedAt,
+      }),
+    },
+  ),
+);

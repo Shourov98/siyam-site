@@ -11,11 +11,10 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 
-import { ApiClientError } from "@/lib/auth";
-import { integrationApi } from "@/lib/integrations";
-import { walletApi, type WalletActivityItem, type WalletOverview, type WalletPlatformBalance } from "@/lib/wallet";
+import { type WalletActivityItem, type WalletPlatformBalance } from "@/lib/wallet";
+import { useWalletPageStore } from "@/lib/stores/wallet-page-store";
 
 function formatCurrency(amount: number, currency: string) {
   return new Intl.NumberFormat("en-US", {
@@ -100,49 +99,32 @@ function FeedItem({ item }: { item: WalletActivityItem }) {
 }
 
 export default function WalletPage() {
-  const [overview, setOverview] = useState<WalletOverview | null>(null);
-  const [shopifyConnected, setShopifyConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  const loadWallet = async () => {
-    const [walletOverview, shopifyStatus] = await Promise.all([
-      walletApi.getOverview(),
-      integrationApi.getShopifyStatus(),
-    ]);
-
-    setOverview(walletOverview);
-    setShopifyConnected(shopifyStatus.connected);
-  };
+  const overview = useWalletPageStore((state) => state.overview);
+  const shopifyConnected = useWalletPageStore((state) => state.shopifyConnected);
+  const isLoading = useWalletPageStore((state) => state.isLoading);
+  const isRefreshing = useWalletPageStore((state) => state.isRefreshing);
+  const hasLoadedOnce = useWalletPageStore((state) => state.hasLoadedOnce);
+  const errorMessage = useWalletPageStore((state) => state.errorMessage);
+  const shouldRefresh = useWalletPageStore((state) => state.shouldRefresh);
+  const loadWallet = useWalletPageStore((state) => state.loadWallet);
+  const refreshOrders = useWalletPageStore((state) => state.refreshOrders);
 
   useEffect(() => {
-    let active = true;
-    const timer = window.setTimeout(() => {
-      void loadWallet()
-        .catch((error) => {
-          if (!active) {
-            return;
-          }
+    if (!hasLoadedOnce || !overview) {
+      void loadWallet();
+      return;
+    }
 
-          setErrorMessage(error instanceof ApiClientError ? error.message : "Could not load wallet overview.");
-        })
-        .finally(() => {
-          if (active) {
-            setIsLoading(false);
-          }
-        });
-    }, 0);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, []);
+    if (shouldRefresh()) {
+      void loadWallet();
+    }
+  }, [hasLoadedOnce, loadWallet, overview, shouldRefresh]);
 
   const timelineItems = useMemo(() => overview?.recentActivity.slice(0, 3) ?? [], [overview]);
   const feedItems = useMemo(() => overview?.recentActivity.slice(0, 5) ?? [], [overview]);
   const hasOrders = (overview?.orderCount ?? 0) > 0;
+  const showInitialLoading = isLoading && !overview;
+  const showRefreshing = isLoading && !!overview;
 
   const ctaCopy = shopifyConnected
     ? hasOrders
@@ -150,33 +132,25 @@ export default function WalletPage() {
       : "Import Shopify orders to populate wallet revenue."
     : "Connect Shopify to start importing revenue from your orders.";
 
-  const handleRefreshOrders = async () => {
-    setIsRefreshing(true);
-    setErrorMessage("");
-
-    try {
-      await integrationApi.importShopifyOrders();
-      await loadWallet();
-    } catch (error) {
-      setErrorMessage(error instanceof ApiClientError ? error.message : "Could not refresh Shopify orders.");
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
   return (
     <section className="px-4 py-5 md:px-8 md:py-8">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.9fr)_minmax(280px,1fr)]">
         <div className="space-y-4">
           <article className="rounded-2xl bg-gradient-to-r from-[#1a2748] via-[#1d2d56] to-[#1f356a] p-5 text-white shadow-[0_18px_45px_-30px_rgba(12,26,58,0.95)] md:p-6">
-            {isLoading ? (
+            {showInitialLoading ? (
               <div className="flex items-center gap-3 text-sm text-[#c8d4ec]">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading wallet overview...
               </div>
             ) : (
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-4">
                 <div>
+                  {showRefreshing ? (
+                    <div className="mb-3 flex items-center gap-2 text-xs font-medium text-[#c8d4ec]">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Refreshing wallet data...
+                    </div>
+                  ) : null}
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#8ea4cb]">Total Global Balance</p>
                   <p className="mt-2 text-6xl font-bold tracking-tight">
                     {formatCurrency(overview?.paidRevenue ?? 0, overview?.currency ?? "USD")}
@@ -193,7 +167,7 @@ export default function WalletPage() {
                     {overview?.notice ?? "Wallet totals are based on imported Shopify orders."}
                   </p>
                 </div>
-                <Building2 className="h-12 w-12 text-[#3f557e]" />
+                <Building2 className="h-12 w-12 shrink-0 text-[#3f557e]" />
               </div>
             )}
           </article>
@@ -267,7 +241,7 @@ export default function WalletPage() {
             <button
               className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#1a2748] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               disabled={isRefreshing}
-              onClick={() => void handleRefreshOrders()}
+              onClick={() => void refreshOrders()}
               type="button"
             >
               {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}

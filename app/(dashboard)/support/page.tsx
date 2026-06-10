@@ -1,29 +1,13 @@
 "use client";
 
-import { ApiClientError } from "@/lib/auth";
-import { disputesApi, type DisputeDetailResponse, type DisputeListResponse, type DisputeRecord, type DisputeStatus } from "@/lib/disputes";
 import { Eye, Filter, RefreshCcw, Search, TriangleAlert, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 
-const emptyStats: DisputeListResponse["stats"] = {
-  actionRequired: 0,
-  activeDisputes: 0,
-  won: 0,
-  lost: 0,
-  submitted: 0,
-  avgResolutionTimeDays: null,
-};
-
-const emptyResponse: DisputeListResponse = {
-  items: [],
-  meta: {
-    page: 1,
-    limit: 25,
-    total: 0,
-    totalPages: 1,
-  },
-  stats: emptyStats,
-};
+import {
+  emptyDisputeStats,
+  useSupportPageStore,
+} from "@/lib/stores/support-page-store";
+import { type DisputeRecord, type DisputeStatus } from "@/lib/disputes";
 
 const statusLabels: Record<DisputeStatus, string> = {
   OPEN: "Action Required",
@@ -132,104 +116,53 @@ const formatAmount = (item: DisputeRecord) => {
 };
 
 export default function SupportPage() {
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | DisputeStatus>("ALL");
-  const [data, setData] = useState<DisputeListResponse>(emptyResponse);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [selectedDispute, setSelectedDispute] = useState<DisputeDetailResponse | null>(null);
-  const [isDetailsLoading, setIsDetailsLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
+  const hasInitializedRef = useRef(false);
+  const query = useSupportPageStore((state) => state.query);
+  const statusFilter = useSupportPageStore((state) => state.statusFilter);
+  const data = useSupportPageStore((state) => state.data);
+  const isLoading = useSupportPageStore((state) => state.isLoading);
+  const isRefreshing = useSupportPageStore((state) => state.isRefreshing);
+  const hasLoadedOnce = useSupportPageStore((state) => state.hasLoadedOnce);
+  const error = useSupportPageStore((state) => state.error);
+  const notice = useSupportPageStore((state) => state.notice);
+  const selectedDispute = useSupportPageStore((state) => state.selectedDispute);
+  const isDetailsLoading = useSupportPageStore((state) => state.isDetailsLoading);
+  const detailError = useSupportPageStore((state) => state.detailError);
+  const shouldRefresh = useSupportPageStore((state) => state.shouldRefresh);
+  const setQuery = useSupportPageStore((state) => state.setQuery);
+  const setStatusFilter = useSupportPageStore((state) => state.setStatusFilter);
+  const closeDetails = useSupportPageStore((state) => state.closeDetails);
+  const loadDisputes = useSupportPageStore((state) => state.loadDisputes);
+  const refreshDisputes = useSupportPageStore((state) => state.refreshDisputes);
+  const openDetails = useSupportPageStore((state) => state.openDetails);
 
   useEffect(() => {
-    let active = true;
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
 
-    void (async () => {
-      try {
-        const result = await disputesApi.getDisputes({
-          search: query.trim() || undefined,
-          status: statusFilter === "ALL" ? undefined : statusFilter,
-        });
-
-        if (!active) {
-          return;
-        }
-
-        setData(result);
-        setError(null);
-      } catch (loadError) {
-        if (!active) {
-          return;
-        }
-
-        const message = loadError instanceof ApiClientError ? loadError.message : "Could not load disputes.";
-        setError(message);
-        setData(emptyResponse);
-      } finally {
-        if (active) {
-          setIsLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [query, statusFilter]);
-
-  const handleRefresh = async () => {
-    setNotice(null);
-    setIsRefreshing(true);
-    try {
-      const result = await disputesApi.importShopifyDisputes();
-      if (result.warning) {
-        setNotice("Shopify dispute data may require additional Shopify Payments permissions. Reconnect Shopify after scopes are added.");
-      } else if (result.count === 0) {
-        setNotice("No Shopify disputes found");
-      } else {
-        setNotice("Disputes refreshed");
+      if (!hasLoadedOnce || data.items.length === 0) {
+        void loadDisputes();
+        return;
       }
 
-      const disputes = await disputesApi.getDisputes({
-        search: query.trim() || undefined,
-        status: statusFilter === "ALL" ? undefined : statusFilter,
-      });
-      setData(disputes);
-      setError(null);
-    } catch (refreshError) {
-      const message = refreshError instanceof ApiClientError ? refreshError.message : "Could not refresh Shopify disputes.";
-      setError(message);
-    } finally {
-      setIsRefreshing(false);
+      if (shouldRefresh()) {
+        void loadDisputes();
+      }
+
+      return;
     }
-  };
 
-  const handleOpenDetails = async (item: DisputeRecord) => {
-    setSelectedDispute(null);
-    setDetailError(null);
-    setIsDetailsLoading(true);
+    const timer = window.setTimeout(() => {
+      void loadDisputes();
+    }, 250);
 
-    try {
-      const detail = await disputesApi.getDisputeById(item.id);
-      setSelectedDispute(detail);
-    } catch (detailLoadError) {
-      const message = detailLoadError instanceof ApiClientError ? detailLoadError.message : "Could not load dispute details.";
-      setDetailError(message);
-    } finally {
-      setIsDetailsLoading(false);
-    }
-  };
+    return () => window.clearTimeout(timer);
+  }, [data.items.length, hasLoadedOnce, loadDisputes, query, shouldRefresh, statusFilter]);
 
-  const closeDetails = () => {
-    setSelectedDispute(null);
-    setDetailError(null);
-    setIsDetailsLoading(false);
-  };
-
-  const stats = data.stats ?? emptyStats;
+  const stats = data.stats ?? emptyDisputeStats;
   const items = data.items ?? [];
+  const showInitialLoading = isLoading && items.length === 0;
+  const showRefreshing = isLoading && items.length > 0;
 
   return (
     <>
@@ -244,7 +177,7 @@ export default function SupportPage() {
               <button
                 className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#35d3ce] px-4 text-sm font-semibold text-[#143b52] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={isRefreshing}
-                onClick={handleRefresh}
+                onClick={() => void refreshDisputes()}
                 type="button"
               >
                 <RefreshCcw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
@@ -309,10 +242,7 @@ export default function SupportPage() {
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#99a9c7]" />
                   <input
                     className="h-11 w-full rounded-lg border border-[#d7deeb] bg-[#f8fafd] py-2 pl-10 pr-3 text-sm text-[#243251] outline-none"
-                    onChange={(event) => {
-                      setIsLoading(true);
-                      setQuery(event.target.value);
-                    }}
+                    onChange={(event) => setQuery(event.target.value)}
                     placeholder="Search by case ID, customer, email, or reason..."
                     type="text"
                     value={query}
@@ -323,10 +253,7 @@ export default function SupportPage() {
                   <Filter className="h-4 w-4" />
                   <select
                     className="bg-transparent text-sm font-semibold text-[#4f6282] outline-none"
-                    onChange={(event) => {
-                      setIsLoading(true);
-                      setStatusFilter(event.target.value as "ALL" | DisputeStatus);
-                    }}
+                    onChange={(event) => setStatusFilter(event.target.value as "ALL" | DisputeStatus)}
                     value={statusFilter}
                   >
                     <option value="ALL">All Statuses</option>
@@ -344,6 +271,12 @@ export default function SupportPage() {
               </p>
             </div>
 
+            {showRefreshing ? (
+              <div className="border-t border-[#edf1f7] px-4 py-3 text-sm font-medium text-[#7f90ae] md:px-5">
+                Refreshing Shopify disputes...
+              </div>
+            ) : null}
+
             <div className="overflow-x-auto border-t border-[#edf1f7]">
               <table className="w-full min-w-[1120px] border-collapse">
                 <thead className="bg-[#233a69] text-xs font-semibold uppercase tracking-wide text-[#d8e4fb]">
@@ -360,7 +293,7 @@ export default function SupportPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {isLoading ? (
+                  {showInitialLoading ? (
                     <tr>
                       <td className="px-4 py-10 text-center text-sm font-medium text-[#7f90ae]" colSpan={9}>
                         Loading Shopify disputes...
@@ -395,7 +328,7 @@ export default function SupportPage() {
                           <div className="flex items-center justify-center gap-2">
                             <button
                               className="inline-flex items-center gap-2 rounded-md border border-[#d6deea] bg-[#f8fafd] px-4 py-1.5 text-xs font-semibold text-[#60708d]"
-                              onClick={() => handleOpenDetails(entry)}
+                              onClick={() => void openDetails(entry.id)}
                               type="button"
                             >
                               <Eye className="h-3.5 w-3.5" />
@@ -421,7 +354,7 @@ export default function SupportPage() {
         </div>
       </section>
 
-      {(selectedDispute || isDetailsLoading || detailError) ? (
+      {selectedDispute || isDetailsLoading || detailError ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#020816]/60 px-4 py-6">
           <article className="w-full max-w-4xl overflow-hidden rounded-2xl border border-[#364973] bg-[#18284d] shadow-[0_45px_120px_-35px_rgba(6,15,36,0.95)]">
             <header className="flex items-start justify-between border-b border-[#4c5f87] px-6 py-4 text-white">

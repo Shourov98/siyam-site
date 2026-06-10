@@ -14,106 +14,10 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect } from "react";
 
-import { ApiClientError } from "@/lib/auth";
-import { ordersApi, type OrderRecord, type OrderStats, type OrderStatus } from "@/lib/orders";
-
-type OrderPlatform = "AMAZON" | "EBAY" | "TIKTOK" | "SHOPIFY" | "OTHER";
-
-type OrderRow = {
-  id: string;
-  orderId: string;
-  platform: OrderPlatform;
-  customer: string;
-  customerAvatarTone: string;
-  customerInitials: string;
-  items: string;
-  amount: string;
-  date: string;
-  status: OrderStatus;
-};
-
-const emptyStats: OrderStats = {
-  totalOrders: 0,
-  pending: 0,
-  shipped: 0,
-  delivered: 0,
-  cancelled: 0
-};
-
-function getDocumentId(order: OrderRecord) {
-  return order._id ?? order.id ?? order.externalOrderId ?? order.shopifyOrderId ?? order.orderName ?? "";
-}
-
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return (parts[0]?.[0] ?? "O").concat(parts[1]?.[0] ?? "").toUpperCase();
-}
-
-function mapPlatform(marketplace?: string): OrderPlatform {
-  const value = marketplace?.toUpperCase();
-  if (value === "AMAZON" || value === "EBAY" || value === "TIKTOK" || value === "SHOPIFY") {
-    return value;
-  }
-  return "OTHER";
-}
-
-function formatOrderAmount(order: OrderRecord) {
-  const numericAmount = Number(order.totalPrice ?? 0);
-  const currency = order.currency || "USD";
-
-  try {
-    return `${numericAmount >= 0 ? "+" : ""}${new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency
-    }).format(numericAmount)}`;
-  } catch {
-    return `${numericAmount >= 0 ? "+" : ""}$${numericAmount.toFixed(2)}`;
-  }
-}
-
-function formatOrderDate(value?: string) {
-  if (!value) {
-    return "--";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "--";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  }).format(date);
-}
-
-function mapOrderRows(orders: OrderRecord[]): OrderRow[] {
-  return orders.map((order, index) => {
-    const customer = order.customerName || order.email || "Unknown Customer";
-    const itemCount = (order.lineItems ?? []).reduce((sum, item) => sum + (item.quantity ?? 0), 0);
-
-    return {
-      id: getDocumentId(order),
-      orderId: order.orderName ?? order.externalOrderId ?? order.shopifyOrderId ?? "--",
-      platform: mapPlatform(order.marketplace),
-      customer,
-      customerAvatarTone:
-        index % 3 === 0
-          ? "from-[#f7d9c7] to-[#b48f78]"
-          : index % 3 === 1
-            ? "from-[#2f6f83] to-[#163948]"
-            : "from-[#efdbc6] to-[#b98f6f]",
-      customerInitials: getInitials(customer),
-      items: String(itemCount || (order.lineItems ?? []).length),
-      amount: formatOrderAmount(order),
-      date: formatOrderDate(order.processedAt),
-      status: order.status ?? "Pending"
-    };
-  });
-}
+import { type OrderStatus } from "@/lib/orders";
+import { useOrdersPageStore, type OrderRow } from "@/lib/stores/orders-page-store";
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -173,78 +77,47 @@ function StatusBadge({ status }: { status: OrderStatus }) {
 }
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<OrderRow[]>([]);
-  const [stats, setStats] = useState<OrderStats>(emptyStats);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [editingRowId, setEditingRowId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [pageMessage, setPageMessage] = useState("");
+  const orders = useOrdersPageStore((state) => state.orders);
+  const stats = useOrdersPageStore((state) => state.stats);
+  const searchQuery = useOrdersPageStore((state) => state.searchQuery);
+  const editingRowId = useOrdersPageStore((state) => state.editingRowId);
+  const isLoading = useOrdersPageStore((state) => state.isLoading);
+  const pageMessage = useOrdersPageStore((state) => state.pageMessage);
+  const hasLoadedOnce = useOrdersPageStore((state) => state.hasLoadedOnce);
+  const shouldRefresh = useOrdersPageStore((state) => state.shouldRefresh);
+  const setSearchQuery = useOrdersPageStore((state) => state.setSearchQuery);
+  const setEditingRowId = useOrdersPageStore((state) => state.setEditingRowId);
+  const loadOrders = useOrdersPageStore((state) => state.loadOrders);
+  const updateItems = useOrdersPageStore((state) => state.updateItems);
+  const removeOrder = useOrdersPageStore((state) => state.removeOrder);
+  const exportOrders = useOrdersPageStore((state) => state.exportOrders);
+
   const totalOrdersPercent = stats.totalOrders ? "100%" : "0%";
   const pendingPercent = formatStatPercent(stats.pending, stats.totalOrders);
   const shippedPercent = formatStatPercent(stats.shipped, stats.totalOrders);
   const deliveredPercent = formatStatPercent(stats.delivered, stats.totalOrders);
 
-  const fetchOrders = useCallback(async (search = searchQuery) => {
-    const response = await ordersApi.getOrders({
-      search: search.trim() || undefined,
-      limit: 100
-    });
-    return response;
-  }, [searchQuery]);
-
   useEffect(() => {
-    let active = true;
     const timer = window.setTimeout(() => {
-      void fetchOrders(searchQuery)
-        .then((response) => {
-          if (!active) {
-            return;
-          }
+      if (!hasLoadedOnce || orders.length === 0) {
+        void loadOrders(searchQuery);
+        return;
+      }
 
-          setOrders(mapOrderRows(response.items));
-          setStats(response.stats);
-        })
-        .catch((error) => {
-          if (!active) {
-            return;
-          }
-          setPageMessage(error instanceof ApiClientError ? error.message : "Could not load orders.");
-        })
-        .finally(() => {
-          if (active) {
-            setIsLoading(false);
-          }
-        });
+      void loadOrders(searchQuery);
     }, 250);
 
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [fetchOrders, searchQuery]);
+    return () => window.clearTimeout(timer);
+  }, [hasLoadedOnce, orders.length, loadOrders, searchQuery, shouldRefresh]);
 
-  const filteredOrders = useMemo(() => orders, [orders]);
-
-  const updateItems = (id: string, value: string) => {
-    setOrders((prev) => prev.map((order) => (order.id === id ? { ...order, items: value } : order)));
-  };
-
-  const removeOrder = (id: string) => {
-    setOrders((prev) => prev.filter((order) => order.id !== id));
-  };
+  const showInitialLoading = isLoading && orders.length === 0;
+  const showRefreshing = isLoading && orders.length > 0;
 
   const handleExport = async () => {
-    setPageMessage("");
-
     try {
-      const blob = await ordersApi.exportCsv({
-        search: searchQuery.trim() || undefined,
-        limit: 100
-      });
+      const blob = await exportOrders();
       downloadBlob(blob, `orders-${new Date().toISOString().slice(0, 10)}.csv`);
-    } catch (error) {
-      setPageMessage(error instanceof Error ? error.message : "Could not export orders.");
-    }
+    } catch {}
   };
 
   return (
@@ -332,7 +205,7 @@ export default function OrdersPage() {
 
             <button
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-5 text-sm font-semibold text-[#465574]"
-              onClick={() => void fetchOrders()}
+              onClick={() => void loadOrders(searchQuery)}
               type="button"
             >
               <Filter className="h-4 w-4" />
@@ -348,6 +221,14 @@ export default function OrdersPage() {
         ) : null}
 
         <article className="overflow-hidden rounded-2xl border border-[#e1e6f0] bg-white">
+          {showRefreshing ? (
+            <div className="border-b border-[#edf1f7] px-4 py-3 text-sm text-[#6f7f9f]">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Refreshing orders...
+              </div>
+            </div>
+          ) : null}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1100px] text-left">
               <thead className="bg-[#233a69] text-xs font-semibold uppercase tracking-wide text-[#d8e4fb]">
@@ -364,7 +245,7 @@ export default function OrdersPage() {
               </thead>
 
               <tbody>
-                {isLoading ? (
+                {showInitialLoading ? (
                   <tr>
                     <td className="px-4 py-12 text-center text-sm text-[#6f7f9f]" colSpan={8}>
                       <div className="flex items-center justify-center gap-2">
@@ -374,7 +255,7 @@ export default function OrdersPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredOrders.map((order) => {
+                  orders.map((order) => {
                     const canEditItems = editingRowId === order.id;
 
                     return (
@@ -417,7 +298,7 @@ export default function OrdersPage() {
                           <div className="flex items-center justify-center gap-3">
                             <button
                               className="text-[#223763]"
-                              onClick={() => setEditingRowId((prev) => (prev === order.id ? null : order.id))}
+                              onClick={() => setEditingRowId(editingRowId === order.id ? null : order.id)}
                               type="button"
                             >
                               <Pencil className="h-4 w-4" />
@@ -438,7 +319,7 @@ export default function OrdersPage() {
             </table>
           </div>
 
-          {!isLoading && filteredOrders.length === 0 ? (
+          {!showInitialLoading && orders.length === 0 ? (
             <div className="border-t border-[#edf1f7] px-4 py-6 text-center text-sm text-[#6f7f9f]">No orders found.</div>
           ) : null}
         </article>

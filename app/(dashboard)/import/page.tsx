@@ -37,6 +37,7 @@ export default function ImportPage() {
   const busyRecordId = useImportPageStore((state) => state.busyRecordId);
   const pageMessage = useImportPageStore((state) => state.pageMessage);
   const hasLoadedOnce = useImportPageStore((state) => state.hasLoadedOnce);
+  const shouldRefresh = useImportPageStore((state) => state.shouldRefresh);
   const setSearchQuery = useImportPageStore((state) => state.setSearchQuery);
   const loadPage = useImportPageStore((state) => state.loadPage);
   const uploadFile = useImportPageStore((state) => state.uploadFile);
@@ -45,10 +46,18 @@ export default function ImportPage() {
   const changePage = useImportPageStore((state) => state.changePage);
 
   useEffect(() => {
-    if (!hasLoadedOnce) {
+    if (!hasLoadedOnce || rows.length === 0) {
+      void loadPage();
+      return;
+    }
+
+    if (shouldRefresh()) {
       void loadPage();
     }
-  }, [hasLoadedOnce, loadPage]);
+  }, [hasLoadedOnce, loadPage, rows.length, shouldRefresh]);
+
+  const showInitialLoading = isLoading && rows.length === 0;
+  const showRefreshing = isLoading && rows.length > 0;
 
   const filteredRows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -148,6 +157,14 @@ export default function ImportPage() {
         <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-sm text-[#546884]">{pageMessage}</div>
 
         <article className="overflow-hidden rounded-2xl border border-[#e1e6f0] bg-white">
+          {showRefreshing ? (
+            <div className="border-b border-[#edf1f7] px-4 py-3 text-sm text-[#6f7f9f]">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Refreshing import records...
+              </div>
+            </div>
+          ) : null}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1200px] text-left">
               <thead className="bg-[#233a69] text-xs font-semibold uppercase tracking-wide text-[#d8e4fb]">
@@ -161,7 +178,7 @@ export default function ImportPage() {
                 </tr>
               </thead>
               <tbody>
-                {isLoading ? (
+                {showInitialLoading ? (
                   <tr>
                     <td className="px-4 py-10 text-center text-sm text-[#7f92b1]" colSpan={6}>
                       <div className="flex items-center justify-center gap-2">
