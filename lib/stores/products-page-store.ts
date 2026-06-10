@@ -395,12 +395,7 @@ export const useProductsPageStore = create<ProductsPageState>()(
         lastLoadedAt: state.lastLoadedAt,
       }),
       onRehydrateStorage: () => (state) => {
-        if (!state) {
-          return;
-        }
-
-        state.markHydrated();
-        useProductsPageStore.setState({ isLoading: false });
+        state?.markHydrated();
       },
     },
   ),
