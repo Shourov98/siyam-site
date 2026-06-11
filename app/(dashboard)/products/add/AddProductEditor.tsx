@@ -4,12 +4,10 @@ import {
   BadgeCheck,
   Boxes,
   CheckCircle2,
-  ChevronRight,
   ChevronDown,
   CircleAlert,
   Image as ImageIcon,
   LoaderCircle,
-  PackageCheck,
   Plus,
   RefreshCcw,
   Sparkles,
@@ -3655,32 +3653,6 @@ export default function AddProductEditor({
               </div>
             </article>
 
-            <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eef3fb] text-[#47628f]">
-                  <PackageCheck className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-[#1f2c44]">Integration Status</h2>
-                  <p className="text-sm text-[#7f92b1]">This page is using the backend APIs instead of static mock data.</p>
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-3 text-sm text-[#44526d]">
-                {[
-                  "Generate uses POST /api/product-ai/products/generate through the Next proxy.",
-                  "Save Draft keeps the full editor state locally for the signed-in account and also PATCHes the persisted backend draft when a backend product ID exists.",
-                  "Marketplace-specific regenerate uses the backend regeneration endpoint.",
-                  "Size and color variants now call the backend variant APIs.",
-                  "Generated image cards render backend output files through a local image proxy route.",
-                ].map((point) => (
-                  <div className="flex items-start gap-2" key={point}>
-                    <ChevronRight className="mt-0.5 h-4 w-4 text-[#2dc7c3]" />
-                    <p>{point}</p>
-                  </div>
-                ))}
-              </div>
-            </article>
 
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
               <div className="flex items-center gap-3">
