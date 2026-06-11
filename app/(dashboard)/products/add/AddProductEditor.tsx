@@ -2923,7 +2923,7 @@ export default function AddProductEditor({
                   const hasPath = Boolean(image?.absolute_path || image?.relative_path);
                   const isUploading = Boolean(imageUploadingMap[key]);
                   const isGeneratingThis = key !== "source" && key !== "transparent_cutout" && Boolean(marketImageGenerating[key as MarketKey]);
-                  const isBusy = isUploading || isGeneratingThis;
+                  const isBusy = isUploading || isGeneratingThis || (key === "transparent_cutout" && isUploadingSourceImage);
 
                   const rawErrors = image?.validation?.errors ?? [];
                   const validationErrors = rawErrors.filter((err) => {
@@ -3009,62 +3009,22 @@ export default function AddProductEditor({
                         ) : null}
 
                         {hasPath ? (
-                          <div className="group/preview relative w-full h-full">
+                          <div className="relative w-full h-full">
                             <ProductPreview
                               alt={label}
                               backgroundLabel={image?.validation?.expected_background ?? "Image"}
                               image={image}
                               previewSrc={null}
                             />
-                            {/* Hover Controls Overlay */}
-                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-white/10 bg-[#0f172a]/90 px-3 py-2 shadow-xl backdrop-blur-md transition-all duration-300 opacity-0 group-hover/preview:opacity-100 translate-y-2 group-hover/preview:translate-y-0 z-20">
-                              <button
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 hover:scale-105 active:scale-95 transition-all duration-200"
-                                onClick={() => void downloadMarketplaceImage(key, filename)}
-                                title="Download Image"
-                                type="button"
-                              >
-                                <Download className="h-4 w-4" />
-                              </button>
-                              <button
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 hover:scale-105 active:scale-95 transition-all duration-200"
-                                onClick={() => {
-                                  setActiveUploadCardKey(key);
-                                  manualUploadInputRef.current?.click();
-                                }}
-                                title="Replace Image"
-                                type="button"
-                              >
-                                <Upload className="h-4 w-4" />
-                              </button>
-                              <button
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-600 hover:text-white hover:scale-105 active:scale-95 transition-all duration-200"
-                                onClick={() => void clearMarketplaceImage(key)}
-                                title="Remove Image"
-                                type="button"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
                           </div>
                         ) : key === "source" && selectedImagePreviewUrl ? (
-                          <div className="group/preview relative w-full h-full">
+                          <div className="relative w-full h-full">
                             <ProductPreview
                               alt={label}
                               backgroundLabel="source"
                               image={null}
                               previewSrc={selectedImagePreviewUrl}
                             />
-                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-white/10 bg-[#0f172a]/90 px-3 py-2 shadow-xl backdrop-blur-md transition-all duration-300 opacity-0 group-hover/preview:opacity-100 translate-y-2 group-hover/preview:translate-y-0 z-20">
-                              <button
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-600 hover:text-white hover:scale-105 active:scale-95 transition-all duration-200"
-                                onClick={() => clearSelectedImageSelection()}
-                                title="Clear Selection"
-                                type="button"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
                           </div>
                         ) : (
                           // Drag and Drop Empty State
@@ -3111,67 +3071,76 @@ export default function AddProductEditor({
                       </div>
 
                       {/* Card Control Bar */}
-                      <div className="mt-3 flex gap-2">
-                        {/* Generate/Regenerate for markets */}
-                        {key !== "source" && key !== "transparent_cutout" ? (
+                      <div className="mt-3 flex flex-col gap-2">
+                        {/* Row 1: Primary Actions */}
+                        <div className="flex gap-2 w-full">
+                          {/* Generate/Regenerate for markets */}
+                          {key !== "source" ? (
+                            <button
+                              className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200 px-3 whitespace-nowrap"
+                              disabled={isBusy || isUploadingSourceImage || isGenerating}
+                              onClick={() => {
+                                if (key === "transparent_cutout") {
+                                  void uploadProductSourceImage();
+                                } else {
+                                  void regenerateMarketplaceImage(key as MarketKey);
+                                }
+                              }}
+                              type="button"
+                            >
+                              <RefreshCcw className={`h-3.5 w-3.5 ${(isGeneratingThis || (key === "transparent_cutout" && isUploadingSourceImage)) ? "animate-spin" : ""}`} />
+                              {hasPath ? "Regenerate" : "Generate"}
+                            </button>
+                          ) : selectedImage ? (
+                            <button
+                              className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#172544] text-xs font-bold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200 px-3 whitespace-nowrap"
+                              disabled={isUploadingSourceImage || isGenerating}
+                              onClick={() => void uploadProductSourceImage()}
+                              type="button"
+                            >
+                              {isUploadingSourceImage ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 text-[#35d3ce]" />}
+                              Create Cutout
+                            </button>
+                          ) : null}
+
+                          {/* Direct manual upload */}
                           <button
-                            className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200"
-                            disabled={isBusy || isUploadingSourceImage || isGenerating}
-                            onClick={() => void regenerateMarketplaceImage(key as MarketKey)}
+                            className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white px-3 text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200 whitespace-nowrap"
+                            disabled={isBusy}
+                            onClick={() => {
+                              setActiveUploadCardKey(key);
+                              manualUploadInputRef.current?.click();
+                            }}
+                            title={hasPath ? "Replace Custom Image" : "Upload Custom Image"}
                             type="button"
                           >
-                            <RefreshCcw className={`h-3.5 w-3.5 ${isGeneratingThis ? "animate-spin" : ""}`} />
-                            {hasPath ? "Regenerate" : "Generate"}
+                            <Upload className="h-3.5 w-3.5" />
+                            {hasPath ? "Replace" : "Upload"}
                           </button>
-                        ) : key === "source" ? (
-                          <button
-                            className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#172544] text-xs font-bold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200"
-                            disabled={!selectedImage || isUploadingSourceImage || isGenerating}
-                            onClick={() => void uploadProductSourceImage()}
-                            type="button"
-                          >
-                            {isUploadingSourceImage ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 text-[#35d3ce]" />}
-                            Create Cutout
-                          </button>
-                        ) : null}
+                        </div>
 
-                        {/* Direct manual upload */}
-                        <button
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white px-3 text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200"
-                          disabled={isBusy}
-                          onClick={() => {
-                            setActiveUploadCardKey(key);
-                            manualUploadInputRef.current?.click();
-                          }}
-                          title={hasPath ? "Replace Custom Image" : "Upload Custom Image"}
-                          type="button"
-                        >
-                          <Upload className="h-3.5 w-3.5" />
-                          {hasPath ? "Replace" : "Upload"}
-                        </button>
-
-                        {/* Download button if image exists */}
+                        {/* Row 2: Secondary/Utility Actions */}
                         {hasPath ? (
-                          <button
-                            className="inline-flex h-9 items-center justify-center rounded-lg border border-[#d5dcea] bg-white px-3 text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544] transition-all duration-200"
-                            onClick={() => void downloadMarketplaceImage(key, filename)}
-                            title="Download Variant"
-                            type="button"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </button>
-                        ) : null}
-
-                        {/* Clear/Remove button if image exists */}
-                        {hasPath ? (
-                          <button
-                            className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-100 bg-rose-50 px-3 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-all duration-200"
-                            onClick={() => void clearMarketplaceImage(key)}
-                            title="Clear Image"
-                            type="button"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex gap-2 w-full">
+                            <button
+                              className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white px-3 text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544] transition-all duration-200"
+                              onClick={() => void downloadMarketplaceImage(key, filename)}
+                              title="Download Variant"
+                              type="button"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              <span>Download</span>
+                            </button>
+                            <button
+                              className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-rose-100 bg-rose-50 px-3 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-all duration-200"
+                              onClick={() => void clearMarketplaceImage(key)}
+                              title="Clear Image"
+                              type="button"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         ) : null}
                       </div>
 
