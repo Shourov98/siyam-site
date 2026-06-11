@@ -5,6 +5,7 @@ import {
   Boxes,
   CheckCircle2,
   ChevronRight,
+  ChevronDown,
   CircleAlert,
   Image as ImageIcon,
   LoaderCircle,
@@ -720,6 +721,21 @@ export default function AddProductEditor({
   const [imageUploadingMap, setImageUploadingMap] = useState<Record<string, boolean>>({});
   const [draggingOverCardKey, setDraggingOverCardKey] = useState<ImageCardKey | null>(null);
   const manualUploadInputRef = useRef<HTMLInputElement>(null);
+
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setIsStatusDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const hasPersistedProduct = Boolean(productId);
 
@@ -2545,21 +2561,47 @@ export default function AddProductEditor({
               </div>
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <label className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
+                <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4" ref={statusDropdownRef}>
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Primary Upload Status</p>
                   <p className="mt-1 text-xs text-[#8ea0bf]">`Upload to Shopify` always creates or updates an ACTIVE Shopify product. `Upload as Draft` always forces DRAFT.</p>
-                  <select
-                    className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-[#f3f6fb] px-3 text-sm text-[#31415e] outline-none transition"
-                    disabled
-                    value={publishStatus}
+                  
+                  {/* Dropdown Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                    className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-4 text-sm text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
                   >
-                    {publishStatusOptions.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    <span>{publishStatus}</span>
+                    <ChevronDown className={`h-4 w-4 text-[#8ea0bf] transition-transform duration-200 ${isStatusDropdownOpen ? "transform rotate-180" : ""}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {isStatusDropdownOpen && (
+                    <div className="absolute left-4 right-4 z-30 mt-1.5 rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                      {publishStatusOptions.map((status) => {
+                        const isSelected = publishStatus === status;
+                        return (
+                          <button
+                            key={status}
+                            type="button"
+                            onClick={() => {
+                              setPublishStatus(status);
+                              setIsStatusDropdownOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                              isSelected 
+                                ? "bg-[#edf5ff] text-[#1b2748]" 
+                                : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
+                            }`}
+                          >
+                            <span>{status}</span>
+                            {isSelected && <CheckCircle2 className="h-4 w-4 text-[#2b7cf5]" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
                 <EditableField
                   label="Publish Description"
