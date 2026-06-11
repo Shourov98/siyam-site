@@ -193,6 +193,7 @@ type SavedDraftSnapshot = {
   publishStatus: PublishStatus;
   publishStock: string;
   publishOnOnlineStore: boolean;
+  publishTrackInventory: boolean;
   savedAt: string;
 };
 
@@ -565,6 +566,7 @@ function EditableField({
   multiline = false,
   invalid = false,
   helperText,
+  className = "",
 }: {
   label: string;
   value: string;
@@ -572,18 +574,19 @@ function EditableField({
   multiline?: boolean;
   invalid?: boolean;
   helperText?: string;
+  className?: string;
 }) {
   return (
     <label
-      className={`block rounded-2xl border bg-[#f8fbff] p-4 ${
+      className={`flex flex-col rounded-2xl border bg-[#f8fbff] p-4 transition-all duration-200 ${
         invalid ? "border-[#ef6b6b] bg-[#fff7f7]" : "border-[#dbe2ee]"
-      }`}
+      } ${className}`}
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">{label}</p>
       {helperText ? <p className={`mt-1 text-xs ${invalid ? "text-[#cf4b4b]" : "text-[#8ea0bf]"}`}>{helperText}</p> : null}
       {multiline ? (
         <textarea
-          className={`mt-2 min-h-28 w-full rounded-xl bg-white px-3 py-3 text-sm text-[#31415e] outline-none transition ${
+          className={`mt-2 min-h-28 w-full flex-1 rounded-xl bg-white px-3 py-3 text-sm text-[#31415e] outline-none transition resize-none ${
             invalid ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" : "border border-[#d4ddec] focus:border-[#97abd0]"
           }`}
           onChange={(event) => onChange(event.target.value)}
@@ -693,6 +696,7 @@ export default function AddProductEditor({
   const [publishStatus, setPublishStatus] = useState<PublishStatus>("ACTIVE");
   const [publishStock, setPublishStock] = useState("0");
   const [publishOnOnlineStore, setPublishOnOnlineStore] = useState(true);
+  const [publishTrackInventory, setPublishTrackInventory] = useState(true);
   const [publishAnalysis, setPublishAnalysis] = useState<ApiPublishTargetAnalysis | null>(null);
   const [shopifyProductId, setShopifyProductId] = useState<string | null>(null);
   const [shopifySubmitMode, setShopifySubmitMode] = useState<ShopifyUploadMode | null>(null);
@@ -722,6 +726,9 @@ export default function AddProductEditor({
   const onlineStoreDropdownRef = useRef<HTMLDivElement>(null);
   const [isOnlineStoreDropdownOpen, setIsOnlineStoreDropdownOpen] = useState(false);
 
+  const trackInventoryDropdownRef = useRef<HTMLDivElement>(null);
+  const [isTrackInventoryDropdownOpen, setIsTrackInventoryDropdownOpen] = useState(false);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
@@ -729,6 +736,9 @@ export default function AddProductEditor({
       }
       if (onlineStoreDropdownRef.current && !onlineStoreDropdownRef.current.contains(event.target as Node)) {
         setIsOnlineStoreDropdownOpen(false);
+      }
+      if (trackInventoryDropdownRef.current && !trackInventoryDropdownRef.current.contains(event.target as Node)) {
+        setIsTrackInventoryDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -753,6 +763,7 @@ export default function AddProductEditor({
       publishStatus,
       publishStock,
       publishOnOnlineStore,
+      publishTrackInventory,
       savedAt: new Date().toISOString(),
     };
   }
@@ -800,6 +811,7 @@ export default function AddProductEditor({
       publishStatus: snapshot.publishStatus,
       publishStock: snapshot.publishStock,
       publishOnOnlineStore: snapshot.publishOnOnlineStore,
+      publishTrackInventory: snapshot.publishTrackInventory,
     });
   }
 
@@ -826,6 +838,7 @@ export default function AddProductEditor({
     setPublishStatus(snapshot.publishStatus);
     setPublishStock(snapshot.publishStock ?? "0");
     setPublishOnOnlineStore(snapshot.publishOnOnlineStore ?? true);
+    setPublishTrackInventory(snapshot.publishTrackInventory ?? true);
     setShopifyPublishMessage("");
     setHasSavedDraft(true);
     setDraftSaveState("saved");
@@ -851,6 +864,7 @@ export default function AddProductEditor({
     setPublishStatus("ACTIVE");
     setPublishStock("0");
     setPublishOnOnlineStore(true);
+    setPublishTrackInventory(true);
     setShopifyPublishMessage("");
     clearPublishTargetAnalysis();
     setPublishFieldErrors(emptyPublishFieldErrors);
@@ -954,6 +968,9 @@ export default function AddProductEditor({
       publishPrice: "",
       publishSku: "",
       publishStatus: "ACTIVE",
+      publishStock: "0",
+      publishOnOnlineStore: true,
+      publishTrackInventory: true,
       savedAt: new Date().toISOString(),
     };
 
@@ -972,6 +989,9 @@ export default function AddProductEditor({
     setPublishPrice(snapshot.publishPrice);
     setPublishSku(snapshot.publishSku);
     setPublishStatus(snapshot.publishStatus);
+    setPublishStock(snapshot.publishStock ?? "0");
+    setPublishOnOnlineStore(snapshot.publishOnOnlineStore ?? true);
+    setPublishTrackInventory(snapshot.publishTrackInventory ?? true);
     setShopifyPublishMessage("");
     setHasSavedDraft(true);
     setDraftSaveState("saved");
@@ -1103,13 +1123,16 @@ export default function AddProductEditor({
       publishPrice,
       publishSku,
       publishStatus,
+      publishStock,
+      publishOnOnlineStore,
+      publishTrackInventory,
       savedAt: new Date().toISOString(),
     };
     window.localStorage.setItem(getStoredDraftKey(), JSON.stringify(snapshot));
     window.setTimeout(() => {
       setHasSavedDraft(true);
     }, 0);
-  }, [draft, hasInitializedDraftStorage, productId, publishDescription, publishPrice, publishSku, publishStatus, publishVendor, shopifyProductId, sourceTitle, variantsByMarket]);
+  }, [draft, hasInitializedDraftStorage, productId, publishDescription, publishPrice, publishSku, publishStatus, publishVendor, shopifyProductId, sourceTitle, variantsByMarket, publishStock, publishOnOnlineStore, publishTrackInventory]);
 
   const selectedImagePreviewUrl = useMemo(
     () => (selectedImage ? URL.createObjectURL(selectedImage) : null),
@@ -1137,9 +1160,12 @@ export default function AddProductEditor({
         publishPrice,
         publishSku,
         publishStatus,
+        publishStock,
+        publishOnOnlineStore,
+        publishTrackInventory,
         savedAt: "",
       }),
-    [draft, variantsByMarket, productId, shopifyProductId, sourceTitle, publishVendor, publishDescription, publishPrice, publishSku, publishStatus],
+    [draft, variantsByMarket, productId, shopifyProductId, sourceTitle, publishVendor, publishDescription, publishPrice, publishSku, publishStatus, publishStock, publishOnOnlineStore, publishTrackInventory],
   );
 
   useEffect(() => {
@@ -1360,6 +1386,7 @@ export default function AddProductEditor({
             price: numericPrice.toFixed(2),
             sku: publishSku.trim() || undefined,
             inventoryQuantity: Number(publishStock) || 0,
+            trackInventory: publishTrackInventory,
           },
         ],
       };
@@ -1561,6 +1588,9 @@ export default function AddProductEditor({
         publishPrice,
         publishSku,
         publishStatus,
+        publishStock,
+        publishOnOnlineStore,
+        publishTrackInventory,
         savedAt: new Date().toISOString(),
       };
     }
@@ -2831,6 +2861,50 @@ export default function AddProductEditor({
                       </div>
                     )}
                   </div>
+
+                  {/* Track Inventory */}
+                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4" ref={trackInventoryDropdownRef}>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Track Inventory</p>
+                    <p className="mt-1 text-xs text-[#8ea0bf]">Controls whether Shopify tracks inventory levels for this product&apos;s variant.</p>
+                    
+                    {/* Dropdown Trigger */}
+                    <button
+                      type="button"
+                      onClick={() => setIsTrackInventoryDropdownOpen(!isTrackInventoryDropdownOpen)}
+                      className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-4 text-sm text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                    >
+                      <span>{publishTrackInventory ? "Yes" : "No"}</span>
+                      <ChevronDown className={`h-4 w-4 text-[#8ea0bf] transition-transform duration-200 ${isTrackInventoryDropdownOpen ? "transform rotate-180" : ""}`} />
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {isTrackInventoryDropdownOpen && (
+                      <div className="absolute left-4 right-4 z-30 mt-1.5 rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                        {["Yes", "No"].map((option) => {
+                          const optionVal = option === "Yes";
+                          const isSelected = publishTrackInventory === optionVal;
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => {
+                                setPublishTrackInventory(optionVal);
+                                setIsTrackInventoryDropdownOpen(false);
+                              }}
+                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                                isSelected 
+                                  ? "bg-[#edf5ff] text-[#1b2748]" 
+                                  : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
+                              }`}
+                            >
+                              <span>{option}</span>
+                              {isSelected && <CheckCircle2 className="h-4 w-4 text-[#2b7cf5]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <EditableField
@@ -2839,6 +2913,7 @@ export default function AddProductEditor({
                   multiline
                   onChange={setPublishDescription}
                   value={publishDescription}
+                  className="h-full"
                 />
               </div>
 

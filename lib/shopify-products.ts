@@ -15,6 +15,7 @@ export type ShopifyProductPayload = {
     price: string;
     sku?: string;
     inventoryQuantity?: number;
+    trackInventory?: boolean;
   }>;
 };
 
