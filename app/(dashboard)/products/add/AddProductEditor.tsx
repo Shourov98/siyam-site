@@ -21,6 +21,10 @@ import {
   Store,
   Music,
   Gift,
+  Code,
+  List,
+  GripVertical,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -599,11 +603,13 @@ function EditableField({
   return (
     <div
       className={`flex flex-col rounded-2xl border bg-[#f8fbff] p-4 transition-all duration-200 ${
-        invalid ? "border-[#ef6b6b] bg-[#fff7f7]" : "border-[#dbe2ee]"
+        invalid 
+          ? "border-[#ef6b6b] bg-[#fff7f7] shadow-[0_4px_12px_rgba(239,107,107,0.05)]" 
+          : "border-[#dbe2ee] hover:border-[#cbd5e1] focus-within:border-[#2b7cf5] focus-within:bg-white focus-within:shadow-[0_8px_20px_-6px_rgba(43,124,245,0.08)]"
       } ${className}`}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">{label}</span>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-bold uppercase tracking-wider text-[#8093b2]">{label}</span>
         {multiline && hasHtml && (
           <div className="flex bg-white rounded-lg p-0.5 border border-[#d4ddec] text-[10px] font-bold shadow-xs">
             <button
@@ -612,7 +618,7 @@ function EditableField({
               className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                 !showPreview 
                   ? "bg-[#1b2748] text-white shadow-xs" 
-                  : "text-[#5e718e] hover:bg-[#edf2fb] hover:text-[#1b2748]"
+                  : "text-[#5e718e] hover:bg-[#edf2fb]"
               }`}
             >
               HTML
@@ -623,7 +629,7 @@ function EditableField({
               className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                 showPreview 
                   ? "bg-[#1b2748] text-white shadow-xs" 
-                  : "text-[#5e718e] hover:bg-[#edf2fb] hover:text-[#1b2748]"
+                  : "text-[#5e718e] hover:bg-[#edf2fb]"
               }`}
             >
               Visual
@@ -631,17 +637,23 @@ function EditableField({
           </div>
         )}
       </div>
-      {helperText ? <p className={`mt-1 text-xs ${invalid ? "text-[#cf4b4b]" : "text-[#8ea0bf]"}`}>{helperText}</p> : null}
+      {helperText && (
+        <p className={`mb-2 text-xs leading-normal ${invalid ? "text-[#cf4b4b] font-medium" : "text-[#8ea0bf]"}`}>
+          {helperText}
+        </p>
+      )}
       {multiline ? (
         showPreview ? (
           <div
-            className="mt-2 min-h-28 max-h-72 w-full flex-1 rounded-xl bg-white px-4 py-3 text-sm text-[#31415e] border border-[#d4ddec] overflow-y-auto rich-preview-box transition-all"
+            className="min-h-28 max-h-72 w-full flex-1 rounded-xl bg-white px-4 py-3 text-sm text-[#31415e] border border-[#d4ddec] overflow-y-auto rich-preview-box transition-all"
             dangerouslySetInnerHTML={{ __html: value }}
           />
         ) : (
           <textarea
-            className={`mt-2 min-h-28 max-h-72 w-full flex-1 rounded-xl bg-white px-3 py-3 text-sm text-[#31415e] outline-none transition resize-none overflow-y-auto ${
-              invalid ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" : "border border-[#d4ddec] focus:border-[#97abd0]"
+            className={`min-h-28 max-h-72 w-full flex-1 rounded-xl bg-white px-3 py-3 text-sm text-[#31415e] outline-none transition resize-none overflow-y-auto ${
+              invalid 
+                ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" 
+                : "border border-[#d4ddec] focus:border-[#2b7cf5]"
             }`}
             onChange={(event) => onChange(event.target.value)}
             value={value}
@@ -649,8 +661,10 @@ function EditableField({
         )
       ) : (
         <input
-          className={`mt-2 h-11 w-full rounded-xl bg-white px-3 text-sm text-[#31415e] outline-none transition ${
-            invalid ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" : "border border-[#d4ddec] focus:border-[#97abd0]"
+          className={`h-11 w-full rounded-xl bg-white px-3 text-sm text-[#31415e] outline-none transition ${
+            invalid 
+              ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" 
+              : "border border-[#d4ddec] focus:border-[#2b7cf5]"
           }`}
           onChange={(event) => onChange(event.target.value)}
           type="text"
@@ -666,22 +680,235 @@ function EditableListField({
   values,
   onChange,
   helperText,
+  renderAsTags = false,
 }: {
   label: string;
   values: string[];
   onChange: (values: string[]) => void;
   helperText: string;
+  renderAsTags?: boolean;
 }) {
+  const [rawMode, setRawMode] = useState(false);
+  const [activeDraggableIndex, setActiveDraggableIndex] = useState<number | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [newTagValue, setNewTagValue] = useState("");
+
+  const handleItemChange = (index: number, val: string) => {
+    const updated = [...values];
+    updated[index] = val;
+    onChange(updated);
+  };
+
+  const handleAddItem = () => {
+    onChange([...values, ""]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    const updated = values.filter((_, i) => i !== index);
+    onChange(updated);
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", index.toString());
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setActiveDraggableIndex(null);
+  };
+
+  const handleDragEnter = (e: React.DragEvent, targetIndex: number) => {
+    if (draggedIndex === null || draggedIndex === targetIndex) return;
+    
+    const updated = [...values];
+    const temp = updated[draggedIndex];
+    updated[draggedIndex] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    onChange(updated);
+    
+    setDraggedIndex(targetIndex);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const val = newTagValue.trim().replace(/^,|,$/g, "");
+      if (val) {
+        let processedVal = val;
+        if (label.toLowerCase().includes("hashtag") && !val.startsWith("#")) {
+          processedVal = `#${val}`;
+        }
+        if (!values.includes(processedVal)) {
+          onChange([...values, processedVal]);
+        }
+      }
+      setNewTagValue("");
+    }
+  };
+
+  const handleTagBlur = () => {
+    const val = newTagValue.trim().replace(/^,|,$/g, "");
+    if (val) {
+      let processedVal = val;
+      if (label.toLowerCase().includes("hashtag") && !val.startsWith("#")) {
+        processedVal = `#${val}`;
+      }
+      if (!values.includes(processedVal)) {
+        onChange([...values, processedVal]);
+      }
+    }
+    setNewTagValue("");
+  };
+
   return (
-    <label className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">{label}</p>
-      <p className="mt-1 text-xs text-[#8ea0bf]">{helperText}</p>
-      <textarea
-        className="mt-3 min-h-36 w-full rounded-xl border border-[#d4ddec] bg-white px-3 py-3 text-sm leading-6 text-[#31415e] outline-none transition focus:border-[#97abd0]"
-        onChange={(event) => onChange(toLines(event.target.value))}
-        value={values.join("\n")}
-      />
-    </label>
+    <div className="flex flex-col rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4 transition-all duration-200 focus-within:border-[#cbd5e1] focus-within:bg-white focus-within:shadow-[0_8px_20px_-6px_rgba(0,0,0,0.03)]">
+      <div className="flex items-center justify-between border-b border-[#eef2f6] pb-2.5 mb-2.5">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-wider text-[#8093b2]">{label}</span>
+          <p className="mt-0.5 text-[11px] text-[#8ea0bf]">{helperText}</p>
+        </div>
+        <div className="flex bg-white rounded-lg p-0.5 border border-[#d4ddec] text-[10px] font-bold shadow-xs">
+          <button
+            type="button"
+            onClick={() => setRawMode(false)}
+            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+              !rawMode 
+                ? "bg-[#1b2748] text-white shadow-xs" 
+                : "text-[#5e718e] hover:bg-[#edf2fb]"
+            }`}
+          >
+            <List className="h-3 w-3" />
+            <span>List</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setRawMode(true)}
+            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+              rawMode 
+                ? "bg-[#1b2748] text-white shadow-xs" 
+                : "text-[#5e718e] hover:bg-[#edf2fb]"
+            }`}
+          >
+            <Code className="h-3 w-3" />
+            <span>Raw</span>
+          </button>
+        </div>
+      </div>
+
+      {rawMode ? (
+        <textarea
+          className="min-h-36 w-full rounded-xl border border-[#d4ddec] bg-white px-3 py-3 text-sm leading-6 text-[#31415e] outline-none transition focus:border-[#2b7cf5] resize-y overflow-y-auto"
+          onChange={(event) => onChange(toLines(event.target.value))}
+          value={values.join("\n")}
+        />
+      ) : renderAsTags ? (
+        <div className="flex flex-wrap gap-1.5 items-center p-3 border border-[#d4ddec] rounded-xl bg-white min-h-[90px] max-h-[200px] overflow-y-auto focus-within:border-[#2b7cf5] transition-all">
+          {values.map((tag, idx) => (
+            <span 
+              key={idx} 
+              className="bg-[#edf5ff] text-[#1b2748] px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-[#d2e5ff] hover:bg-[#e0eeff] transition-all"
+            >
+              <span>{tag}</span>
+              <button
+                type="button"
+                onClick={() => handleRemoveItem(idx)}
+                className="w-4 h-4 flex items-center justify-center text-[#5e718e] hover:text-[#ef6b6b] hover:bg-[#fff0f0] rounded-md transition-colors font-bold cursor-pointer"
+                title="Remove tag"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+          <input
+            type="text"
+            placeholder={values.length === 0 ? "Add tag..." : "+ Add tag"}
+            value={newTagValue}
+            onChange={(e) => setNewTagValue(e.target.value)}
+            onKeyDown={handleTagKeyDown}
+            onBlur={handleTagBlur}
+            className="h-7 border border-dashed border-[#cbd5e1] hover:border-[#94a3b8] focus:border-[#2b7cf5] focus:border-solid rounded-lg px-2.5 text-xs text-[#31415e] outline-none transition-all w-24 focus:w-40 bg-slate-50/50 focus:bg-white"
+          />
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+          {values.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center text-xs text-[#8ea0bf] bg-white/50 rounded-xl border border-dashed border-[#d4ddec]">
+              <p>No list items yet.</p>
+              <button
+                type="button"
+                onClick={handleAddItem}
+                className="mt-2 text-xs font-bold text-[#2b7cf5] hover:underline cursor-pointer"
+              >
+                + Add first item
+              </button>
+            </div>
+          ) : (
+            values.map((item, index) => {
+              const isDragging = draggedIndex === index;
+              return (
+                <div 
+                  key={index} 
+                  draggable={activeDraggableIndex === index}
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragEnd={handleDragEnd}
+                  onDragEnter={(e) => handleDragEnter(e, index)}
+                  onDragOver={handleDragOver}
+                  className={`flex items-center gap-2 transition-all duration-150 rounded-lg p-1 border ${
+                    isDragging 
+                      ? "border-dashed border-[#2b7cf5] bg-[#2b7cf5]/5 opacity-50" 
+                      : "border-transparent"
+                  }`}
+                >
+                  <div
+                    onMouseDown={() => setActiveDraggableIndex(index)}
+                    onMouseUp={() => setActiveDraggableIndex(null)}
+                    className="flex items-center gap-1 text-[#8ea0bf] hover:text-[#1b2748] cursor-grab active:cursor-grabbing p-1.5 rounded-md hover:bg-[#edf2fb] select-none"
+                    title="Drag to reorder"
+                  >
+                    <GripVertical className="h-3.5 w-3.5" />
+                    <span className="text-[10px] font-bold w-4 text-right">
+                      {index + 1}
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={item}
+                    placeholder={`Item ${index + 1}`}
+                    onChange={(e) => handleItemChange(index, e.target.value)}
+                    className="flex-1 min-w-0 h-9 rounded-lg border border-[#d4ddec] bg-white px-3 text-sm text-[#31415e] outline-none transition focus:border-[#2b7cf5]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveItem(index)}
+                    className="p-1.5 rounded-md text-[#ef6b6b] hover:bg-[#fff0f0] cursor-pointer"
+                    title="Delete item"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })
+          )}
+
+          {values.length > 0 && (
+            <button
+              type="button"
+              onClick={handleAddItem}
+              className="w-full mt-2 h-9 inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#cbd5e1] hover:border-[#94a3b8] bg-white text-xs font-semibold text-[#5e718e] hover:text-[#1e293b] transition cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Item</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -694,18 +921,154 @@ function EditableAttributesField({
   attributes: Record<string, string>;
   onChange: (attributes: Record<string, string>) => void;
 }) {
+  const [rawMode, setRawMode] = useState(false);
+
+  const entries = useMemo(() => {
+    return Object.entries(attributes).map(([key, value], index) => ({
+      id: `${key}-${index}`,
+      origKey: key,
+      key,
+      value,
+    }));
+  }, [attributes]);
+
+  const handleKeyChange = (oldKey: string, newKey: string) => {
+    if (oldKey === newKey) return;
+    const nextAttr = { ...attributes };
+    const value = nextAttr[oldKey] ?? "";
+    delete nextAttr[oldKey];
+    nextAttr[newKey] = value;
+    onChange(nextAttr);
+  };
+
+  const handleValueChange = (key: string, value: string) => {
+    const nextAttr = { ...attributes };
+    nextAttr[key] = value;
+    onChange(nextAttr);
+  };
+
+  const handleAddAttribute = () => {
+    const base = "new_attribute";
+    let index = 1;
+    while (`${base}_${index}` in attributes) {
+      index++;
+    }
+    const nextAttr = { ...attributes };
+    nextAttr[`${base}_${index}`] = "";
+    onChange(nextAttr);
+  };
+
+  const handleRemoveAttribute = (key: string) => {
+    const nextAttr = { ...attributes };
+    delete nextAttr[key];
+    onChange(nextAttr);
+  };
+
   return (
-    <label className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">{label}</p>
-      <p className="mt-1 text-xs text-[#8ea0bf]">Use one line per attribute in the format `name: value`.</p>
-      <textarea
-        className="mt-3 min-h-36 w-full rounded-xl border border-[#d4ddec] bg-white px-3 py-3 text-sm leading-6 text-[#31415e] outline-none transition focus:border-[#97abd0]"
-        onChange={(event) => onChange(toAttributes(event.target.value))}
-        value={Object.entries(attributes)
-          .map(([key, fieldValue]) => `${key}: ${fieldValue}`)
-          .join("\n")}
-      />
-    </label>
+    <div className="flex flex-col rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4 transition-all duration-200 focus-within:border-[#cbd5e1] focus-within:bg-white focus-within:shadow-[0_8px_20px_-6px_rgba(0,0,0,0.03)]">
+      <div className="flex items-center justify-between border-b border-[#eef2f6] pb-2.5 mb-2.5">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-wider text-[#8093b2]">{label}</span>
+          <p className="mt-0.5 text-[11px] text-[#8ea0bf]">Manage structured key-value attributes.</p>
+        </div>
+        <div className="flex bg-white rounded-lg p-0.5 border border-[#d4ddec] text-[10px] font-bold shadow-xs">
+          <button
+            type="button"
+            onClick={() => setRawMode(false)}
+            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+              !rawMode 
+                ? "bg-[#1b2748] text-white shadow-xs" 
+                : "text-[#5e718e] hover:bg-[#edf2fb]"
+            }`}
+          >
+            <List className="h-3 w-3" />
+            <span>Grid</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setRawMode(true)}
+            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+              rawMode 
+                ? "bg-[#1b2748] text-white shadow-xs" 
+                : "text-[#5e718e] hover:bg-[#edf2fb]"
+            }`}
+          >
+            <Code className="h-3 w-3" />
+            <span>Raw</span>
+          </button>
+        </div>
+      </div>
+
+      {rawMode ? (
+        <textarea
+          className="min-h-36 w-full rounded-xl border border-[#d4ddec] bg-white px-3 py-3 text-sm leading-6 text-[#31415e] outline-none transition focus:border-[#2b7cf5] resize-y overflow-y-auto"
+          onChange={(event) => onChange(toAttributes(event.target.value))}
+          value={Object.entries(attributes)
+            .map(([key, fieldValue]) => `${key}: ${fieldValue}`)
+            .join("\n")}
+        />
+      ) : (
+        <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+          {entries.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center text-xs text-[#8ea0bf] bg-white/50 rounded-xl border border-dashed border-[#d4ddec]">
+              <p>No attributes defined.</p>
+              <button
+                type="button"
+                onClick={handleAddAttribute}
+                className="mt-2 text-xs font-bold text-[#2b7cf5] hover:underline cursor-pointer"
+              >
+                + Add first attribute
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-[1fr_1.5fr_auto] gap-2 px-1 text-[10px] font-bold text-[#8093b2] uppercase tracking-wider select-none">
+                <span>Attribute Name</span>
+                <span>Value</span>
+                <span className="w-8"></span>
+              </div>
+              {entries.map((entry) => (
+                <div key={entry.id} className="grid grid-cols-[1fr_1.5fr_auto] gap-2 items-center">
+                  <input
+                    type="text"
+                    value={entry.key}
+                    placeholder="Name"
+                    onChange={(e) => handleKeyChange(entry.origKey, e.target.value)}
+                    className="h-9 rounded-lg border border-[#d4ddec] bg-white px-2.5 text-xs font-semibold text-[#1b2748] outline-none transition focus:border-[#2b7cf5] truncate"
+                  />
+                  <input
+                    type="text"
+                    value={entry.value}
+                    placeholder="Value"
+                    onChange={(e) => handleValueChange(entry.key, e.target.value)}
+                    className="h-9 rounded-lg border border-[#d4ddec] bg-white px-2.5 text-xs text-[#31415e] outline-none transition focus:border-[#2b7cf5]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAttribute(entry.key)}
+                    className="p-2 rounded-md text-[#ef6b6b] hover:bg-[#fff0f0] flex items-center justify-center cursor-pointer"
+                    title="Delete attribute"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {entries.length > 0 && (
+            <button
+              type="button"
+              onClick={handleAddAttribute}
+              className="w-full mt-2 h-9 inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#cbd5e1] hover:border-[#94a3b8] bg-white text-xs font-semibold text-[#5e718e] hover:text-[#1e293b] transition cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Add Attribute</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2435,15 +2798,16 @@ export default function AddProductEditor({
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_380px] xl:h-[calc(100vh-168px)] xl:overflow-hidden">
           <div className="space-y-5 xl:h-full xl:overflow-y-auto xl:pr-2">
-            <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
-              <div className="flex items-center justify-between gap-3 flex-wrap border-b border-[#eef2f6] pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eaf3ff] text-[#4d77bc]">
-                    <Boxes className="h-5 w-5" />
+            <article className="rounded-2xl border border-[#dbe2ee] bg-white p-6 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
+              {/* Header block with refined styling */}
+              <div className="flex items-center justify-between gap-4 flex-wrap border-b border-[#eef2f6] pb-4 mb-6">
+                <div className="flex items-center gap-3.5">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#eaf3ff] to-[#d0e3ff] text-[#2b7cf5] shadow-sm">
+                    <Boxes className="h-5.5 w-5.5" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-[#1f2c44]">Core Product Data</h2>
-                    <p className="text-sm text-[#7f92b1]">This block saves back to the product-ai-agent draft record.</p>
+                    <h2 className="text-lg font-bold text-[#1f2c44]">Core Product Data</h2>
+                    <p className="text-xs text-[#7f92b1] mt-0.5">Primary product specifications and source draft parameters.</p>
                   </div>
                 </div>
 
@@ -2451,7 +2815,7 @@ export default function AddProductEditor({
                   type="button"
                   disabled={isGenerating || !sourceTitle.trim()}
                   onClick={() => void generateWithoutImage()}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#172544] to-[#263c70] px-4 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#172544] to-[#263c70] px-4 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer hover:shadow-md"
                 >
                   {isGenerating ? (
                     <LoaderCircle className="h-4 w-4 animate-spin text-[#35d3ce]" />
@@ -2462,53 +2826,82 @@ export default function AddProductEditor({
                 </button>
               </div>
 
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <EditableField
-                  label="Normalized Title"
-                  onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, normalized_title: value } }))}
-                  value={draft.core.normalized_title}
-                />
-                <EditableField
-                  label="Category"
-                  onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, category: value } }))}
-                  value={draft.core.category}
-                />
-                <EditableField
-                  label="Product Type"
-                  onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, product_type: value } }))}
-                  value={draft.core.product_type}
-                />
-                <EditableField
-                  label="Source Title"
-                  onChange={(value) => {
-                    setSourceTitle(value);
-                    setDraft((prev) => ({ ...prev, core: { ...prev.core, source_title: value } }));
-                  }}
-                  value={draft.core.source_title}
-                />
-              </div>
+              {/* Grid content divided into visual subgroups */}
+              <div className="space-y-6">
+                
+                {/* Subgroup 1: Titles and Source Input */}
+                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc]/50 p-4 shadow-2xs">
+                  <div className="flex items-center gap-2 mb-3.5 border-b border-[#edf2f7] pb-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#2b7cf5]"></span>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#4a5568]">Identity & Context</h3>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <EditableField
+                      label="Source Title"
+                      helperText="The raw text title used as context for the AI draft generation."
+                      onChange={(value) => {
+                        setSourceTitle(value);
+                        setDraft((prev) => ({ ...prev, core: { ...prev.core, source_title: value } }));
+                      }}
+                      value={draft.core.source_title}
+                    />
+                    <EditableField
+                      label="Normalized Title"
+                      helperText="AI-cleaned, standard marketplace-optimized title."
+                      onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, normalized_title: value } }))}
+                      value={draft.core.normalized_title}
+                    />
+                  </div>
+                </div>
 
-              <div className="mt-4">
-                <EditableField
-                  label="Product Summary"
-                  multiline
-                  onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, product_summary: value } }))}
-                  value={draft.core.product_summary}
-                />
-              </div>
+                {/* Subgroup 2: Category & Classification */}
+                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc]/50 p-4 shadow-2xs">
+                  <div className="flex items-center gap-2 mb-3.5 border-b border-[#edf2f7] pb-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#4a5568]">Catalog Taxonomy</h3>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <EditableField
+                      label="Category"
+                      helperText="Broad catalog category identifier for listings."
+                      onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, category: value } }))}
+                      value={draft.core.category}
+                    />
+                    <EditableField
+                      label="Product Type"
+                      helperText="Specific classification template used for attributes."
+                      onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, product_type: value } }))}
+                      value={draft.core.product_type}
+                    />
+                  </div>
+                </div>
 
-              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-                <EditableListField
-                  helperText="One feature per line"
-                  label="Generated Features"
-                  onChange={(values) => setDraft((prev) => ({ ...prev, core: { ...prev.core, features: values } }))}
-                  values={draft.core.features}
-                />
-                <EditableAttributesField
-                  attributes={draft.core.attributes}
-                  label="Structured Attributes"
-                  onChange={(attributes) => setDraft((prev) => ({ ...prev, core: { ...prev.core, attributes } }))}
-                />
+                {/* Subgroup 3: Narrative Summary */}
+                <div>
+                  <EditableField
+                    label="Product Summary"
+                    helperText="A comprehensive prose summary of the product generated by AI."
+                    multiline
+                    onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, product_summary: value } }))}
+                    value={draft.core.product_summary}
+                  />
+                </div>
+
+                {/* Subgroup 4: Specifications & Enrichments */}
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                  <EditableListField
+                    helperText="One core feature highlight per line"
+                    label="Generated Features"
+                    onChange={(values) => setDraft((prev) => ({ ...prev, core: { ...prev.core, features: values } }))}
+                    values={draft.core.features}
+                  />
+                  <EditableAttributesField
+                    attributes={draft.core.attributes}
+                    label="Structured Attributes"
+                    onChange={(attributes) => setDraft((prev) => ({ ...prev, core: { ...prev.core, attributes } }))}
+                  />
+                </div>
+
               </div>
             </article>
 
@@ -2562,6 +2955,7 @@ export default function AddProductEditor({
                       label="Backend Search Terms"
                       onChange={(values) => setDraft((prev) => ({ ...prev, amazon: { ...prev.amazon, backend_search_terms: values } }))}
                       values={draft.amazon.backend_search_terms}
+                      renderAsTags={true}
                     />
                     <EditableAttributesField
                       attributes={draft.amazon.structured_attributes}
@@ -2615,6 +3009,7 @@ export default function AddProductEditor({
                       label="Hashtags"
                       onChange={(values) => setDraft((prev) => ({ ...prev, tiktok: { ...prev.tiktok, hashtags: values } }))}
                       values={draft.tiktok.hashtags}
+                      renderAsTags={true}
                     />
                   </>
                 ) : null}
@@ -2637,12 +3032,14 @@ export default function AddProductEditor({
                       label="Tags"
                       onChange={(values) => setDraft((prev) => ({ ...prev, etsy: { ...prev.etsy, tags: values } }))}
                       values={draft.etsy.tags}
+                      renderAsTags={true}
                     />
                     <EditableListField
                       helperText="One material per line"
                       label="Materials"
                       onChange={(values) => setDraft((prev) => ({ ...prev, etsy: { ...prev.etsy, materials: values } }))}
                       values={draft.etsy.materials}
+                      renderAsTags={true}
                     />
                     <EditableField
                       label="Occasion"
@@ -2654,6 +3051,7 @@ export default function AddProductEditor({
                       label="SEO Keywords"
                       onChange={(values) => setDraft((prev) => ({ ...prev, etsy: { ...prev.etsy, seo_keywords: values } }))}
                       values={draft.etsy.seo_keywords}
+                      renderAsTags={true}
                     />
                   </>
                 ) : null}
@@ -2688,6 +3086,7 @@ export default function AddProductEditor({
                       label="Tags"
                       onChange={(values) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, tags: values } }))}
                       values={draft.shopify.tags}
+                      renderAsTags={true}
                     />
                     <EditableField
                       label="Body HTML"
