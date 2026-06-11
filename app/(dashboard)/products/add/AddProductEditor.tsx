@@ -27,6 +27,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import JSZip from "jszip";
 
 import { ApiClientError, authStorage } from "@/lib/auth";
 import { shopifyProductsApi } from "@/lib/shopify-products";
@@ -593,22 +594,61 @@ function EditableField({
   helperText?: string;
   className?: string;
 }) {
+  const hasHtml = multiline && (value.includes("<") && value.includes(">"));
+  const [manualShowPreview, setManualShowPreview] = useState<boolean | null>(null);
+  const showPreview = manualShowPreview !== null ? manualShowPreview : hasHtml;
+
   return (
-    <label
+    <div
       className={`flex flex-col rounded-2xl border bg-[#f8fbff] p-4 transition-all duration-200 ${
         invalid ? "border-[#ef6b6b] bg-[#fff7f7]" : "border-[#dbe2ee]"
       } ${className}`}
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">{label}</p>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">{label}</span>
+        {multiline && hasHtml && (
+          <div className="flex bg-white rounded-lg p-0.5 border border-[#d4ddec] text-[10px] font-bold shadow-xs">
+            <button
+              type="button"
+              onClick={() => setManualShowPreview(false)}
+              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                !showPreview 
+                  ? "bg-[#1b2748] text-white shadow-xs" 
+                  : "text-[#5e718e] hover:bg-[#edf2fb] hover:text-[#1b2748]"
+              }`}
+            >
+              HTML
+            </button>
+            <button
+              type="button"
+              onClick={() => setManualShowPreview(true)}
+              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                showPreview 
+                  ? "bg-[#1b2748] text-white shadow-xs" 
+                  : "text-[#5e718e] hover:bg-[#edf2fb] hover:text-[#1b2748]"
+              }`}
+            >
+              Visual
+            </button>
+          </div>
+        )}
+      </div>
       {helperText ? <p className={`mt-1 text-xs ${invalid ? "text-[#cf4b4b]" : "text-[#8ea0bf]"}`}>{helperText}</p> : null}
       {multiline ? (
-        <textarea
-          className={`mt-2 min-h-28 w-full flex-1 rounded-xl bg-white px-3 py-3 text-sm text-[#31415e] outline-none transition resize-none ${
-            invalid ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" : "border border-[#d4ddec] focus:border-[#97abd0]"
-          }`}
-          onChange={(event) => onChange(event.target.value)}
-          value={value}
-        />
+        showPreview ? (
+          <div
+            className="mt-2 min-h-28 max-h-72 w-full flex-1 rounded-xl bg-white px-4 py-3 text-sm text-[#31415e] border border-[#d4ddec] overflow-y-auto rich-preview-box transition-all"
+            dangerouslySetInnerHTML={{ __html: value }}
+          />
+        ) : (
+          <textarea
+            className={`mt-2 min-h-28 max-h-72 w-full flex-1 rounded-xl bg-white px-3 py-3 text-sm text-[#31415e] outline-none transition resize-none overflow-y-auto ${
+              invalid ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" : "border border-[#d4ddec] focus:border-[#97abd0]"
+            }`}
+            onChange={(event) => onChange(event.target.value)}
+            value={value}
+          />
+        )
       ) : (
         <input
           className={`mt-2 h-11 w-full rounded-xl bg-white px-3 text-sm text-[#31415e] outline-none transition ${
@@ -619,7 +659,7 @@ function EditableField({
           value={value}
         />
       )}
-    </label>
+    </div>
   );
 }
 
@@ -2044,17 +2084,41 @@ export default function AddProductEditor({
       setStatusMessage("No generated images available to download.");
       return;
     }
-    setStatusMessage(`Downloading all (${cardsWithImages.length}) images...`);
-    const titleBase = getPublishTitle().trim() || "product";
-    const titleClean = titleBase.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+    setStatusMessage(`Bundling all (${cardsWithImages.length}) images into a ZIP...`);
+    try {
+      const zip = new JSZip();
+      const titleBase = getPublishTitle().trim() || "product";
+      const titleClean = titleBase.replace(/[^a-z0-9]/gi, "_").toLowerCase();
 
-    for (let i = 0; i < cardsWithImages.length; i++) {
-      const card = cardsWithImages[i];
-      const filename = `${titleClean}_${card.key}.png`;
-      await downloadMarketplaceImage(card.key, filename);
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      for (let i = 0; i < cardsWithImages.length; i++) {
+        const card = cardsWithImages[i];
+        const pathValue = card.image?.absolute_path || card.image?.relative_path;
+        if (!pathValue) continue;
+
+        const src = imageUrlFor(pathValue);
+        if (!src) continue;
+
+        const response = await fetch(src);
+        const blob = await response.blob();
+        const filename = `${titleClean}_${card.key}.png`;
+        zip.file(filename, blob);
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = window.URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${titleClean}_images.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      setStatusMessage(`ZIP file downloaded successfully: ${titleClean}_images.zip`);
+    } catch (error) {
+      console.error("Failed to bundle ZIP file", error);
+      setStatusMessage(`ZIP generation failed: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
-    setStatusMessage("All downloads triggered.");
   }
 
   async function generateAllMarketplaceImages() {
