@@ -17,6 +17,12 @@ import {
   Upload,
   Download,
   Trash2,
+  Filter,
+  Scissors,
+  ShoppingBag,
+  Store,
+  Music,
+  Gift,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -217,6 +223,17 @@ type PublishFieldErrors = {
 
 type DraftSaveState = "idle" | "saving" | "saved";
 type ShopifyUploadMode = "active" | "draft";
+
+const filterOptions = [
+  { key: "all", label: "All Channels", icon: Boxes },
+  { key: "source", label: "Source Upload", icon: Upload },
+  { key: "transparent_cutout", label: "Transparent Cutout", icon: Scissors },
+  { key: "amazon", label: "Amazon Main", icon: ShoppingBag },
+  { key: "ebay", label: "eBay Main", icon: Tags },
+  { key: "etsy", label: "Etsy Hero", icon: Gift },
+  { key: "tiktok", label: "TikTok Shop", icon: Music },
+  { key: "shopify", label: "Shopify Composition", icon: Store },
+];
 
 const marketOrder: MarketKey[] = ["amazon", "ebay", "etsy", "tiktok", "shopify"];
 
@@ -729,6 +746,10 @@ export default function AddProductEditor({
   const trackInventoryDropdownRef = useRef<HTMLDivElement>(null);
   const [isTrackInventoryDropdownOpen, setIsTrackInventoryDropdownOpen] = useState(false);
 
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
+  const [selectedFilterKey, setSelectedFilterKey] = useState<string>("all");
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
@@ -739,6 +760,9 @@ export default function AddProductEditor({
       }
       if (trackInventoryDropdownRef.current && !trackInventoryDropdownRef.current.contains(event.target as Node)) {
         setIsTrackInventoryDropdownOpen(false);
+      }
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+        setIsFilterDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -3226,6 +3250,59 @@ export default function AddProductEditor({
                 </div>
               </div>
 
+              {/* Channel Filter Dropdown */}
+              <div className="relative mt-4 z-40" ref={filterDropdownRef}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2] mb-1.5">View Channel / Card</p>
+                <button
+                  type="button"
+                  onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                  className="h-11 w-full rounded-xl border border-[#d4ddec] bg-[#f8fbff] px-4 text-sm text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                >
+                  <span className="flex items-center gap-2.5">
+                    {(() => {
+                      const activeOpt = filterOptions.find(opt => opt.key === selectedFilterKey);
+                      if (activeOpt) {
+                        const IconComponent = activeOpt.icon;
+                        return <IconComponent className="h-4 w-4 text-[#2b7cf5]" />;
+                      }
+                      return <Filter className="h-4 w-4 text-[#8ea0bf]" />;
+                    })()}
+                    {filterOptions.find(opt => opt.key === selectedFilterKey)?.label}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-[#8ea0bf] transition-transform duration-200 ${isFilterDropdownOpen ? "transform rotate-180" : ""}`} />
+                </button>
+
+                {isFilterDropdownOpen && (
+                  <div className="absolute left-0 right-0 z-50 mt-1.5 rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                    {filterOptions.map((opt) => {
+                      const isSelected = selectedFilterKey === opt.key;
+                      const IconComponent = opt.icon;
+                      return (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => {
+                            setSelectedFilterKey(opt.key);
+                            setIsFilterDropdownOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                            isSelected 
+                              ? "bg-[#edf5ff] text-[#1b2748]" 
+                              : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2.5">
+                            <IconComponent className={`h-4 w-4 transition-colors duration-150 ${isSelected ? "text-[#2b7cf5]" : "text-[#8ea0bf]"}`} />
+                            {opt.label}
+                          </span>
+                          {isSelected && <CheckCircle2 className="h-4 w-4 text-[#2b7cf5]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* Global Actions Area */}
               <div className="flex gap-3 mt-4 border-b border-[#eef2f6] pb-4">
                 <button
@@ -3263,7 +3340,9 @@ export default function AddProductEditor({
 
               {/* Reusable Platform Cards */}
               <div className="mt-5 space-y-5">
-                {imageCards.map(({ key, label, image, note }) => {
+                {imageCards
+                  .filter(({ key }) => selectedFilterKey === "all" || key === selectedFilterKey)
+                  .map(({ key, label, image, note }) => {
                   const hasPath = Boolean(image?.absolute_path || image?.relative_path);
                   const isUploading = Boolean(imageUploadingMap[key]);
                   const isGeneratingThis = key !== "source" && key !== "transparent_cutout" && Boolean(marketImageGenerating[key as MarketKey]);
