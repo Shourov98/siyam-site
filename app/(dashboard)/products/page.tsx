@@ -28,7 +28,7 @@ function toCurrencyValue(value: string) {
     return "--";
   }
 
-  return `$ ${numeric.toFixed(2)}`;
+  return `£ ${numeric.toFixed(2)}`;
 }
 
 function toStockTone(value: number) {
@@ -327,7 +327,7 @@ export default function ProductsPage() {
                           <div className="relative mx-auto w-[112px]">
                             {canEdit && product.source === "shopify" ? (
                               <>
-                                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#95a1b8]">$</span>
+                                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#95a1b8]">£</span>
                                 <input
                                   className="h-8 w-full rounded-lg border border-[#cfd8e7] bg-white py-1 pl-6 pr-2 text-center text-sm text-[#3f4d65] outline-none transition focus:border-[#90a5cd]"
                                   onBlur={() => void saveShopifyPrice(product)}

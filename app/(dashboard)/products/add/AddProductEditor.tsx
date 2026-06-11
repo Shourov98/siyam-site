@@ -191,6 +191,8 @@ type SavedDraftSnapshot = {
   publishPrice: string;
   publishSku: string;
   publishStatus: PublishStatus;
+  publishStock: string;
+  publishOnOnlineStore: boolean;
   savedAt: string;
 };
 
@@ -689,6 +691,8 @@ export default function AddProductEditor({
   const [publishPrice, setPublishPrice] = useState("");
   const [publishSku, setPublishSku] = useState("");
   const [publishStatus, setPublishStatus] = useState<PublishStatus>("ACTIVE");
+  const [publishStock, setPublishStock] = useState("0");
+  const [publishOnOnlineStore, setPublishOnOnlineStore] = useState(true);
   const [publishAnalysis, setPublishAnalysis] = useState<ApiPublishTargetAnalysis | null>(null);
   const [shopifyProductId, setShopifyProductId] = useState<string | null>(null);
   const [shopifySubmitMode, setShopifySubmitMode] = useState<ShopifyUploadMode | null>(null);
@@ -715,10 +719,16 @@ export default function AddProductEditor({
   const statusDropdownRef = useRef<HTMLDivElement>(null);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
 
+  const onlineStoreDropdownRef = useRef<HTMLDivElement>(null);
+  const [isOnlineStoreDropdownOpen, setIsOnlineStoreDropdownOpen] = useState(false);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
         setIsStatusDropdownOpen(false);
+      }
+      if (onlineStoreDropdownRef.current && !onlineStoreDropdownRef.current.contains(event.target as Node)) {
+        setIsOnlineStoreDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -741,6 +751,8 @@ export default function AddProductEditor({
       publishPrice,
       publishSku,
       publishStatus,
+      publishStock,
+      publishOnOnlineStore,
       savedAt: new Date().toISOString(),
     };
   }
@@ -749,6 +761,29 @@ export default function AddProductEditor({
     publishAnalysisJobRef.current = null;
     setPublishAnalysis(null);
     setIsAnalyzingPublishTarget(false);
+  }
+
+  function updatePublishPrice(value: string) {
+    setPublishPrice(value);
+    setDraft((prev) => {
+      const nextAttributes = { ...prev.core.attributes };
+      if (value.trim()) {
+        nextAttributes.price = value.trim();
+      } else {
+        delete nextAttributes.price;
+      }
+
+      return {
+        ...prev,
+        core: {
+          ...prev.core,
+          attributes: nextAttributes,
+        },
+      };
+    });
+    if (publishFieldErrors.price && value.trim()) {
+      setPublishFieldErrors((prev) => ({ ...prev, price: false }));
+    }
   }
 
   function buildComparableDraftSignature(snapshot: SavedDraftSnapshot) {
@@ -763,6 +798,8 @@ export default function AddProductEditor({
       publishPrice: snapshot.publishPrice,
       publishSku: snapshot.publishSku,
       publishStatus: snapshot.publishStatus,
+      publishStock: snapshot.publishStock,
+      publishOnOnlineStore: snapshot.publishOnOnlineStore,
     });
   }
 
@@ -787,6 +824,8 @@ export default function AddProductEditor({
     setPublishPrice(snapshot.publishPrice);
     setPublishSku(snapshot.publishSku);
     setPublishStatus(snapshot.publishStatus);
+    setPublishStock(snapshot.publishStock ?? "0");
+    setPublishOnOnlineStore(snapshot.publishOnOnlineStore ?? true);
     setShopifyPublishMessage("");
     setHasSavedDraft(true);
     setDraftSaveState("saved");
@@ -810,6 +849,8 @@ export default function AddProductEditor({
     setPublishPrice("");
     setPublishSku("");
     setPublishStatus("ACTIVE");
+    setPublishStock("0");
+    setPublishOnOnlineStore(true);
     setShopifyPublishMessage("");
     clearPublishTargetAnalysis();
     setPublishFieldErrors(emptyPublishFieldErrors);
@@ -1312,12 +1353,13 @@ export default function AddProductEditor({
         status: resolvedStatus,
         tags: getPublishTags(),
         imagePath,
-        publishToOnlineStore: mode === "active",
+        publishToOnlineStore: mode === "active" && publishOnOnlineStore,
         variants: [
           {
             title: "Default Title",
             price: numericPrice.toFixed(2),
             sku: publishSku.trim() || undefined,
+            inventoryQuantity: Number(publishStock) || 0,
           },
         ],
       };
@@ -2556,7 +2598,7 @@ export default function AddProductEditor({
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-4 lg:grid-cols-3">
+              <div className="mt-5 grid gap-4 lg:grid-cols-4">
                 <EditableField
                   label="Vendor / Brand"
                   onChange={(value) => {
@@ -2581,34 +2623,6 @@ export default function AddProductEditor({
                   value={publishVendor}
                 />
                 <EditableField
-                  label="Default Price"
-                  helperText={publishFieldErrors.price ? "Required for Shopify publish." : undefined}
-                  invalid={publishFieldErrors.price}
-                  onChange={(value) => {
-                    setPublishPrice(value);
-                    setDraft((prev) => {
-                      const nextAttributes = { ...prev.core.attributes };
-                      if (value.trim()) {
-                        nextAttributes.price = value.trim();
-                      } else {
-                        delete nextAttributes.price;
-                      }
-
-                      return {
-                        ...prev,
-                        core: {
-                          ...prev.core,
-                          attributes: nextAttributes,
-                        },
-                      };
-                    });
-                    if (publishFieldErrors.price && value.trim()) {
-                      setPublishFieldErrors((prev) => ({ ...prev, price: false }));
-                    }
-                  }}
-                  value={publishPrice}
-                />
-                <EditableField
                   label="Default SKU"
                   onChange={(value) => {
                     setPublishSku(value);
@@ -2631,49 +2645,192 @@ export default function AddProductEditor({
                   }}
                   value={publishSku}
                 />
+                <div className={`block rounded-2xl border bg-[#f8fbff] p-4 ${publishFieldErrors.price ? "border-[#ef6b6b] bg-[#fff7f7]" : "border-[#dbe2ee]"}`}>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Default Price</p>
+                  {publishFieldErrors.price ? <p className="mt-1 text-xs text-[#cf4b4b]">Required for Shopify publish.</p> : null}
+                  <div className={`mt-2 flex h-11 w-full items-center rounded-xl border bg-white overflow-hidden transition-all focus-within:border-[#97abd0] ${publishFieldErrors.price ? "border-[#ef6b6b]" : "border-[#d4ddec]"}`}>
+                    {/* Decrement Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = parseFloat(publishPrice) || 0;
+                        const nextVal = Math.max(0, current - 1);
+                        updatePublishPrice(nextVal.toFixed(2));
+                      }}
+                      className="flex h-full w-10 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-[#d4ddec] select-none font-bold text-lg cursor-pointer"
+                    >
+                      &minus;
+                    </button>
+
+                    {/* Currency Symbol Prefix */}
+                    <span className="pl-3 text-sm font-semibold text-[#8ea0bf] select-none">
+                      £
+                    </span>
+                    
+                    {/* Numeric Input */}
+                    <input
+                      className="h-full flex-1 bg-transparent pl-1 pr-4 text-center text-sm font-semibold text-[#31415e] outline-none"
+                      onChange={(event) => {
+                        const val = event.target.value.replace(/[^0-9.]/g, "");
+                        const parts = val.split(".");
+                        if (parts.length > 2) {
+                          return;
+                        }
+                        updatePublishPrice(val);
+                      }}
+                      onBlur={() => {
+                        const parsed = parseFloat(publishPrice);
+                        if (!isNaN(parsed) && parsed >= 0) {
+                          updatePublishPrice(parsed.toFixed(2));
+                        }
+                      }}
+                      type="text"
+                      value={publishPrice}
+                    />
+
+                    {/* Increment Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = parseFloat(publishPrice) || 0;
+                        const nextVal = Math.max(0, current + 1);
+                        updatePublishPrice(nextVal.toFixed(2));
+                      }}
+                      className="flex h-full w-10 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-l border-[#d4ddec] select-none font-bold text-lg cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                <div className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Stock Count</p>
+                  <div className="mt-2 flex h-11 w-full items-center rounded-xl border border-[#d4ddec] bg-white overflow-hidden transition-all focus-within:border-[#97abd0]">
+                    {/* Decrement Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = parseInt(publishStock, 10) || 0;
+                        setPublishStock(Math.max(0, current - 1).toString());
+                      }}
+                      className="flex h-full w-10 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-[#d4ddec] select-none font-bold text-lg cursor-pointer"
+                    >
+                      &minus;
+                    </button>
+                    
+                    {/* Numeric Input */}
+                    <input
+                      className="h-full flex-1 bg-transparent px-3 text-center text-sm font-semibold text-[#31415e] outline-none"
+                      onChange={(event) => {
+                        const val = event.target.value.replace(/[^0-9]/g, "");
+                        setPublishStock(val || "0");
+                      }}
+                      type="text"
+                      value={publishStock}
+                    />
+
+                    {/* Increment Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = parseInt(publishStock, 10) || 0;
+                        setPublishStock((current + 1).toString());
+                      }}
+                      className="flex h-full w-10 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-l border-[#d4ddec] select-none font-bold text-lg cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4" ref={statusDropdownRef}>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Primary Upload Status</p>
-                  <p className="mt-1 text-xs text-[#8ea0bf]">`Upload to Shopify` always creates or updates an ACTIVE Shopify product. `Upload as Draft` always forces DRAFT.</p>
-                  
-                  {/* Dropdown Trigger */}
-                  <button
-                    type="button"
-                    onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                    className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-4 text-sm text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
-                  >
-                    <span>{publishStatus}</span>
-                    <ChevronDown className={`h-4 w-4 text-[#8ea0bf] transition-transform duration-200 ${isStatusDropdownOpen ? "transform rotate-180" : ""}`} />
-                  </button>
+                <div className="space-y-4">
+                  {/* Primary Upload Status */}
+                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4" ref={statusDropdownRef}>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Primary Upload Status</p>
+                    <p className="mt-1 text-xs text-[#8ea0bf]">`Upload to Shopify` always creates or updates an ACTIVE Shopify product. `Upload as Draft` always forces DRAFT.</p>
+                    
+                    {/* Dropdown Trigger */}
+                    <button
+                      type="button"
+                      onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                      className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-4 text-sm text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                    >
+                      <span>{publishStatus}</span>
+                      <ChevronDown className={`h-4 w-4 text-[#8ea0bf] transition-transform duration-200 ${isStatusDropdownOpen ? "transform rotate-180" : ""}`} />
+                    </button>
 
-                  {/* Dropdown Menu */}
-                  {isStatusDropdownOpen && (
-                    <div className="absolute left-4 right-4 z-30 mt-1.5 rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
-                      {publishStatusOptions.map((status) => {
-                        const isSelected = publishStatus === status;
-                        return (
-                          <button
-                            key={status}
-                            type="button"
-                            onClick={() => {
-                              setPublishStatus(status);
-                              setIsStatusDropdownOpen(false);
-                            }}
-                            className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 cursor-pointer ${
-                              isSelected 
-                                ? "bg-[#edf5ff] text-[#1b2748]" 
-                                : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
-                            }`}
-                          >
-                            <span>{status}</span>
-                            {isSelected && <CheckCircle2 className="h-4 w-4 text-[#2b7cf5]" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                    {/* Dropdown Menu */}
+                    {isStatusDropdownOpen && (
+                      <div className="absolute left-4 right-4 z-30 mt-1.5 rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                        {publishStatusOptions.map((status) => {
+                          const isSelected = publishStatus === status;
+                          return (
+                            <button
+                              key={status}
+                              type="button"
+                              onClick={() => {
+                                setPublishStatus(status);
+                                setIsStatusDropdownOpen(false);
+                              }}
+                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                                isSelected 
+                                  ? "bg-[#edf5ff] text-[#1b2748]" 
+                                  : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
+                              }`}
+                            >
+                              <span>{status}</span>
+                              {isSelected && <CheckCircle2 className="h-4 w-4 text-[#2b7cf5]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Publish to Online Store */}
+                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4" ref={onlineStoreDropdownRef}>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Publish to Online Store</p>
+                    <p className="mt-1 text-xs text-[#8ea0bf]">Controls storefront channel availability immediately upon upload.</p>
+                    
+                    {/* Dropdown Trigger */}
+                    <button
+                      type="button"
+                      onClick={() => setIsOnlineStoreDropdownOpen(!isOnlineStoreDropdownOpen)}
+                      className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-4 text-sm text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                    >
+                      <span>{publishOnOnlineStore ? "Yes" : "No"}</span>
+                      <ChevronDown className={`h-4 w-4 text-[#8ea0bf] transition-transform duration-200 ${isOnlineStoreDropdownOpen ? "transform rotate-180" : ""}`} />
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {isOnlineStoreDropdownOpen && (
+                      <div className="absolute left-4 right-4 z-30 mt-1.5 rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                        {["Yes", "No"].map((option) => {
+                          const optionVal = option === "Yes";
+                          const isSelected = publishOnOnlineStore === optionVal;
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => {
+                                setPublishOnOnlineStore(optionVal);
+                                setIsOnlineStoreDropdownOpen(false);
+                              }}
+                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                                isSelected 
+                                  ? "bg-[#edf5ff] text-[#1b2748]" 
+                                  : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
+                              }`}
+                            >
+                              <span>{option}</span>
+                              {isSelected && <CheckCircle2 className="h-4 w-4 text-[#2b7cf5]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <EditableField
@@ -2699,10 +2856,10 @@ export default function AddProductEditor({
                   {getEstimatedPriceRange() ? (
                     <>
                       <p className="mt-3 text-lg font-semibold text-[#31415e]">
-                        ${getEstimatedPriceRange()?.minimum.toFixed(2)} - ${getEstimatedPriceRange()?.maximum.toFixed(2)}
+                        £{getEstimatedPriceRange()?.minimum.toFixed(2)} - £{getEstimatedPriceRange()?.maximum.toFixed(2)}
                       </p>
                       <p className="mt-1 text-xs text-[#8ea0bf]">
-                        Recommended: ${getEstimatedPriceRange()?.recommended.toFixed(2)} | Source: {getEstimatedPriceRange()?.source}
+                        Recommended: £{getEstimatedPriceRange()?.recommended.toFixed(2)} | Source: {getEstimatedPriceRange()?.source}
                       </p>
                     </>
                   ) : (
@@ -2739,7 +2896,7 @@ export default function AddProductEditor({
                     </div>
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Default Price</p>
-                      <p className="mt-2 text-sm font-semibold text-[#31415e]">${publishAnalysis.default_price}</p>
+                      <p className="mt-2 text-sm font-semibold text-[#31415e]">£{publishAnalysis.default_price}</p>
                       <p className="mt-1 text-xs text-[#8ea0bf]">Default SKU: {publishAnalysis.default_sku}</p>
                     </div>
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
@@ -2750,10 +2907,10 @@ export default function AddProductEditor({
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Suggested Range</p>
                       <p className="mt-2 text-sm font-semibold text-[#31415e]">
-                        ${publishAnalysis.suggested_price_range?.minimum.toFixed(2)} - ${publishAnalysis.suggested_price_range?.maximum.toFixed(2)}
+                        £{publishAnalysis.suggested_price_range?.minimum.toFixed(2)} - £{publishAnalysis.suggested_price_range?.maximum.toFixed(2)}
                       </p>
                       <p className="mt-1 text-xs text-[#8ea0bf]">
-                        Recommended: ${publishAnalysis.suggested_price_range?.recommended.toFixed(2)}
+                        Recommended: £{publishAnalysis.suggested_price_range?.recommended.toFixed(2)}
                       </p>
                     </div>
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">

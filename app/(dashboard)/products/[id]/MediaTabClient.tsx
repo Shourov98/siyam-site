@@ -34,7 +34,7 @@ const initialVariants: Variant[] = [
     model: "Model X1 - 2023 Edition",
     color: "BLUE",
     sku: "WH-X1-BLK",
-    price: "$249.00",
+    price: "£249.00",
     stock: "124",
     baseMediaId: "front",
   },
@@ -44,7 +44,7 @@ const initialVariants: Variant[] = [
     model: "Model X1 - 2023 Edition",
     color: "GREEN",
     sku: "WH-X1-SLV",
-    price: "$249.00",
+    price: "£249.00",
     stock: "85",
     baseMediaId: "side",
   },
@@ -54,7 +54,7 @@ const initialVariants: Variant[] = [
     model: "Model X1 - 2023 Edition",
     color: "GREEN",
     sku: "WH-X1-SLV",
-    price: "$249.00",
+    price: "£249.00",
     stock: "85",
     baseMediaId: "side",
   },
@@ -64,7 +64,7 @@ const initialVariants: Variant[] = [
     model: "Model X1 - 2023 Edition",
     color: "RED",
     sku: "WH-X1-RGL",
-    price: "$249.00",
+    price: "£249.00",
     stock: "0",
   },
 ];
@@ -89,7 +89,7 @@ export default function MediaTabClient() {
     baseMediaId: "",
     color: "GREEN" as Variant["color"],
     sku: "",
-    price: "$249.00",
+    price: "£249.00",
     stock: "0",
   });
   const [channels, setChannels] = useState({
@@ -136,7 +136,7 @@ export default function MediaTabClient() {
       baseMediaId: mainMediaId || "",
       color: "GREEN",
       sku: "",
-      price: "$249.00",
+      price: "£249.00",
       stock: "0",
     });
     setIsVariantModalOpen(true);
@@ -164,7 +164,7 @@ export default function MediaTabClient() {
         baseMediaId: variantDraft.baseMediaId || undefined,
         color: variantDraft.color,
         sku: variantDraft.sku.trim(),
-        price: variantDraft.price.trim() || "$0.00",
+        price: variantDraft.price.trim() || "£0.00",
         stock: variantDraft.stock.trim() || "0",
       },
     ]);
@@ -188,7 +188,7 @@ export default function MediaTabClient() {
 
     setVariants((prev) =>
       prev.map((variant) =>
-        variant.id === id ? { ...variant, price: editDraft.price || "$0.00", stock: editDraft.stock || "0" } : variant,
+        variant.id === id ? { ...variant, price: editDraft.price || "£0.00", stock: editDraft.stock || "0" } : variant,
       ),
     );
     setEditingVariantId(null);

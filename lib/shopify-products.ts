@@ -14,6 +14,7 @@ export type ShopifyProductPayload = {
     title: string;
     price: string;
     sku?: string;
+    inventoryQuantity?: number;
   }>;
 };
 
