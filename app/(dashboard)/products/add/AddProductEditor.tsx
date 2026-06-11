@@ -145,45 +145,34 @@ type ApiRecord = {
   variants: Record<MarketKey, ApiVariant[]>;
 };
 
-type ApiRepricingDecision = {
-  recommended_price: number;
-  action: "lower" | "raise" | "hold";
-  strategy_used: string;
-  reason: string;
-  confidence: number;
-  margin_at_new_price: number;
-  guardrails_applied: boolean;
+type ApiSuggestedPriceRange = {
+  minimum: number;
+  maximum: number;
+  recommended: number;
+  currency: string;
+  source: string;
 };
 
-type ApiRepricingResult = {
-  asin: string;
-  product_name: string;
-  category: string;
-  marketplace: string;
-  timestamp: string;
-  demand_signal: string;
-  pricing: {
-    old_price: number;
-    new_price: number;
-    price_delta: number;
-    price_changed: boolean;
-    list_price: number;
-    cost_price: number;
-  };
-  ai_decision: ApiRepricingDecision;
-  data_source: string;
+type ApiPublishTargetAnalysis = {
+  marketplace: MarketKey;
+  vendor: string;
+  default_sku: string;
+  default_price: string;
+  publish_description: string;
+  suggested_price_range: ApiSuggestedPriceRange | null;
+  market_signal: string;
+  analysis_summary: string;
 };
 
-type ApiProductRepricing = {
+type ApiPublishTargetAnalysisJob = {
+  job_id: string;
   product_id: string;
-  matched_product: {
-    asin: string;
-    title: string;
-    category: string;
-    confidence: number;
-    source: string;
-  };
-  repricing: ApiRepricingResult;
+  marketplace: MarketKey;
+  status: "pending" | "running" | "completed" | "failed";
+  result: ApiPublishTargetAnalysis | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type MarketActionState = Record<MarketKey, boolean>;
@@ -693,17 +682,17 @@ export default function AddProductEditor({
   const [variantSubmitting, setVariantSubmitting] = useState<MarketActionState>(emptyActionState);
   const [isUploadingSourceImage, setIsUploadingSourceImage] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [isRepricing, setIsRepricing] = useState(false);
+  const [isAnalyzingPublishTarget, setIsAnalyzingPublishTarget] = useState(false);
   const [publishSubmitting, setPublishSubmitting] = useState<PublishActionState>(emptyPublishState);
   const [publishVendor, setPublishVendor] = useState("");
   const [publishDescription, setPublishDescription] = useState("");
   const [publishPrice, setPublishPrice] = useState("");
   const [publishSku, setPublishSku] = useState("");
   const [publishStatus, setPublishStatus] = useState<PublishStatus>("ACTIVE");
+  const [publishAnalysis, setPublishAnalysis] = useState<ApiPublishTargetAnalysis | null>(null);
   const [shopifyProductId, setShopifyProductId] = useState<string | null>(null);
   const [shopifySubmitMode, setShopifySubmitMode] = useState<ShopifyUploadMode | null>(null);
   const [shopifyPublishMessage, setShopifyPublishMessage] = useState("");
-  const [repricingResult, setRepricingResult] = useState<ApiProductRepricing | null>(null);
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [publishFieldErrors, setPublishFieldErrors] = useState<PublishFieldErrors>(emptyPublishFieldErrors);
@@ -721,6 +710,7 @@ export default function AddProductEditor({
   const [imageUploadingMap, setImageUploadingMap] = useState<Record<string, boolean>>({});
   const [draggingOverCardKey, setDraggingOverCardKey] = useState<ImageCardKey | null>(null);
   const manualUploadInputRef = useRef<HTMLInputElement>(null);
+  const publishAnalysisJobRef = useRef<string | null>(null);
 
   const statusDropdownRef = useRef<HTMLDivElement>(null);
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
@@ -753,6 +743,12 @@ export default function AddProductEditor({
       publishStatus,
       savedAt: new Date().toISOString(),
     };
+  }
+
+  function clearPublishTargetAnalysis() {
+    publishAnalysisJobRef.current = null;
+    setPublishAnalysis(null);
+    setIsAnalyzingPublishTarget(false);
   }
 
   function buildComparableDraftSignature(snapshot: SavedDraftSnapshot) {
@@ -815,7 +811,7 @@ export default function AddProductEditor({
     setPublishSku("");
     setPublishStatus("ACTIVE");
     setShopifyPublishMessage("");
-    setRepricingResult(null);
+    clearPublishTargetAnalysis();
     setPublishFieldErrors(emptyPublishFieldErrors);
     setVariantInputs({
       amazon: { size: "", color: "" },
@@ -1020,7 +1016,7 @@ export default function AddProductEditor({
 
         setProductId(record.id);
         setShopifyProductId(null);
-        setRepricingResult(null);
+        clearPublishTargetAnalysis();
         setDraft(record.product);
         setVariantsByMarket(record.variants);
         setSourceTitle(record.product.core.source_title);
@@ -1182,7 +1178,7 @@ export default function AddProductEditor({
     setPublishPrice((current) => current || record.product.core.attributes.price || "");
     setPublishDescription((current) => current || record.product.shopify.body_html || record.product.core.product_summary || "");
     setPublishSku((current) => current || record.id.slice(0, 12).toUpperCase());
-    setRepricingResult(null);
+    clearPublishTargetAnalysis();
     setDraftSaveState("saved");
     setStatusMessage(message);
   }
@@ -1210,18 +1206,12 @@ export default function AddProductEditor({
   }
 
   function getEstimatedPriceRange() {
-    if (!repricingResult) {
+    const range = publishAnalysis?.suggested_price_range ?? null;
+    if (!range) {
       return null;
     }
 
-    const oldPrice = repricingResult.repricing.pricing.old_price;
-    const costPrice = repricingResult.repricing.pricing.cost_price;
-    const minimum = Math.max(costPrice * 1.15, oldPrice * 0.8);
-    const maximum = oldPrice * 1.2;
-    return {
-      minimum: minimum.toFixed(2),
-      maximum: maximum.toFixed(2),
-    };
+    return range;
   }
 
   function getPublishVendor() {
@@ -1415,7 +1405,7 @@ export default function AddProductEditor({
 
       const record = (await response.json()) as ApiRecord;
       setShopifyProductId(null);
-      setRepricingResult(null);
+      clearPublishTargetAnalysis();
       applyRecord(record, successMessage);
       router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
       return true;
@@ -1497,7 +1487,7 @@ export default function AddProductEditor({
 
       const record = (await response.json()) as ApiRecord;
       setShopifyProductId(null);
-      setRepricingResult(null);
+      clearPublishTargetAnalysis();
       applyRecord(record, successMessage);
       clearSelectedImageSelection();
       router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
@@ -1674,46 +1664,129 @@ export default function AddProductEditor({
       return;
     }
 
-    setIsRepricing(true);
+    setIsAnalyzingPublishTarget(true);
+    setPublishAnalysis(null);
+    publishAnalysisJobRef.current = null;
+    const requestedProductId = productId;
+    const marketplace = activeMarket;
     try {
-      const response = await fetch(`/api/product-ai/products/${productId}/repricing`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `/api/product-ai/products/${requestedProductId}/marketplaces/${marketplace}/publish-target/analyze`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            marketplace,
+            product_identity: {
+              normalized_title: draft.core.normalized_title || undefined,
+              source_title: draft.core.source_title || undefined,
+              category: draft.core.category || undefined,
+              product_type: draft.core.product_type || undefined,
+              product_summary: draft.core.product_summary || undefined,
+              features: draft.core.features.length ? draft.core.features : undefined,
+              attributes: Object.keys(draft.core.attributes).length ? draft.core.attributes : undefined,
+            },
+            publish_fields: {
+              vendor: getPublishVendor() || undefined,
+              default_price: publishPrice.trim() || undefined,
+              default_sku: publishSku.trim() || undefined,
+              publish_description: getPublishDescription() || undefined,
+              publish_title: getPublishTitle() || undefined,
+            },
+          }),
         },
-        body: JSON.stringify({
-          strategy: "auto",
-          dry_run: true,
-        }),
-      });
+      );
 
       if (!response.ok) {
         const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(errorBody?.detail ?? "Could not analyze dynamic pricing.");
+        throw new Error(errorBody?.detail ?? "Could not analyze publish target.");
       }
 
-      const result = (await response.json()) as ApiProductRepricing;
-      const recommendedPrice = result.repricing.ai_decision.recommended_price.toFixed(2);
-      setRepricingResult(result);
-      setPublishPrice(recommendedPrice);
-      setDraft((prev) => ({
-        ...prev,
-        core: {
-          ...prev.core,
-          attributes: {
-            ...prev.core.attributes,
-            price: recommendedPrice,
-          },
-        },
-      }));
-      setPublishFieldErrors((prev) => ({ ...prev, price: false }));
-      setStatusMessage(
-        `Dynamic pricing analyzed from matched ASIN ${result.matched_product.asin}. Default price updated to ${recommendedPrice}.`,
-      );
+      const job = (await response.json()) as ApiPublishTargetAnalysisJob;
+      publishAnalysisJobRef.current = job.job_id;
+      if (job.status === "failed") {
+        publishAnalysisJobRef.current = null;
+        throw new Error(job.error ?? "Could not analyze publish target.");
+      }
+
+      if (job.status === "completed" && job.result) {
+        setPublishAnalysis(job.result);
+        applyPublishTargetAnalysis(job.result);
+        setStatusMessage(job.result.analysis_summary || `Publish target analyzed for ${marketLabels[marketplace]}.`);
+        publishAnalysisJobRef.current = null;
+        return;
+      }
+
+      await pollPublishTargetAnalysisJob(job.job_id, marketplace, requestedProductId);
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Could not analyze dynamic pricing.");
+      publishAnalysisJobRef.current = null;
+      setStatusMessage(error instanceof Error ? error.message : "Could not analyze publish target.");
     } finally {
-      setIsRepricing(false);
+      setIsAnalyzingPublishTarget(false);
+    }
+  }
+
+  function applyPublishTargetAnalysis(result: ApiPublishTargetAnalysis) {
+    setPublishVendor(result.vendor);
+    setPublishPrice(result.default_price);
+    setPublishSku(result.default_sku);
+    setPublishDescription(result.publish_description);
+    setDraft((prev) => ({
+      ...prev,
+      core: {
+        ...prev.core,
+        attributes: {
+          ...prev.core.attributes,
+          brand: result.vendor,
+          price: result.default_price,
+        },
+      },
+      shopify: {
+        ...prev.shopify,
+        body_html: result.publish_description,
+      },
+    }));
+    setPublishFieldErrors((prev) => ({ ...prev, price: false }));
+  }
+
+  async function pollPublishTargetAnalysisJob(jobId: string, marketplace: MarketKey, requestedProductId: string) {
+    while (publishAnalysisJobRef.current === jobId) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1500));
+
+      const response = await fetch(
+        `/api/product-ai/products/${requestedProductId}/marketplaces/${marketplace}/publish-target/jobs/${jobId}`,
+        { cache: "no-store" },
+      );
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not load publish target analysis job status.");
+      }
+
+      const job = (await response.json()) as ApiPublishTargetAnalysisJob;
+      if (publishAnalysisJobRef.current !== jobId || productId !== requestedProductId) {
+        return;
+      }
+
+      if (job.status === "failed") {
+        publishAnalysisJobRef.current = null;
+        throw new Error(job.error ?? "Could not analyze publish target.");
+      }
+
+      if (job.status === "completed") {
+        if (!job.result) {
+          publishAnalysisJobRef.current = null;
+          throw new Error("Publish target analysis completed without a result.");
+        }
+
+        setPublishAnalysis(job.result);
+        applyPublishTargetAnalysis(job.result);
+        setStatusMessage(job.result.analysis_summary || `Publish target analyzed for ${marketLabels[marketplace]}.`);
+        publishAnalysisJobRef.current = null;
+        return;
+      }
     }
   }
 
@@ -2619,15 +2692,17 @@ export default function AddProductEditor({
                 <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Suggested Price Range</p>
                   <p className="mt-1 text-xs text-[#8ea0bf]">
-                    {repricingResult ? "Estimated convenience range based on current repricing guardrails." : "Run dynamic pricing to calculate a recommended convenience range."}
+                    {getEstimatedPriceRange()
+                      ? `Estimated from ${publishAnalysis?.suggested_price_range?.source ?? "market research"} for ${marketLabels[activeMarket]}.`
+                      : "Run dynamic pricing to calculate a recommended convenience range."}
                   </p>
                   {getEstimatedPriceRange() ? (
                     <>
                       <p className="mt-3 text-lg font-semibold text-[#31415e]">
-                        ${getEstimatedPriceRange()?.minimum} - ${getEstimatedPriceRange()?.maximum}
+                        ${getEstimatedPriceRange()?.minimum.toFixed(2)} - ${getEstimatedPriceRange()?.maximum.toFixed(2)}
                       </p>
                       <p className="mt-1 text-xs text-[#8ea0bf]">
-                        Recommended: ${repricingResult?.repricing.ai_decision.recommended_price.toFixed(2)}
+                        Recommended: ${getEstimatedPriceRange()?.recommended.toFixed(2)} | Source: {getEstimatedPriceRange()?.source}
                       </p>
                     </>
                   ) : (
@@ -2641,61 +2716,56 @@ export default function AddProductEditor({
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Dynamic Pricing</p>
                     <p className="mt-1 text-sm text-[#6f82a3]">
-                      Match this generated product to the repricing dataset and calculate a recommended sell price.
+                      Analyze the current draft and selected marketplace to calculate a recommended sell price.
                     </p>
                   </div>
                   <button
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={!hasPersistedProduct || isRepricing}
+                    disabled={!hasPersistedProduct || isAnalyzingPublishTarget}
                     onClick={() => void analyzeDynamicPricing()}
                     type="button"
                   >
-                    {isRepricing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                    {isRepricing ? "Analyzing..." : "Analyze Dynamic Pricing"}
+                    {isAnalyzingPublishTarget ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                    {isAnalyzingPublishTarget ? "Analyzing..." : "Analyze Dynamic Pricing"}
                   </button>
                 </div>
 
-                {repricingResult ? (
+                {publishAnalysis ? (
                   <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Matched ASIN</p>
-                      <p className="mt-2 text-sm font-semibold text-[#31415e]">{repricingResult.matched_product.asin}</p>
-                      <p className="mt-1 text-xs text-[#8ea0bf]">{Math.round(repricingResult.matched_product.confidence * 100)}% confidence</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Marketplace</p>
+                      <p className="mt-2 text-sm font-semibold text-[#31415e]">{marketLabels[publishAnalysis.marketplace]}</p>
+                      <p className="mt-1 text-xs text-[#8ea0bf]">Source: {publishAnalysis.suggested_price_range?.source ?? "market_research"}</p>
                     </div>
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Recommended Price</p>
-                      <p className="mt-2 text-sm font-semibold text-[#31415e]">${repricingResult.repricing.ai_decision.recommended_price.toFixed(2)}</p>
-                      <p className="mt-1 text-xs text-[#8ea0bf]">
-                        {repricingResult.repricing.ai_decision.action} from ${repricingResult.repricing.pricing.old_price.toFixed(2)}
-                      </p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Default Price</p>
+                      <p className="mt-2 text-sm font-semibold text-[#31415e]">${publishAnalysis.default_price}</p>
+                      <p className="mt-1 text-xs text-[#8ea0bf]">Default SKU: {publishAnalysis.default_sku}</p>
                     </div>
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Strategy</p>
-                      <p className="mt-2 text-sm font-semibold capitalize text-[#31415e]">
-                        {repricingResult.repricing.ai_decision.strategy_used.replaceAll("_", " ")}
-                      </p>
-                      <p className="mt-1 text-xs text-[#8ea0bf]">{repricingResult.repricing.demand_signal} demand</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Vendor / Brand</p>
+                      <p className="mt-2 text-sm font-semibold text-[#31415e]">{publishAnalysis.vendor}</p>
+                      <p className="mt-1 text-xs text-[#8ea0bf]">{publishAnalysis.market_signal || "Market signal available after analysis."}</p>
                     </div>
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Margin</p>
-                      <p className="mt-2 text-sm font-semibold text-[#31415e]">{repricingResult.repricing.ai_decision.margin_at_new_price}%</p>
-                      <p className="mt-1 text-xs text-[#8ea0bf]">Source: {repricingResult.repricing.data_source}</p>
-                    </div>
-                    <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Guardrails</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Suggested Range</p>
                       <p className="mt-2 text-sm font-semibold text-[#31415e]">
-                        {repricingResult.repricing.ai_decision.guardrails_applied ? "Adjusted" : "Clean"}
+                        ${publishAnalysis.suggested_price_range?.minimum.toFixed(2)} - ${publishAnalysis.suggested_price_range?.maximum.toFixed(2)}
                       </p>
                       <p className="mt-1 text-xs text-[#8ea0bf]">
-                        Delta ${repricingResult.repricing.pricing.price_delta.toFixed(2)}
+                        Recommended: ${publishAnalysis.suggested_price_range?.recommended.toFixed(2)}
                       </p>
+                    </div>
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Publish Description</p>
+                      <p className="mt-2 line-clamp-4 text-sm leading-6 text-[#31415e]">{publishAnalysis.publish_description}</p>
                     </div>
                   </div>
                 ) : null}
 
-                {repricingResult ? (
+                {publishAnalysis ? (
                   <div className="mt-3 rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-sm leading-6 text-[#667a99]">
-                    {repricingResult.repricing.ai_decision.reason}
+                    {publishAnalysis.analysis_summary}
                   </div>
                 ) : null}
               </div>
