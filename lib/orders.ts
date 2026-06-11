@@ -1,6 +1,4 @@
-import { getStoredAccessToken, requestWithAuth } from "@/lib/auth";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5000/api/v1";
+import { requestWithAuth } from "@/lib/auth";
 
 export type OrderStatus = "Pending" | "Shipped" | "Delivered" | "Cancelled";
 
@@ -105,8 +103,6 @@ const buildQueryString = (params?: OrderListParams) => {
   return queryString ? `?${queryString}` : "";
 };
 
-const buildUrl = (path: string) => `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
-
 export const ordersApi = {
   getOrders(params?: OrderListParams) {
     return requestWithAuth<OrderListResponse>(`/orders${buildQueryString(params)}`);
@@ -151,15 +147,8 @@ export const ordersApi = {
   },
 
   async exportCsv(params?: OrderListParams) {
-    const token = getStoredAccessToken();
-    if (!token) {
-      throw new Error("Authentication is required.");
-    }
-
-    const response = await fetch(buildUrl(`/orders/export.csv${buildQueryString(params)}`), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+    const response = await fetch(`/api/backend/orders/export.csv${buildQueryString(params)}`, {
+      credentials: "same-origin",
     });
 
     if (!response.ok) {

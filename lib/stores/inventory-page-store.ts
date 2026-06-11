@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { ApiClientError } from "@/lib/auth";
+import { ApiClientError, AUTH_REQUIRED_MESSAGE, isAuthRequiredError } from "@/lib/auth";
 import { productsApi, type InventoryRecord, type ProductListItem, type ShopifyInventoryLevel } from "@/lib/products";
 
 export type InventoryRow = {
@@ -145,6 +145,13 @@ async function fetchInventoryData() {
   return mapInventoryRows(inventory, products, liveInventory);
 }
 
+const resetInventoryState = () => ({
+  items: [],
+  hasLoadedOnce: false,
+  lastLoadedAt: null,
+  rowFeedbackById: {},
+});
+
 export const useInventoryPageStore = create<InventoryPageState>()(
   persist(
     (set, get) => ({
@@ -184,6 +191,14 @@ export const useInventoryPageStore = create<InventoryPageState>()(
             pageMessage: "",
           });
         } catch (error) {
+          if (isAuthRequiredError(error)) {
+            set({
+              ...resetInventoryState(),
+              pageMessage: AUTH_REQUIRED_MESSAGE,
+            });
+            return;
+          }
+
           set({
             pageMessage: error instanceof ApiClientError ? error.message : "Could not load inventory.",
           });
@@ -203,6 +218,14 @@ export const useInventoryPageStore = create<InventoryPageState>()(
               staleCount > 0 ? `Inventory refreshed. ${staleCount} stale rows hidden.` : `Imported ${result.count} Shopify products and refreshed inventory.`,
           });
         } catch (error) {
+          if (isAuthRequiredError(error)) {
+            set({
+              ...resetInventoryState(),
+              pageMessage: AUTH_REQUIRED_MESSAGE,
+            });
+            return;
+          }
+
           set({
             pageMessage: error instanceof ApiClientError ? error.message : "Could not import Shopify inventory.",
           });

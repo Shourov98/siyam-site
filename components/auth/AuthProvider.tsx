@@ -11,7 +11,7 @@ type AuthContextValue = {
   accessToken: string | null;
   login: (input: { email: string; password: string }) => Promise<void>;
   register: (input: { firstName: string; lastName: string; email: string; password: string }) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -21,24 +21,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    const storedSession = authStorage.load();
+    let active = true;
 
-    startTransition(() => {
-      setSession(storedSession);
-      setInitialized(true);
-    });
+    void authApi
+      .getSession()
+      .then((result) => {
+        if (!active) {
+          return;
+        }
+
+        startTransition(() => {
+          if (result.user) {
+            const nextSession = { user: result.user };
+            authStorage.save(nextSession);
+            setSession(nextSession);
+          } else {
+            authStorage.clear();
+            setSession(null);
+          }
+          setInitialized(true);
+        });
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        startTransition(() => {
+          authStorage.clear();
+          setSession(null);
+          setInitialized(true);
+        });
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // Ignore logout failures and clear local state anyway.
+    }
     authStorage.clear();
     setSession(null);
   };
 
   const value: AuthContextValue = {
     initialized,
-    isAuthenticated: Boolean(session?.accessToken),
+    isAuthenticated: Boolean(session?.user),
     user: session?.user ?? null,
-    accessToken: session?.accessToken ?? null,
+    accessToken: null,
     async login(input) {
       const nextSession = await authApi.login(input);
       authStorage.save(nextSession);
