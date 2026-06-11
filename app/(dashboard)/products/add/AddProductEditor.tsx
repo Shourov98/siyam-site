@@ -496,12 +496,14 @@ function ProductPreview({
   image,
   alt,
   backgroundLabel,
+  previewSrc,
 }: {
   image: ApiImageVariant | null;
   alt: string;
   backgroundLabel: string;
+  previewSrc?: string | null;
 }) {
-  const src = image ? imageUrlFor(image.absolute_path) : null;
+  const src = previewSrc ?? (image ? imageUrlFor(image.absolute_path) : null);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const hasLoadError = Boolean(src && failedSrc === src);
 
@@ -944,6 +946,19 @@ export default function AddProductEditor({
     }, 0);
   }, [draft, hasInitializedDraftStorage, productId, publishDescription, publishPrice, publishSku, publishStatus, publishVendor, shopifyProductId, sourceTitle, variantsByMarket]);
 
+  const selectedImagePreviewUrl = useMemo(
+    () => (selectedImage ? URL.createObjectURL(selectedImage) : null),
+    [selectedImage],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (selectedImagePreviewUrl) {
+        URL.revokeObjectURL(selectedImagePreviewUrl);
+      }
+    };
+  }, [selectedImagePreviewUrl]);
+
   const currentDraftComparableSignature = useMemo(
     () =>
       buildComparableDraftSignature({
@@ -1030,6 +1045,16 @@ export default function AddProductEditor({
     setRepricingResult(null);
     setDraftSaveState("saved");
     setStatusMessage(message);
+  }
+
+  function clearSelectedImageSelection() {
+    setSelectedImage(null);
+    if (uploadInputRef.current) {
+      uploadInputRef.current.value = "";
+    }
+    if (productImageUploadInputRef.current) {
+      productImageUploadInputRef.current.value = "";
+    }
   }
 
   function getPublishTitle() {
@@ -1221,15 +1246,15 @@ export default function AddProductEditor({
     }
   }
 
-  async function generateProduct() {
+  async function generateProduct(successMessage = "AI draft generated and connected to the add-product page.") {
     if (!selectedImage) {
       setStatusMessage("Upload a product image before generating.");
-      return;
+      return false;
     }
 
     if (!sourceTitle.trim()) {
       setStatusMessage("Add a source title before generating.");
-      return;
+      return false;
     }
 
     const formData = new FormData();
@@ -1251,10 +1276,12 @@ export default function AddProductEditor({
       const record = (await response.json()) as ApiRecord;
       setShopifyProductId(null);
       setRepricingResult(null);
-      applyRecord(record, "AI draft generated and connected to the add-product page.");
+      applyRecord(record, successMessage);
       router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
+      return true;
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Product generation failed.");
+      return false;
     } finally {
       setIsGenerating(false);
     }
@@ -1532,13 +1559,7 @@ export default function AddProductEditor({
 
       const record = (await response.json()) as ApiRecord;
       applyRecord(record, successMessage);
-      setSelectedImage(null);
-      if (uploadInputRef.current) {
-        uploadInputRef.current.value = "";
-      }
-      if (productImageUploadInputRef.current) {
-        productImageUploadInputRef.current.value = "";
-      }
+      clearSelectedImageSelection();
       return true;
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Could not upload the source image.");
@@ -1554,6 +1575,14 @@ export default function AddProductEditor({
       return;
     }
 
+    if (!productId) {
+      const generated = await generateProduct("Source image received and the new AI draft is ready.");
+      if (generated) {
+        clearSelectedImageSelection();
+      }
+      return;
+    }
+
     await uploadSelectedSourceImage(
       selectedImage,
       "Source image uploaded. Transparent cutout was refreshed and marketplace images are ready for on-demand generation.",
@@ -1562,7 +1591,13 @@ export default function AddProductEditor({
 
   async function regenerateMarketplaceImage(market: MarketKey) {
     if (!productId) {
-      setStatusMessage("Generate or load a product draft before creating marketplace images.");
+      const generated = await generateProduct(
+        `${marketLabels[market]} image generated and the new product draft is now ready for per-marketplace regeneration.`,
+      );
+
+      if (generated) {
+        clearSelectedImageSelection();
+      }
       return;
     }
 
@@ -2428,14 +2463,20 @@ export default function AddProductEditor({
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-[#20314d]">{label}</p>
-                        <p className="mt-1 text-xs text-[#8597b5]">{image?.generation_mode ?? "not_generated"}</p>
+                        <p className="mt-1 text-xs text-[#8597b5]">
+                          {key === "source" && selectedImagePreviewUrl && !image?.absolute_path
+                            ? "selected_local_file"
+                            : image?.generation_mode ?? "not_generated"}
+                        </p>
                       </div>
                       <span
                         className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          image?.validation.passed ? "bg-[#def7ea] text-[#2ba66d]" : "bg-[#fff4d6] text-[#c48a07]"
+                          image?.validation.passed || (key === "source" && selectedImagePreviewUrl)
+                            ? "bg-[#def7ea] text-[#2ba66d]"
+                            : "bg-[#fff4d6] text-[#c48a07]"
                         }`}
                       >
-                        {image?.validation.passed ? "Ready" : "Review"}
+                        {image?.validation.passed ? "Ready" : key === "source" && selectedImagePreviewUrl ? "Selected" : "Review"}
                       </span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -2451,7 +2492,7 @@ export default function AddProductEditor({
                           </button>
                           <button
                             className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#172544] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                            disabled={!hasPersistedProduct || !selectedImage || isUploadingSourceImage}
+                            disabled={!selectedImage || isUploadingSourceImage || isGenerating}
                             onClick={() => void uploadProductSourceImage()}
                             type="button"
                           >
@@ -2463,7 +2504,7 @@ export default function AddProductEditor({
                       {key !== "source" && key !== "transparent_cutout" ? (
                         <button
                           className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={!hasPersistedProduct || marketImageGenerating[key] || isUploadingSourceImage}
+                          disabled={marketImageGenerating[key] || isUploadingSourceImage || isGenerating}
                           onClick={() => void regenerateMarketplaceImage(key)}
                           type="button"
                         >
@@ -2481,12 +2522,17 @@ export default function AddProductEditor({
                         alt={label}
                         backgroundLabel={image?.validation.expected_background ?? "Image"}
                         image={image}
+                        previewSrc={key === "source" && !image?.absolute_path ? selectedImagePreviewUrl : null}
                       />
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-[#5f7293]">
                       <div className="rounded-xl bg-white px-3 py-2">
                         <p className="font-semibold text-[#8ea0bf]">Background</p>
-                        <p className="mt-1 text-sm text-[#31415e]">{image?.validation.expected_background ?? "unknown"}</p>
+                        <p className="mt-1 text-sm text-[#31415e]">
+                          {key === "source" && selectedImagePreviewUrl && !image?.validation.expected_background
+                            ? "selected upload"
+                            : image?.validation.expected_background ?? "unknown"}
+                        </p>
                       </div>
                       <div className="rounded-xl bg-white px-3 py-2">
                         <p className="font-semibold text-[#8ea0bf]">Size</p>
