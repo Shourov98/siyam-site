@@ -1818,8 +1818,8 @@ export default function AddProductEditor({
           </div>
         </header>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_380px]">
-          <div className="space-y-5">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_380px] xl:h-[calc(100vh-168px)] xl:overflow-hidden">
+          <div className="space-y-5 xl:h-full xl:overflow-y-auto xl:pr-2">
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eaf3ff] text-[#4d77bc]">
@@ -2481,7 +2481,7 @@ export default function AddProductEditor({
             </article>
           </div>
 
-          <aside className="space-y-5 xl:sticky xl:top-[116px] xl:max-h-[calc(100vh-140px)] xl:overflow-y-auto xl:pr-2">
+          <aside className="space-y-5 xl:h-full xl:overflow-y-auto xl:pr-2">
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eefaf7] text-[#2dc7c3]">

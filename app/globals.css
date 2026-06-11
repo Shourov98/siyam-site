@@ -173,3 +173,29 @@ p {
   animation: glowball-shadow-pulse 6s ease-in-out infinite;
   will-change: box-shadow;
 }
+
+/* Premium Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(142, 160, 191, 0.3); /* Subtle theme-matching slate-blue */
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(142, 160, 191, 0.6);
+}
+
+/* Firefox scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(142, 160, 191, 0.3) transparent;
+}
