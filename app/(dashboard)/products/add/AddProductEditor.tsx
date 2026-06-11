@@ -1287,6 +1287,51 @@ export default function AddProductEditor({
     }
   }
 
+  async function generateMarketplaceDraft(
+    market: MarketKey,
+    successMessage = `${marketLabels[market]} image generated and the new product draft is ready.`,
+  ) {
+    if (!selectedImage) {
+      setStatusMessage("Upload a product image before generating.");
+      return false;
+    }
+
+    if (!sourceTitle.trim()) {
+      setStatusMessage("Add a source title before generating.");
+      return false;
+    }
+
+    const formData = new FormData();
+    formData.append("title", sourceTitle.trim());
+    formData.append("image", selectedImage);
+
+    setMarketImageGenerating((prev) => ({ ...prev, [market]: true }));
+    try {
+      const response = await fetch(`/api/product-ai/products/generate/${market}`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} image.`);
+      }
+
+      const record = (await response.json()) as ApiRecord;
+      setShopifyProductId(null);
+      setRepricingResult(null);
+      applyRecord(record, successMessage);
+      clearSelectedImageSelection();
+      router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
+      return true;
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} image.`);
+      return false;
+    } finally {
+      setMarketImageGenerating((prev) => ({ ...prev, [market]: false }));
+    }
+  }
+
   async function saveDraft() {
     persistDraftSnapshot(buildDraftSnapshot());
     setDraftSaveState("saving");
@@ -1576,10 +1621,7 @@ export default function AddProductEditor({
     }
 
     if (!productId) {
-      const generated = await generateProduct("Source image received and the new AI draft is ready.");
-      if (generated) {
-        clearSelectedImageSelection();
-      }
+      setStatusMessage("Single-market generation is not available before the first AI draft exists. Click Generate AI once, then generate each marketplace separately.");
       return;
     }
 
@@ -1591,13 +1633,7 @@ export default function AddProductEditor({
 
   async function regenerateMarketplaceImage(market: MarketKey) {
     if (!productId) {
-      const generated = await generateProduct(
-        `${marketLabels[market]} image generated and the new product draft is now ready for per-marketplace regeneration.`,
-      );
-
-      if (generated) {
-        clearSelectedImageSelection();
-      }
+      await generateMarketplaceDraft(market);
       return;
     }
 
