@@ -984,8 +984,8 @@ export default function AddProductEditor({
     [draft.images],
   );
 
-  const hasGeneratedCutout = Boolean(
-    draft.images.transparent_cutout?.absolute_path || draft.images.transparent_cutout?.relative_path,
+  const hasSourceImage = Boolean(
+    draft.images.source?.absolute_path || draft.images.source?.relative_path,
   );
 
   function buildCoreDraftForSave() {
@@ -1509,19 +1509,14 @@ export default function AddProductEditor({
     }
   }
 
-  async function uploadProductSourceImage() {
+  async function uploadSelectedSourceImage(file: File, successMessage: string) {
     if (!productId) {
       setStatusMessage("Generate or load a product draft before uploading a source image.");
-      return;
-    }
-
-    if (!selectedImage) {
-      setStatusMessage("Choose a source image first.");
-      return;
+      return false;
     }
 
     const formData = new FormData();
-    formData.append("image", selectedImage);
+    formData.append("image", file);
 
     setIsUploadingSourceImage(true);
     try {
@@ -1536,10 +1531,7 @@ export default function AddProductEditor({
       }
 
       const record = (await response.json()) as ApiRecord;
-      applyRecord(
-        record,
-        "Source image uploaded. Transparent cutout was refreshed and marketplace images are ready for on-demand generation.",
-      );
+      applyRecord(record, successMessage);
       setSelectedImage(null);
       if (uploadInputRef.current) {
         uploadInputRef.current.value = "";
@@ -1547,11 +1539,25 @@ export default function AddProductEditor({
       if (productImageUploadInputRef.current) {
         productImageUploadInputRef.current.value = "";
       }
+      return true;
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Could not upload the source image.");
+      return false;
     } finally {
       setIsUploadingSourceImage(false);
     }
+  }
+
+  async function uploadProductSourceImage() {
+    if (!selectedImage) {
+      setStatusMessage("Choose a source image first.");
+      return;
+    }
+
+    await uploadSelectedSourceImage(
+      selectedImage,
+      "Source image uploaded. Transparent cutout was refreshed and marketplace images are ready for on-demand generation.",
+    );
   }
 
   async function regenerateMarketplaceImage(market: MarketKey) {
@@ -1560,9 +1566,20 @@ export default function AddProductEditor({
       return;
     }
 
-    if (!hasGeneratedCutout) {
-      setStatusMessage("Upload a source image first so the transparent cutout can be created.");
-      return;
+    if (!hasSourceImage) {
+      if (!selectedImage) {
+        setStatusMessage("Upload a source image first, then generate the marketplace image you want.");
+        return;
+      }
+
+      const uploadSucceeded = await uploadSelectedSourceImage(
+        selectedImage,
+        `Source image uploaded. Generating the ${marketLabels[market]} image now...`,
+      );
+
+      if (!uploadSucceeded) {
+        return;
+      }
     }
 
     setMarketImageGenerating((prev) => ({ ...prev, [market]: true }));
@@ -1577,7 +1594,10 @@ export default function AddProductEditor({
       }
 
       const record = (await response.json()) as ApiRecord;
-      applyRecord(record, `${marketLabels[market]} image generated from the transparent cutout.`);
+      applyRecord(
+        record,
+        `${marketLabels[market]} image generated for the selected marketplace.`,
+      );
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} image.`);
     } finally {
@@ -2443,7 +2463,7 @@ export default function AddProductEditor({
                       {key !== "source" && key !== "transparent_cutout" ? (
                         <button
                           className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={!hasPersistedProduct || !hasGeneratedCutout || marketImageGenerating[key]}
+                          disabled={!hasPersistedProduct || marketImageGenerating[key] || isUploadingSourceImage}
                           onClick={() => void regenerateMarketplaceImage(key)}
                           type="button"
                         >
