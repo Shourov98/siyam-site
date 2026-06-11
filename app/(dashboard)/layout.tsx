@@ -18,7 +18,7 @@ export default async function DashboardLayout({
   return (
     <AuthGuard>
       <div className="min-h-screen bg-[#f2f5fa] text-[#1d2a45]">
-        <div className="flex w-full">
+        <div className="flex flex-col md:flex-row w-full">
           <DashboardSidebar />
           <main className="min-w-0 flex-1">{children}</main>
         </div>

@@ -294,10 +294,12 @@ export default function DashboardHeroGraphic() {
   }, [overview]);
 
   const [amounts, setAmounts] = useState<Record<ChannelKey, number>>(initialAmounts);
+  const [prevOverview, setPrevOverview] = useState(overview);
 
-  useEffect(() => {
+  if (overview !== prevOverview) {
+    setPrevOverview(overview);
     setAmounts(initialAmounts);
-  }, [initialAmounts]);
+  }
 
   useEffect(() => {
     const timers = (Object.keys(CHANNEL_METRICS) as ChannelKey[]).map((key) =>

@@ -1679,7 +1679,7 @@ export default function AddProductEditor({
   const currentVariants = variantsByMarket[activeMarket] ?? [];
 
   return (
-    <section className="px-4 py-5 md:px-8 md:py-8">
+    <section className="px-4 pt-1 pb-5 md:px-8 md:pt-4 md:pb-8">
       <input
         accept="image/*"
         className="hidden"
@@ -2481,7 +2481,7 @@ export default function AddProductEditor({
             </article>
           </div>
 
-          <aside className="space-y-5 xl:sticky xl:top-5 xl:max-h-[calc(100vh-2.5rem)] xl:overflow-y-auto xl:pr-2">
+          <aside className="space-y-5 xl:sticky xl:top-[176px] xl:max-h-[calc(100vh-200px)] xl:overflow-y-auto xl:pr-2">
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eefaf7] text-[#2dc7c3]">
