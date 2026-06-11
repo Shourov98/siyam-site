@@ -741,7 +741,6 @@ export default function AddProductEditor({
   const [marketImageGenerating, setMarketImageGenerating] = useState<MarketActionState>(emptyActionState);
   const [variantSubmitting, setVariantSubmitting] = useState<MarketActionState>(emptyActionState);
   const [isUploadingSourceImage, setIsUploadingSourceImage] = useState(false);
-  const [isOptimizing, setIsOptimizing] = useState(false);
   const [isAnalyzingPublishTarget, setIsAnalyzingPublishTarget] = useState(false);
   const [publishSubmitting, setPublishSubmitting] = useState<PublishActionState>(emptyPublishState);
   const [publishVendor, setPublishVendor] = useState("");
@@ -1507,8 +1506,12 @@ export default function AddProductEditor({
     }
   }
 
-  async function generateProduct(successMessage = "AI draft generated and connected to the add-product page.") {
-    if (!selectedImage) {
+  async function generateProduct(
+    successMessage = "AI draft generated and connected to the add-product page.",
+    forcedImage?: File
+  ) {
+    const finalImage = forcedImage || selectedImage;
+    if (!finalImage) {
       setStatusMessage("Upload a product image before generating.");
       return false;
     }
@@ -1520,7 +1523,7 @@ export default function AddProductEditor({
 
     const formData = new FormData();
     formData.append("title", sourceTitle.trim());
-    formData.append("image", selectedImage);
+    formData.append("image", finalImage);
 
     setIsGenerating(true);
     try {
@@ -1543,10 +1546,10 @@ export default function AddProductEditor({
     } catch (error) {
       const message = error instanceof Error ? error.message : "Product generation failed.";
 
-      if (!productId && selectedImage && isGenerationTimeoutMessage(message)) {
+      if (!productId && finalImage && isGenerationTimeoutMessage(message)) {
         try {
           const uploadFormData = new FormData();
-          uploadFormData.append("file", selectedImage);
+          uploadFormData.append("file", finalImage);
           uploadFormData.append("market", "source");
           uploadFormData.append("productId", "draft");
 
@@ -1568,7 +1571,7 @@ export default function AddProductEditor({
           applyLocalDraftSeed({
             title: sourceTitle.trim(),
             imagePath: uploadResult.relative_path || uploadResult.absolute_path,
-            imageMimeType: selectedImage.type || "image/png",
+            imageMimeType: finalImage.type || "image/png",
           });
           clearSelectedImageSelection();
           router.replace(`/products/add?market=${activeMarket}`, { scroll: false });
@@ -1583,6 +1586,26 @@ export default function AddProductEditor({
       return false;
     } finally {
       setIsGenerating(false);
+    }
+  }
+
+  async function generateWithoutImage() {
+    if (!sourceTitle.trim()) {
+      setStatusMessage("Add a source title before generating.");
+      return;
+    }
+    setStatusMessage("Creating context for title-only generation...");
+    try {
+      const base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+      const res = await fetch(base64);
+      const blob = await res.blob();
+      const forcedFile = new File([blob], "placeholder_source.png", { type: "image/png" });
+
+      setStatusMessage("Generating draft content from title...");
+      await generateProduct("AI draft generated from title successfully.", forcedFile);
+    } catch (err) {
+      console.error(err);
+      setStatusMessage("Failed to generate dummy image context.");
     }
   }
 
@@ -1759,38 +1782,6 @@ export default function AddProductEditor({
     }
   }
 
-  async function optimizeAllMarketplaces() {
-    if (!productId) {
-      setStatusMessage("Generate a product before running optimization.");
-      return;
-    }
-
-    setIsOptimizing(true);
-    try {
-      const response = await fetch(`/api/product-ai/products/${productId}/optimize`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          marketplaces: marketOrder,
-          optimize_core: true,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(errorBody?.detail ?? "Could not optimize product data.");
-      }
-
-      const record = (await response.json()) as ApiRecord;
-      applyRecord(record, "Core product data and all marketplace content optimized from the backend.");
-    } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Could not optimize product data.");
-    } finally {
-      setIsOptimizing(false);
-    }
-  }
 
   async function analyzeDynamicPricing() {
     if (!productId) {
@@ -2426,16 +2417,6 @@ export default function AddProductEditor({
                   </button>
                 )}
 
-                {/* Optimize Action */}
-                <button
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[#51658f] bg-white/5 px-3 text-xs font-semibold text-white disabled:opacity-50 cursor-pointer"
-                  disabled={!hasPersistedProduct || isOptimizing}
-                  onClick={() => void optimizeAllMarketplaces()}
-                  type="button"
-                >
-                  {isOptimizing ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  Optimize All
-                </button>
 
                 {/* Main AI Generation CTA */}
                 <button
@@ -2455,14 +2436,30 @@ export default function AddProductEditor({
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_380px] xl:h-[calc(100vh-168px)] xl:overflow-hidden">
           <div className="space-y-5 xl:h-full xl:overflow-y-auto xl:pr-2">
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eaf3ff] text-[#4d77bc]">
-                  <Boxes className="h-5 w-5" />
+              <div className="flex items-center justify-between gap-3 flex-wrap border-b border-[#eef2f6] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eaf3ff] text-[#4d77bc]">
+                    <Boxes className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-[#1f2c44]">Core Product Data</h2>
+                    <p className="text-sm text-[#7f92b1]">This block saves back to the product-ai-agent draft record.</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-[#1f2c44]">Core Product Data</h2>
-                  <p className="text-sm text-[#7f92b1]">This block saves back to the product-ai-agent draft record.</p>
-                </div>
+
+                <button
+                  type="button"
+                  disabled={isGenerating || !sourceTitle.trim()}
+                  onClick={() => void generateWithoutImage()}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#172544] to-[#263c70] px-4 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                >
+                  {isGenerating ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin text-[#35d3ce]" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 text-[#35d3ce]" />
+                  )}
+                  {isGenerating ? "Generating..." : "Generate Text Only"}
+                </button>
               </div>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
