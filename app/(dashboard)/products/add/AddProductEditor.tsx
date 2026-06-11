@@ -14,10 +14,12 @@ import {
   Sparkles,
   Tags,
   Upload,
+  Download,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiClientError, authStorage } from "@/lib/auth";
 import { shopifyProductsApi } from "@/lib/shopify-products";
@@ -200,6 +202,12 @@ type SavedDraftSnapshot = {
   publishSku: string;
   publishStatus: PublishStatus;
   savedAt: string;
+};
+
+type LocalDraftSeed = {
+  title: string;
+  imagePath: string;
+  imageMimeType: string;
 };
 
 type ImageCardConfig = {
@@ -492,6 +500,10 @@ function imageUrlFor(pathValue: string) {
   return `/api/product-ai/image?path=${encodeURIComponent(pathValue)}`;
 }
 
+function isGenerationTimeoutMessage(message: string) {
+  return message.includes("timed out") || message.includes("504");
+}
+
 function ProductPreview({
   image,
   alt,
@@ -655,9 +667,11 @@ function getStoredDraftKey() {
 export default function AddProductEditor({
   activeMarket,
   initialProductId,
+  localDraftSeed,
 }: {
   activeMarket: MarketKey;
   initialProductId: string | null;
+  localDraftSeed: LocalDraftSeed | null;
 }) {
   const router = useRouter();
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -701,6 +715,11 @@ export default function AddProductEditor({
     tiktok: { size: "", color: "" },
     shopify: { size: "", color: "" },
   });
+
+  const [activeUploadCardKey, setActiveUploadCardKey] = useState<ImageCardKey | null>(null);
+  const [imageUploadingMap, setImageUploadingMap] = useState<Record<string, boolean>>({});
+  const [draggingOverCardKey, setDraggingOverCardKey] = useState<ImageCardKey | null>(null);
+  const manualUploadInputRef = useRef<HTMLInputElement>(null);
 
   const hasPersistedProduct = Boolean(productId);
 
@@ -824,6 +843,89 @@ export default function AddProductEditor({
     }
   }
 
+  const applyLocalDraftSeed = useCallback((seed: LocalDraftSeed) => {
+    const trimmedTitle = seed.title.trim();
+    const nextDraft: ApiProduct = {
+      ...emptyProduct,
+      core: {
+        ...emptyProduct.core,
+        normalized_title: trimmedTitle,
+        source_title: trimmedTitle,
+      },
+      shopify: {
+        ...emptyProduct.shopify,
+        title: trimmedTitle,
+      },
+      amazon: {
+        ...emptyProduct.amazon,
+        title: trimmedTitle,
+      },
+      ebay: {
+        ...emptyProduct.ebay,
+        title: trimmedTitle,
+      },
+      etsy: {
+        ...emptyProduct.etsy,
+        title: trimmedTitle,
+      },
+      tiktok: {
+        ...emptyProduct.tiktok,
+        title: trimmedTitle,
+      },
+      images: {
+        ...emptyProduct.images,
+        source: {
+          ...emptyProduct.images.source,
+          relative_path: seed.imagePath,
+          absolute_path: seed.imagePath,
+          generation_mode: "manual_upload",
+          mime_type: seed.imageMimeType,
+          validation: {
+            ...emptyProduct.images.source.validation,
+            passed: true,
+            errors: [],
+            mime_type: seed.imageMimeType,
+          },
+        },
+      },
+    };
+
+    const snapshot: SavedDraftSnapshot = {
+      draft: nextDraft,
+      variantsByMarket: sampleVariants,
+      productId: null,
+      shopifyProductId: null,
+      sourceTitle: trimmedTitle,
+      publishVendor: "",
+      publishDescription: "",
+      publishPrice: "",
+      publishSku: "",
+      publishStatus: "ACTIVE",
+      savedAt: new Date().toISOString(),
+    };
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(getStoredDraftKey(), JSON.stringify(snapshot));
+    }
+
+    lastSavedDraftRef.current = buildComparableDraftSignature(snapshot);
+    setDraft(snapshot.draft);
+    setVariantsByMarket(snapshot.variantsByMarket);
+    setProductId(snapshot.productId);
+    setShopifyProductId(snapshot.shopifyProductId);
+    setSourceTitle(snapshot.sourceTitle);
+    setPublishVendor(snapshot.publishVendor);
+    setPublishDescription(snapshot.publishDescription ?? "");
+    setPublishPrice(snapshot.publishPrice);
+    setPublishSku(snapshot.publishSku);
+    setPublishStatus(snapshot.publishStatus);
+    setShopifyPublishMessage("");
+    setHasSavedDraft(true);
+    setDraftSaveState("saved");
+    setPublishFieldErrors(emptyPublishFieldErrors);
+    setStatusMessage("The AI backend timed out, so we opened a local draft with your title and source image preserved.");
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -865,6 +967,16 @@ export default function AddProductEditor({
       }, 0);
     }
   }, [initialProductId]);
+
+  useEffect(() => {
+    if (!hasInitializedDraftStorage || initialProductId || hasSavedDraft || !localDraftSeed) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      applyLocalDraftSeed(localDraftSeed);
+    }, 0);
+  }, [applyLocalDraftSeed, hasInitializedDraftStorage, hasSavedDraft, initialProductId, localDraftSeed]);
 
   useEffect(() => {
     if (!initialProductId) {
@@ -1035,7 +1147,19 @@ export default function AddProductEditor({
 
   function applyRecord(record: ApiRecord, message: string) {
     setProductId(record.id);
-    setDraft(record.product);
+    setDraft((prev) => {
+      const mergedImages = { ...record.product.images };
+      const keys: ImageCardKey[] = ["source", "transparent_cutout", "amazon", "ebay", "etsy", "tiktok", "shopify"];
+      keys.forEach((k) => {
+        if (!mergedImages[k]?.absolute_path && prev.images[k]?.absolute_path) {
+          mergedImages[k] = prev.images[k];
+        }
+      });
+      return {
+        ...record.product,
+        images: mergedImages,
+      };
+    });
     setVariantsByMarket(record.variants);
     setSourceTitle(record.product.core.source_title);
     setPublishVendor((current) => current || record.product.core.attributes.brand || "");
@@ -1280,7 +1404,45 @@ export default function AddProductEditor({
       router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
       return true;
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Product generation failed.");
+      const message = error instanceof Error ? error.message : "Product generation failed.";
+
+      if (!productId && selectedImage && isGenerationTimeoutMessage(message)) {
+        try {
+          const uploadFormData = new FormData();
+          uploadFormData.append("file", selectedImage);
+          uploadFormData.append("market", "source");
+          uploadFormData.append("productId", "draft");
+
+          const uploadResponse = await fetch("/api/product-ai/image/upload", {
+            method: "POST",
+            body: uploadFormData,
+          });
+
+          if (!uploadResponse.ok) {
+            const uploadErrorBody = (await uploadResponse.json().catch(() => null)) as { detail?: string } | null;
+            throw new Error(uploadErrorBody?.detail ?? "The AI request timed out and the local draft image upload failed.");
+          }
+
+          const uploadResult = (await uploadResponse.json()) as {
+            relative_path: string;
+            absolute_path: string;
+          };
+
+          applyLocalDraftSeed({
+            title: sourceTitle.trim(),
+            imagePath: uploadResult.relative_path || uploadResult.absolute_path,
+            imageMimeType: selectedImage.type || "image/png",
+          });
+          clearSelectedImageSelection();
+          router.replace(`/products/add?market=${activeMarket}`, { scroll: false });
+          return false;
+        } catch (fallbackError) {
+          setStatusMessage(fallbackError instanceof Error ? fallbackError.message : message);
+          return false;
+        }
+      }
+
+      setStatusMessage(message);
       return false;
     } finally {
       setIsGenerating(false);
@@ -1332,11 +1494,34 @@ export default function AddProductEditor({
     }
   }
 
-  async function saveDraft() {
-    persistDraftSnapshot(buildDraftSnapshot());
+  async function saveDraft(updatedImages?: ApiGeneratedImages) {
+    const nextImages = updatedImages ?? draft.images;
+    const nextDraft = {
+      ...draft,
+      images: nextImages,
+    };
+
+    function getSnapshotWithImages(): SavedDraftSnapshot {
+      return {
+        draft: nextDraft,
+        variantsByMarket,
+        productId,
+        shopifyProductId,
+        sourceTitle,
+        publishVendor,
+        publishDescription,
+        publishPrice,
+        publishSku,
+        publishStatus,
+        savedAt: new Date().toISOString(),
+      };
+    }
+
+    persistDraftSnapshot(getSnapshotWithImages());
     setDraftSaveState("saving");
 
     if (!productId) {
+      setDraft(nextDraft);
       setDraftSaveState("saved");
       setStatusMessage("Draft saved locally for this account. Generate with AI later if you want to sync it to product-ai-agent.");
       return;
@@ -1351,11 +1536,12 @@ export default function AddProductEditor({
         },
         body: JSON.stringify({
           core: buildCoreDraftForSave(),
-          amazon: draft.amazon,
-          ebay: draft.ebay,
-          etsy: draft.etsy,
-          tiktok: draft.tiktok,
-          shopify: draft.shopify,
+          amazon: nextDraft.amazon,
+          ebay: nextDraft.ebay,
+          etsy: nextDraft.etsy,
+          tiktok: nextDraft.tiktok,
+          shopify: nextDraft.shopify,
+          images: nextDraft.images,
         }),
       });
 
@@ -1367,7 +1553,7 @@ export default function AddProductEditor({
       const record = (await response.json()) as ApiRecord;
       applyRecord(record, "Draft saved to product-ai-agent and kept locally for this account.");
       persistDraftSnapshot({
-        ...buildDraftSnapshot(),
+        ...getSnapshotWithImages(),
         productId: record.id,
       });
       setDraftSaveState("saved");
@@ -1629,6 +1815,207 @@ export default function AddProductEditor({
       selectedImage,
       "Source image uploaded. Transparent cutout was refreshed and marketplace images are ready for on-demand generation.",
     );
+  }
+
+  function formatBytes(bytes?: number) {
+    if (!bytes) return "Unknown size";
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  }
+
+  async function downloadMarketplaceImage(key: ImageCardKey, filename: string) {
+    const card = imageCards.find((c) => c.key === key);
+    const pathValue = card?.image?.absolute_path || card?.image?.relative_path;
+    if (!pathValue) {
+      setStatusMessage(`No image path found to download for ${key}.`);
+      return;
+    }
+    try {
+      const src = imageUrlFor(pathValue);
+      if (!src) return;
+      const response = await fetch(src);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setStatusMessage(`Downloaded image: ${filename}`);
+    } catch (error) {
+      console.error("Failed to download image", error);
+      setStatusMessage(`Download failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+
+  async function downloadAllImages() {
+    const cardsWithImages = imageCards.filter((c) => c.image?.absolute_path || c.image?.relative_path);
+    if (cardsWithImages.length === 0) {
+      setStatusMessage("No generated images available to download.");
+      return;
+    }
+    setStatusMessage(`Downloading all (${cardsWithImages.length}) images...`);
+    const titleBase = getPublishTitle().trim() || "product";
+    const titleClean = titleBase.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+
+    for (let i = 0; i < cardsWithImages.length; i++) {
+      const card = cardsWithImages[i];
+      const filename = `${titleClean}_${card.key}.png`;
+      await downloadMarketplaceImage(card.key, filename);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    setStatusMessage("All downloads triggered.");
+  }
+
+  async function generateAllMarketplaceImages() {
+    if (!productId) {
+      setStatusMessage("Please generate the product draft with AI first.");
+      return;
+    }
+    const marketsToGen: MarketKey[] = ["amazon", "ebay", "etsy", "tiktok", "shopify"];
+    setStatusMessage("Generating images for all marketplaces in parallel...");
+    await Promise.all(marketsToGen.map((m) => regenerateMarketplaceImage(m)));
+    setStatusMessage("All marketplace image generations complete.");
+  }
+
+  async function clearMarketplaceImage(key: ImageCardKey) {
+    const nextImages = { ...draft.images };
+    if (nextImages[key]) {
+      nextImages[key] = {
+        ...nextImages[key],
+        relative_path: "",
+        absolute_path: "",
+        validation: {
+          ...nextImages[key].validation,
+          passed: false,
+          width: null,
+          height: null,
+          file_size_bytes: 0,
+          errors: ["Image cleared manually."],
+        },
+      };
+    }
+    await saveDraft(nextImages);
+    setStatusMessage(`Cleared image for ${marketLabels[key as MarketKey] ?? key}.`);
+  }
+
+  async function uploadCardImageDirect(key: ImageCardKey, file: File) {
+    setImageUploadingMap((prev) => ({ ...prev, [key]: true }));
+    setStatusMessage(`Uploading image for ${marketLabels[key as MarketKey] ?? key}...`);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("market", key);
+      formData.append("productId", productId || "draft");
+
+      const response = await fetch("/api/product-ai/image/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Upload failed.");
+      }
+
+      const result = (await response.json()) as { relative_path: string; absolute_path: string };
+      
+      const nextImages = { ...draft.images };
+      const currentImage = nextImages[key];
+      
+      let width: number | null = currentImage?.validation?.width ?? null;
+      let height: number | null = currentImage?.validation?.height ?? null;
+
+      const img = new window.Image();
+      img.src = URL.createObjectURL(file);
+      await new Promise((resolve) => {
+        img.onload = () => {
+          width = img.width;
+          height = img.height;
+          URL.revokeObjectURL(img.src);
+          resolve(true);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(img.src);
+          resolve(false);
+        };
+      });
+
+      nextImages[key] = {
+        marketplace: key,
+        relative_path: result.relative_path,
+        absolute_path: result.absolute_path,
+        prompt: currentImage?.prompt ?? `${key} image`,
+        generation_mode: "manual_upload",
+        mime_type: file.type || "image/png",
+        validation: {
+          passed: true,
+          width: width,
+          height: height,
+          format: file.type.split("/")[1]?.toUpperCase() || "PNG",
+          has_alpha: file.type === "image/png" || file.type === "image/webp",
+          file_size_bytes: file.size,
+          expected_width: currentImage?.validation?.expected_width ?? null,
+          expected_height: currentImage?.validation?.expected_height ?? null,
+          expected_background: currentImage?.validation?.expected_background ?? "opaque",
+          errors: [],
+          mime_type: file.type || "image/png",
+        },
+      };
+
+      await saveDraft(nextImages);
+      setStatusMessage(`Successfully uploaded and saved image for ${marketLabels[key as MarketKey] ?? key}.`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Image upload failed.";
+      setStatusMessage(`Upload failed: ${msg}`);
+    } finally {
+      setImageUploadingMap((prev) => ({ ...prev, [key]: false }));
+    }
+  }
+
+  async function validateAndUploadCardImage(key: ImageCardKey, file: File) {
+    const allowedExtensions = [".png", ".jpg", ".jpeg", ".webp"];
+    const fileExt = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+    
+    if (!allowedExtensions.includes(fileExt)) {
+      setStatusMessage(`Invalid file type. Allowed: PNG, JPG, WEBP.`);
+      return;
+    }
+
+    const maxBytes = 10 * 1024 * 1024; // 10 MB limit
+    if (file.size > maxBytes) {
+      setStatusMessage(`File is too large (${(file.size / (1024 * 1024)).toFixed(2)} MB). Max is 10 MB.`);
+      return;
+    }
+
+    if (key === "source") {
+      setSelectedImage(file);
+      setStatusMessage(`Selected source image: ${file.name}`);
+      return;
+    }
+
+    await uploadCardImageDirect(key, file);
+  }
+
+  async function onManualUploadSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !activeUploadCardKey) return;
+    await validateAndUploadCardImage(activeUploadCardKey, file);
+    event.target.value = "";
+  }
+
+  function handleCardDrop(e: React.DragEvent<HTMLDivElement>, key: ImageCardKey) {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      void validateAndUploadCardImage(key, file);
+    }
   }
 
   async function regenerateMarketplaceImage(market: MarketKey) {
@@ -2483,107 +2870,332 @@ export default function AddProductEditor({
 
           <aside className="space-y-5 xl:h-full xl:overflow-y-auto xl:pr-2">
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eefaf7] text-[#2dc7c3]">
-                  <ImageIcon className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-[#1f2c44]">Generated Images</h2>
-                  <p className="text-sm text-[#7f92b1]">These cards now render real generated files when the backend has produced them.</p>
+              <div className="flex items-center justify-between gap-3 border-b border-[#eef2f6] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eefaf7] text-[#2dc7c3]">
+                    <ImageIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-[#1f2c44]">Generated Images</h2>
+                    <p className="text-xs text-[#7f92b1]">Upload custom files or generate marketplace-ready views.</p>
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-5 space-y-4">
-                {imageCards.map(({ key, label, image, note }) => (
-                  <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4" key={key}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-[#20314d]">{label}</p>
-                        <p className="mt-1 text-xs text-[#8597b5]">
-                          {key === "source" && selectedImagePreviewUrl && !image?.absolute_path
-                            ? "selected_local_file"
-                            : image?.generation_mode ?? "not_generated"}
-                        </p>
+              {/* Global Actions Area */}
+              <div className="flex gap-3 mt-4 border-b border-[#eef2f6] pb-4">
+                <button
+                  className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#172544] to-[#263c70] px-4 text-xs font-bold text-white shadow-sm hover:shadow-md active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!productId || Object.values(marketImageGenerating).some(Boolean) || isGenerating}
+                  onClick={() => void generateAllMarketplaceImages()}
+                  type="button"
+                >
+                  {Object.values(marketImageGenerating).some(Boolean) ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin text-[#35d3ce]" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 text-[#35d3ce]" />
+                  )}
+                  {Object.values(marketImageGenerating).some(Boolean) ? "Generating..." : "Generate All"}
+                </button>
+                <button
+                  className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dbe2ee] bg-white px-4 text-xs font-bold text-[#31415e] shadow-sm hover:bg-[#f8fbff] active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!imageCards.some(card => card.image?.absolute_path || card.image?.relative_path)}
+                  onClick={() => void downloadAllImages()}
+                  type="button"
+                >
+                  <Download className="h-4 w-4 text-[#4a5d7d]" />
+                  Download All
+                </button>
+              </div>
+
+              {/* Hidden file input for manual card uploads */}
+              <input
+                accept="image/png, image/jpeg, image/jpg, image/webp"
+                className="hidden"
+                onChange={onManualUploadSelected}
+                ref={manualUploadInputRef}
+                type="file"
+              />
+
+              {/* Reusable Platform Cards */}
+              <div className="mt-5 space-y-5">
+                {imageCards.map(({ key, label, image, note }) => {
+                  const hasPath = Boolean(image?.absolute_path || image?.relative_path);
+                  const isUploading = Boolean(imageUploadingMap[key]);
+                  const isGeneratingThis = key !== "source" && key !== "transparent_cutout" && Boolean(marketImageGenerating[key as MarketKey]);
+                  const isBusy = isUploading || isGeneratingThis;
+
+                  const rawErrors = image?.validation?.errors ?? [];
+                  const validationErrors = rawErrors.filter((err) => {
+                    if (err === "No source image uploaded yet." && (hasPath || (key === "source" && selectedImagePreviewUrl))) {
+                      return false;
+                    }
+                    return true;
+                  });
+                  
+                  // Status resolving
+                  let statusText = "Not Generated";
+                  let badgeStyles = "bg-slate-50 text-slate-600 border-slate-200";
+                  
+                  if (isUploading) {
+                    statusText = "Uploading...";
+                    badgeStyles = "bg-blue-50 text-blue-600 border-blue-200 animate-pulse";
+                  } else if (isGeneratingThis) {
+                    statusText = "Generating...";
+                    badgeStyles = "bg-purple-50 text-purple-600 border-purple-200 animate-pulse";
+                  } else if (hasPath) {
+                    if (validationErrors.length > 0) {
+                      statusText = "Failed";
+                      badgeStyles = "bg-rose-50 text-rose-700 border-rose-200";
+                    } else if (image?.validation?.passed) {
+                      statusText = "Ready";
+                      badgeStyles = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                    } else {
+                      statusText = "Review";
+                      badgeStyles = "bg-amber-50 text-amber-700 border-amber-200";
+                    }
+                  } else if (key === "source" && selectedImagePreviewUrl) {
+                    statusText = "Selected";
+                    badgeStyles = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                  }
+
+                  const isDraggingOver = draggingOverCardKey === key;
+                  const filename = `${(getPublishTitle() || "product").replace(/\s+/g, "_").toLowerCase()}_${key}.png`;
+
+                  return (
+                    <div 
+                      className={`group relative rounded-2xl border bg-white p-4 transition-all duration-300 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] ${
+                        isDraggingOver 
+                          ? "border-indigo-500 ring-2 ring-indigo-50" 
+                          : "border-[#e2e8f0] hover:border-[#cbd5e1] hover:shadow-[0_4px_16px_-4px_rgba(0,0,0,0.08)]"
+                      }`}
+                      key={key}
+                      onDragLeave={() => setDraggingOverCardKey(null)}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDraggingOverCardKey(key);
+                      }}
+                      onDrop={(e) => {
+                        setDraggingOverCardKey(null);
+                        handleCardDrop(e, key);
+                      }}
+                    >
+                      {/* Card Header */}
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-[#1e293b] flex items-center gap-1.5">
+                            {label}
+                          </h3>
+                          <span className="text-[10px] font-mono tracking-wider text-[#94a3b8] uppercase">
+                            {key === "source" && selectedImagePreviewUrl && !hasPath
+                              ? "local_selection"
+                              : image?.generation_mode ?? "inactive_slot"}
+                          </span>
+                        </div>
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold transition-all duration-300 ${badgeStyles}`}>
+                          {statusText}
+                        </span>
                       </div>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          image?.validation.passed || (key === "source" && selectedImagePreviewUrl)
-                            ? "bg-[#def7ea] text-[#2ba66d]"
-                            : "bg-[#fff4d6] text-[#c48a07]"
-                        }`}
-                      >
-                        {image?.validation.passed ? "Ready" : key === "source" && selectedImagePreviewUrl ? "Selected" : "Review"}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {key === "source" ? (
-                        <>
+
+                      {/* Preview Box Area */}
+                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-50 border border-dashed border-[#e2e8f0] transition-all duration-300 flex items-center justify-center">
+                        {isBusy ? (
+                          <div className="absolute inset-0 bg-white/85 z-10 flex flex-col items-center justify-center gap-2 backdrop-blur-xs">
+                            <LoaderCircle className="h-8 w-8 animate-spin text-[#172544]" />
+                            <p className="text-xs font-semibold text-[#334155] animate-pulse">
+                              {isUploading ? "Uploading file..." : "Generating image..."}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {hasPath ? (
+                          <div className="group/preview relative w-full h-full">
+                            <ProductPreview
+                              alt={label}
+                              backgroundLabel={image?.validation?.expected_background ?? "Image"}
+                              image={image}
+                              previewSrc={null}
+                            />
+                            {/* Hover Controls Overlay */}
+                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-white/10 bg-[#0f172a]/90 px-3 py-2 shadow-xl backdrop-blur-md transition-all duration-300 opacity-0 group-hover/preview:opacity-100 translate-y-2 group-hover/preview:translate-y-0 z-20">
+                              <button
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 hover:scale-105 active:scale-95 transition-all duration-200"
+                                onClick={() => void downloadMarketplaceImage(key, filename)}
+                                title="Download Image"
+                                type="button"
+                              >
+                                <Download className="h-4 w-4" />
+                              </button>
+                              <button
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 hover:scale-105 active:scale-95 transition-all duration-200"
+                                onClick={() => {
+                                  setActiveUploadCardKey(key);
+                                  manualUploadInputRef.current?.click();
+                                }}
+                                title="Replace Image"
+                                type="button"
+                              >
+                                <Upload className="h-4 w-4" />
+                              </button>
+                              <button
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-600 hover:text-white hover:scale-105 active:scale-95 transition-all duration-200"
+                                onClick={() => void clearMarketplaceImage(key)}
+                                title="Remove Image"
+                                type="button"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : key === "source" && selectedImagePreviewUrl ? (
+                          <div className="group/preview relative w-full h-full">
+                            <ProductPreview
+                              alt={label}
+                              backgroundLabel="source"
+                              image={null}
+                              previewSrc={selectedImagePreviewUrl}
+                            />
+                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-white/10 bg-[#0f172a]/90 px-3 py-2 shadow-xl backdrop-blur-md transition-all duration-300 opacity-0 group-hover/preview:opacity-100 translate-y-2 group-hover/preview:translate-y-0 z-20">
+                              <button
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-600 hover:text-white hover:scale-105 active:scale-95 transition-all duration-200"
+                                onClick={() => clearSelectedImageSelection()}
+                                title="Clear Selection"
+                                type="button"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          // Drag and Drop Empty State
+                          <div 
+                            className={`flex flex-col items-center justify-center p-6 text-center w-full h-full select-none cursor-pointer transition-all duration-200 ${
+                              isDraggingOver ? "bg-indigo-50/50" : "hover:bg-slate-100/30"
+                            }`}
+                            onClick={() => {
+                              setActiveUploadCardKey(key);
+                              manualUploadInputRef.current?.click();
+                            }}
+                          >
+                            <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-[#475569] group-hover:scale-110 transition-transform duration-300">
+                              <Upload className="h-5 w-5" />
+                            </div>
+                            <p className="text-xs font-semibold text-[#334155]">
+                              {isDraggingOver ? "Drop image here" : "Upload or drop image"}
+                            </p>
+                            <p className="mt-1 text-[10px] text-[#94a3b8]">
+                              PNG, JPG, WEBP • Max 10MB
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Technical/Validation Meta Deck */}
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-medium text-[#64748b]">
+                        <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5 flex flex-col justify-between">
+                          <span className="text-[9px] uppercase tracking-wider text-[#94a3b8] font-bold">Template BG</span>
+                          <span className="text-[#334155] truncate font-semibold mt-0.5">
+                            {key === "source" && selectedImagePreviewUrl && !hasPath
+                              ? "selected local"
+                              : image?.validation?.expected_background ?? "unknown"}
+                          </span>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5 flex flex-col justify-between">
+                          <span className="text-[9px] uppercase tracking-wider text-[#94a3b8] font-bold">Size & Format</span>
+                          <span className="text-[#334155] truncate font-semibold mt-0.5">
+                            {image?.validation?.width && image?.validation?.height
+                              ? `${image.validation.width} x ${image.validation.height}`
+                              : "Not generated"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card Control Bar */}
+                      <div className="mt-3 flex gap-2">
+                        {/* Generate/Regenerate for markets */}
+                        {key !== "source" && key !== "transparent_cutout" ? (
                           <button
-                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d]"
-                            onClick={() => productImageUploadInputRef.current?.click()}
+                            className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200"
+                            disabled={isBusy || isUploadingSourceImage || isGenerating}
+                            onClick={() => void regenerateMarketplaceImage(key as MarketKey)}
                             type="button"
                           >
-                            <Upload className="h-4 w-4" />
-                            {draft.images.source.absolute_path ? "Replace Source Image" : "Choose Source Image"}
+                            <RefreshCcw className={`h-3.5 w-3.5 ${isGeneratingThis ? "animate-spin" : ""}`} />
+                            {hasPath ? "Regenerate" : "Generate"}
                           </button>
+                        ) : key === "source" ? (
                           <button
-                            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#172544] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#172544] text-xs font-bold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200"
                             disabled={!selectedImage || isUploadingSourceImage || isGenerating}
                             onClick={() => void uploadProductSourceImage()}
                             type="button"
                           >
-                            {isUploadingSourceImage ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                            {isUploadingSourceImage ? "Uploading..." : "Create Source + Cutout"}
+                            {isUploadingSourceImage ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 text-[#35d3ce]" />}
+                            Create Cutout
                           </button>
-                        </>
-                      ) : null}
-                      {key !== "source" && key !== "transparent_cutout" ? (
+                        ) : null}
+
+                        {/* Direct manual upload */}
                         <button
-                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={marketImageGenerating[key] || isUploadingSourceImage || isGenerating}
-                          onClick={() => void regenerateMarketplaceImage(key)}
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white px-3 text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200"
+                          disabled={isBusy}
+                          onClick={() => {
+                            setActiveUploadCardKey(key);
+                            manualUploadInputRef.current?.click();
+                          }}
+                          title={hasPath ? "Replace Custom Image" : "Upload Custom Image"}
                           type="button"
                         >
-                          {marketImageGenerating[key] ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                          {marketImageGenerating[key]
-                            ? "Generating..."
-                            : image?.absolute_path
-                              ? `Regenerate ${marketLabels[key]}`
-                              : `Generate ${marketLabels[key]}`}
+                          <Upload className="h-3.5 w-3.5" />
+                          {hasPath ? "Replace" : "Upload"}
                         </button>
+
+                        {/* Download button if image exists */}
+                        {hasPath ? (
+                          <button
+                            className="inline-flex h-9 items-center justify-center rounded-lg border border-[#d5dcea] bg-white px-3 text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544] transition-all duration-200"
+                            onClick={() => void downloadMarketplaceImage(key, filename)}
+                            title="Download Variant"
+                            type="button"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
+
+                        {/* Clear/Remove button if image exists */}
+                        {hasPath ? (
+                          <button
+                            className="inline-flex h-9 items-center justify-center rounded-lg border border-rose-100 bg-rose-50 px-3 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-all duration-200"
+                            onClick={() => void clearMarketplaceImage(key)}
+                            title="Clear Image"
+                            type="button"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {/* Display warning or file size validation details */}
+                      {image?.validation?.file_size_bytes ? (
+                        <p className="mt-2 text-[10px] text-[#94a3b8] flex items-center justify-between">
+                          <span>File size: {formatBytes(image.validation.file_size_bytes)}</span>
+                          {image.validation.mime_type ? (
+                            <span className="font-semibold">{image.validation.mime_type}</span>
+                          ) : null}
+                        </p>
+                      ) : null}
+
+                      {validationErrors.length > 0 ? (
+                        <div className="mt-2 rounded-lg bg-rose-50 border border-rose-100 p-2 text-[10px] text-rose-700 flex items-start gap-1">
+                          <CircleAlert className="h-3 w-3 shrink-0 mt-0.5" />
+                          <span className="leading-normal">{validationErrors[0]}</span>
+                        </div>
+                      ) : note ? (
+                        <p className="mt-2 text-[10px] text-[#94a3b8] leading-normal">{note}</p>
                       ) : null}
                     </div>
-                    <div className="mt-4">
-                      <ProductPreview
-                        alt={label}
-                        backgroundLabel={image?.validation.expected_background ?? "Image"}
-                        image={image}
-                        previewSrc={key === "source" && !image?.absolute_path ? selectedImagePreviewUrl : null}
-                      />
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-[#5f7293]">
-                      <div className="rounded-xl bg-white px-3 py-2">
-                        <p className="font-semibold text-[#8ea0bf]">Background</p>
-                        <p className="mt-1 text-sm text-[#31415e]">
-                          {key === "source" && selectedImagePreviewUrl && !image?.validation.expected_background
-                            ? "selected upload"
-                            : image?.validation.expected_background ?? "unknown"}
-                        </p>
-                      </div>
-                      <div className="rounded-xl bg-white px-3 py-2">
-                        <p className="font-semibold text-[#8ea0bf]">Size</p>
-                        <p className="mt-1 text-sm text-[#31415e]">
-                          {image?.validation.width && image?.validation.height
-                            ? `${image.validation.width} x ${image.validation.height}`
-                            : "Not generated"}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="mt-3 text-xs leading-5 text-[#6d7f9f]">
-                      {image?.validation.errors[0] ?? note}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </article>
 

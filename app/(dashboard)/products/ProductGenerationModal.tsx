@@ -13,6 +13,10 @@ type ProductRecordResponse = {
   id: string;
 };
 
+function isGenerationTimeoutMessage(message: string) {
+  return message.includes("timed out") || message.includes("504");
+}
+
 export default function ProductGenerationModal({
   onClose,
   open,
@@ -34,6 +38,42 @@ export default function ProductGenerationModal({
     if (file) {
       setStatusMessage(`Selected image: ${file.name}`);
     }
+  }
+
+  async function preserveLocalDraftAfterTimeout() {
+    if (!selectedImage || !title.trim()) {
+      return false;
+    }
+
+    const uploadFormData = new FormData();
+    uploadFormData.append("file", selectedImage);
+    uploadFormData.append("market", "source");
+    uploadFormData.append("productId", "draft");
+
+    const uploadResponse = await fetch("/api/product-ai/image/upload", {
+      method: "POST",
+      body: uploadFormData,
+    });
+
+    if (!uploadResponse.ok) {
+      const uploadError = (await uploadResponse.json().catch(() => null)) as { detail?: string } | null;
+      throw new Error(uploadError?.detail ?? "The AI request timed out and the local draft image upload failed.");
+    }
+
+    const uploadResult = (await uploadResponse.json()) as {
+      relative_path: string;
+      absolute_path: string;
+    };
+
+    const params = new URLSearchParams({
+      market: "shopify",
+      localDraftTitle: title.trim(),
+      localDraftImagePath: uploadResult.relative_path || uploadResult.absolute_path,
+      localDraftImageMimeType: selectedImage.type || "image/png",
+    });
+
+    router.push(`/products/add?${params.toString()}`);
+    return true;
   }
 
   async function generateDraft() {
@@ -66,7 +106,24 @@ export default function ProductGenerationModal({
       const record = (await response.json()) as ProductRecordResponse;
       router.push(`/products/add?market=shopify&productId=${record.id}`);
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Draft generation failed.");
+      const message = error instanceof Error ? error.message : "Draft generation failed.";
+
+      if (isGenerationTimeoutMessage(message)) {
+        try {
+          const recovered = await preserveLocalDraftAfterTimeout();
+          if (recovered) {
+            return;
+          }
+        } catch (fallbackError) {
+          const fallbackMessage =
+            fallbackError instanceof Error ? fallbackError.message : "Draft generation failed.";
+          setStatusMessage(fallbackMessage);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      setStatusMessage(message);
       setIsSubmitting(false);
     }
   }
