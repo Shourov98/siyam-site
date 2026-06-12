@@ -1,6 +1,14 @@
 "use client";
 
 import {
+  Bold,
+  Italic,
+  Underline,
+  Link as LinkIcon,
+  ListOrdered,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
   BadgeCheck,
   Boxes,
   CheckCircle2,
@@ -596,9 +604,10 @@ function EditableField({
   helperText?: string;
   className?: string;
 }) {
-  const hasHtml = multiline && (value.includes("<") && value.includes(">"));
   const [manualShowPreview, setManualShowPreview] = useState<boolean | null>(null);
-  const showPreview = manualShowPreview !== null ? manualShowPreview : hasHtml;
+  const showPreview = manualShowPreview !== null ? manualShowPreview : multiline;
+  const isStretched = className.includes("h-full");
+  const heightClasses = isStretched ? "min-h-20 max-h-[280px] flex-1" : "min-h-20 max-h-56 flex-1";
 
   return (
     <div
@@ -610,7 +619,7 @@ function EditableField({
     >
       <div className="flex items-center justify-between mb-1">
         <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2]">{label}</span>
-        {multiline && hasHtml && (
+        {multiline && (
           <div className="flex bg-white rounded-md p-0.5 border border-[#d4ddec] text-[9px] font-bold shadow-xs">
             <button
               type="button"
@@ -644,13 +653,136 @@ function EditableField({
       )}
       {multiline ? (
         showPreview ? (
-          <div
-            className="min-h-20 max-h-56 w-full flex-1 rounded-lg bg-white px-3 py-2 text-xs text-[#31415e] border border-[#d4ddec] overflow-y-auto rich-preview-box transition-all"
-            dangerouslySetInnerHTML={{ __html: value }}
-          />
+          <div className={`flex flex-col rounded-lg border border-[#d4ddec] bg-white overflow-hidden focus-within:border-[#2b7cf5] transition-all ${heightClasses}`}>
+            {/* Rich Text Toolbar */}
+            <div className="flex flex-wrap items-center gap-0.5 bg-slate-50/80 border-b border-[#d4ddec] px-2 py-1 select-none">
+              <button
+                type="button"
+                onClick={() => document.execCommand("bold", false)}
+                className="p-1 rounded text-slate-600 hover:bg-slate-200 hover:text-slate-800 transition active:scale-90 cursor-pointer"
+                title="Bold"
+              >
+                <Bold className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => document.execCommand("italic", false)}
+                className="p-1 rounded text-slate-600 hover:bg-slate-200 hover:text-slate-800 transition active:scale-90 cursor-pointer"
+                title="Italic"
+              >
+                <Italic className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => document.execCommand("underline", false)}
+                className="p-1 rounded text-slate-600 hover:bg-slate-200 hover:text-slate-800 transition active:scale-90 cursor-pointer"
+                title="Underline"
+              >
+                <Underline className="h-3.5 w-3.5" />
+              </button>
+
+              <div className="h-3.5 w-px bg-slate-200 mx-1.5" />
+
+              <button
+                type="button"
+                onClick={() => document.execCommand("insertUnorderedList", false)}
+                className="p-1 rounded text-slate-600 hover:bg-slate-200 hover:text-slate-800 transition active:scale-90 cursor-pointer"
+                title="Bullet List"
+              >
+                <List className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => document.execCommand("insertOrderedList", false)}
+                className="p-1 rounded text-slate-600 hover:bg-slate-200 hover:text-slate-800 transition active:scale-90 cursor-pointer"
+                title="Numbered List"
+              >
+                <ListOrdered className="h-3.5 w-3.5" />
+              </button>
+
+              <div className="h-3.5 w-px bg-slate-200 mx-1.5" />
+
+              <button
+                type="button"
+                onClick={() => document.execCommand("justifyLeft", false)}
+                className="p-1 rounded text-slate-600 hover:bg-slate-200 hover:text-slate-800 transition active:scale-90 cursor-pointer"
+                title="Align Left"
+              >
+                <AlignLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => document.execCommand("justifyCenter", false)}
+                className="p-1 rounded text-slate-600 hover:bg-slate-200 hover:text-slate-800 transition active:scale-90 cursor-pointer"
+                title="Align Center"
+              >
+                <AlignCenter className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => document.execCommand("justifyRight", false)}
+                className="p-1 rounded text-slate-600 hover:bg-slate-200 hover:text-slate-800 transition active:scale-90 cursor-pointer"
+                title="Align Right"
+              >
+                <AlignRight className="h-3.5 w-3.5" />
+              </button>
+
+              <div className="h-3.5 w-px bg-slate-200 mx-1.5" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  const url = prompt("Enter link URL:");
+                  if (url) {
+                    document.execCommand("createLink", false, url);
+                  }
+                }}
+                className="p-1 rounded text-slate-600 hover:bg-slate-200 hover:text-slate-800 transition active:scale-90 cursor-pointer"
+                title="Insert Link"
+              >
+                <LinkIcon className="h-3.5 w-3.5" />
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  const heading = prompt("Enter Heading level (e.g. h1, h2, h3, p):", "h2");
+                  if (heading) {
+                    document.execCommand("formatBlock", false, `<${heading}>`);
+                  }
+                }}
+                className="p-1 rounded text-slate-600 hover:bg-slate-200 hover:text-slate-800 transition active:scale-90 cursor-pointer text-[10px] font-bold h-5.5 flex items-center justify-center border border-slate-300 px-1 bg-white hover:bg-slate-50"
+                title="Format Heading"
+              >
+                H
+              </button>
+
+              <div className="h-3.5 w-px bg-slate-200 mx-1.5" />
+
+              <button
+                type="button"
+                onClick={() => document.execCommand("removeFormat", false)}
+                className="p-1 rounded text-rose-500 hover:bg-rose-50 transition active:scale-90 cursor-pointer text-[9px] font-bold uppercase tracking-wider px-1.5"
+                title="Clear Formatting"
+              >
+                Clear
+              </button>
+            </div>
+
+            {/* Editable Content */}
+            <div
+              contentEditable
+              suppressContentEditableWarning
+              onBlur={(event) => {
+                onChange(event.currentTarget.innerHTML);
+              }}
+              className="w-full flex-1 px-3 pt-2.5 pb-4 text-xs text-[#31415e] overflow-y-auto rich-preview-box outline-none bg-white min-h-20"
+              dangerouslySetInnerHTML={{ __html: value }}
+            />
+          </div>
         ) : (
           <textarea
-            className={`min-h-20 max-h-56 w-full flex-1 rounded-lg bg-white px-3 py-2 text-xs text-[#31415e] outline-none transition resize-none overflow-y-auto ${
+            className={`w-full rounded-lg bg-white px-3 pt-2 pb-5 text-xs text-[#31415e] outline-none transition resize-none overflow-y-auto ${heightClasses} ${
               invalid 
                 ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" 
                 : "border border-[#d4ddec] focus:border-[#2b7cf5]"
@@ -803,7 +935,7 @@ function EditableListField({
 
       {rawMode ? (
         <textarea
-          className="min-h-36 w-full rounded-xl border border-[#d4ddec] bg-white px-3 py-3 text-sm leading-6 text-[#31415e] outline-none transition focus:border-[#2b7cf5] resize-y overflow-y-auto"
+          className="min-h-[144px] flex-1 w-full rounded-xl border border-[#d4ddec] bg-white px-3 pt-3 pb-5 text-sm leading-6 text-[#31415e] outline-none transition focus:border-[#2b7cf5] resize-y overflow-y-auto"
           onChange={(event) => onChange(toLines(event.target.value))}
           value={values.join("\n")}
         />
@@ -1001,7 +1133,7 @@ function EditableAttributesField({
 
       {rawMode ? (
         <textarea
-          className="min-h-36 w-full rounded-xl border border-[#d4ddec] bg-white px-3 py-3 text-sm leading-6 text-[#31415e] outline-none transition focus:border-[#2b7cf5] resize-y overflow-y-auto"
+          className="min-h-[144px] flex-1 w-full rounded-xl border border-[#d4ddec] bg-white px-3 pt-3 pb-5 text-sm leading-6 text-[#31415e] outline-none transition focus:border-[#2b7cf5] resize-y overflow-y-auto"
           onChange={(event) => onChange(toAttributes(event.target.value))}
           value={Object.entries(attributes)
             .map(([key, fieldValue]) => `${key}: ${fieldValue}`)
@@ -2815,7 +2947,7 @@ export default function AddProductEditor({
                   type="button"
                   disabled={isGenerating || !sourceTitle.trim()}
                   onClick={() => void generateWithoutImage()}
-                  className="inline-flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-[#172544] to-[#263c70] px-3.5 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-[#172544] to-[#263c70] px-3.5 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                 >
                   {isGenerating ? (
                     <LoaderCircle className="h-3.5 w-3.5 animate-spin text-[#35d3ce]" />
@@ -3141,10 +3273,10 @@ export default function AddProductEditor({
                   }}
                   value={publishSku}
                 />
-                <div className={`block rounded-2xl border bg-[#f8fbff] p-4 ${publishFieldErrors.price ? "border-[#ef6b6b] bg-[#fff7f7]" : "border-[#dbe2ee]"}`}>
+                <div className={`block rounded-2xl border bg-[#f8fbff] p-3 ${publishFieldErrors.price ? "border-[#ef6b6b] bg-[#fff7f7]" : "border-[#dbe2ee]"}`}>
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Default Price</p>
                   {publishFieldErrors.price ? <p className="mt-1 text-xs text-[#cf4b4b]">Required for Shopify publish.</p> : null}
-                  <div className={`mt-2 flex h-11 w-full items-center rounded-xl border bg-white overflow-hidden transition-all focus-within:border-[#97abd0] ${publishFieldErrors.price ? "border-[#ef6b6b]" : "border-[#d4ddec]"}`}>
+                  <div className={`mt-2 flex h-9 w-full items-center rounded-lg border bg-white overflow-hidden transition-all focus-within:border-[#97abd0] ${publishFieldErrors.price ? "border-[#ef6b6b]" : "border-[#d4ddec]"}`}>
                     {/* Decrement Button */}
                     <button
                       type="button"
@@ -3153,19 +3285,19 @@ export default function AddProductEditor({
                         const nextVal = Math.max(0, current - 1);
                         updatePublishPrice(nextVal.toFixed(2));
                       }}
-                      className="flex h-full w-10 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-[#d4ddec] select-none font-bold text-lg cursor-pointer"
+                      className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-[#d4ddec] select-none font-bold text-base cursor-pointer"
                     >
                       &minus;
                     </button>
 
                     {/* Currency Symbol Prefix */}
-                    <span className="pl-3 text-sm font-semibold text-[#8ea0bf] select-none">
+                    <span className="pl-2.5 text-xs font-semibold text-[#8ea0bf] select-none">
                       £
                     </span>
                     
                     {/* Numeric Input */}
                     <input
-                      className="h-full flex-1 bg-transparent pl-1 pr-4 text-center text-sm font-semibold text-[#31415e] outline-none"
+                      className="h-full flex-1 bg-transparent pl-1 pr-3 text-center text-xs font-semibold text-[#31415e] outline-none"
                       onChange={(event) => {
                         const val = event.target.value.replace(/[^0-9.]/g, "");
                         const parts = val.split(".");
@@ -3192,15 +3324,15 @@ export default function AddProductEditor({
                         const nextVal = Math.max(0, current + 1);
                         updatePublishPrice(nextVal.toFixed(2));
                       }}
-                      className="flex h-full w-10 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-l border-[#d4ddec] select-none font-bold text-lg cursor-pointer"
+                      className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-l border-[#d4ddec] select-none font-bold text-base cursor-pointer"
                     >
                       +
                     </button>
                   </div>
                 </div>
-                <div className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
+                <div className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Stock Count</p>
-                  <div className="mt-2 flex h-11 w-full items-center rounded-xl border border-[#d4ddec] bg-white overflow-hidden transition-all focus-within:border-[#97abd0]">
+                  <div className="mt-2 flex h-9 w-full items-center rounded-lg border border-[#d4ddec] bg-white overflow-hidden transition-all focus-within:border-[#97abd0]">
                     {/* Decrement Button */}
                     <button
                       type="button"
@@ -3208,14 +3340,14 @@ export default function AddProductEditor({
                         const current = parseInt(publishStock, 10) || 0;
                         setPublishStock(Math.max(0, current - 1).toString());
                       }}
-                      className="flex h-full w-10 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-[#d4ddec] select-none font-bold text-lg cursor-pointer"
+                      className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-[#d4ddec] select-none font-bold text-base cursor-pointer"
                     >
                       &minus;
                     </button>
                     
                     {/* Numeric Input */}
                     <input
-                      className="h-full flex-1 bg-transparent px-3 text-center text-sm font-semibold text-[#31415e] outline-none"
+                      className="h-full flex-1 bg-transparent px-3 text-center text-xs font-semibold text-[#31415e] outline-none"
                       onChange={(event) => {
                         const val = event.target.value.replace(/[^0-9]/g, "");
                         setPublishStock(val || "0");
@@ -3231,18 +3363,17 @@ export default function AddProductEditor({
                         const current = parseInt(publishStock, 10) || 0;
                         setPublishStock((current + 1).toString());
                       }}
-                      className="flex h-full w-10 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-l border-[#d4ddec] select-none font-bold text-lg cursor-pointer"
+                      className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-l border-[#d4ddec] select-none font-bold text-base cursor-pointer"
                     >
                       +
                     </button>
                   </div>
                 </div>
               </div>
-
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <div className="space-y-4">
                   {/* Primary Upload Status */}
-                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4" ref={statusDropdownRef}>
+                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3" ref={statusDropdownRef}>
                     <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Primary Upload Status</p>
                     <p className="mt-1 text-xs text-[#8ea0bf]">`Upload to Shopify` always creates or updates an ACTIVE Shopify product. `Upload as Draft` always forces DRAFT.</p>
                     
@@ -3250,15 +3381,15 @@ export default function AddProductEditor({
                     <button
                       type="button"
                       onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                      className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-4 text-sm text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                      className="mt-2 h-9 w-full rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
                     >
                       <span>{publishStatus}</span>
-                      <ChevronDown className={`h-4 w-4 text-[#8ea0bf] transition-transform duration-200 ${isStatusDropdownOpen ? "transform rotate-180" : ""}`} />
+                      <ChevronDown className={`h-3.5 w-3.5 text-[#8ea0bf] transition-transform duration-200 ${isStatusDropdownOpen ? "transform rotate-180" : ""}`} />
                     </button>
 
                     {/* Dropdown Menu */}
                     {isStatusDropdownOpen && (
-                      <div className="absolute left-4 right-4 z-30 mt-1.5 rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                      <div className="absolute left-3 right-3 z-30 mt-1.5 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
                         {publishStatusOptions.map((status) => {
                           const isSelected = publishStatus === status;
                           return (
@@ -3269,14 +3400,14 @@ export default function AddProductEditor({
                                 setPublishStatus(status);
                                 setIsStatusDropdownOpen(false);
                               }}
-                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
                                 isSelected 
                                   ? "bg-[#edf5ff] text-[#1b2748]" 
                                   : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
                               }`}
                             >
-                              <span>{status}</span>
-                              {isSelected && <CheckCircle2 className="h-4 w-4 text-[#2b7cf5]" />}
+                               <span>{status}</span>
+                               {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-[#2b7cf5]" />}
                             </button>
                           );
                         })}
@@ -3285,7 +3416,7 @@ export default function AddProductEditor({
                   </div>
 
                   {/* Publish to Online Store */}
-                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4" ref={onlineStoreDropdownRef}>
+                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3" ref={onlineStoreDropdownRef}>
                     <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Publish to Online Store</p>
                     <p className="mt-1 text-xs text-[#8ea0bf]">Controls storefront channel availability immediately upon upload.</p>
                     
@@ -3293,15 +3424,15 @@ export default function AddProductEditor({
                     <button
                       type="button"
                       onClick={() => setIsOnlineStoreDropdownOpen(!isOnlineStoreDropdownOpen)}
-                      className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-4 text-sm text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                      className="mt-2 h-9 w-full rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
                     >
                       <span>{publishOnOnlineStore ? "Yes" : "No"}</span>
-                      <ChevronDown className={`h-4 w-4 text-[#8ea0bf] transition-transform duration-200 ${isOnlineStoreDropdownOpen ? "transform rotate-180" : ""}`} />
+                      <ChevronDown className={`h-3.5 w-3.5 text-[#8ea0bf] transition-transform duration-200 ${isOnlineStoreDropdownOpen ? "transform rotate-180" : ""}`} />
                     </button>
 
                     {/* Dropdown Menu */}
                     {isOnlineStoreDropdownOpen && (
-                      <div className="absolute left-4 right-4 z-30 mt-1.5 rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                      <div className="absolute left-3 right-3 z-30 mt-1.5 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
                         {["Yes", "No"].map((option) => {
                           const optionVal = option === "Yes";
                           const isSelected = publishOnOnlineStore === optionVal;
@@ -3313,14 +3444,14 @@ export default function AddProductEditor({
                                 setPublishOnOnlineStore(optionVal);
                                 setIsOnlineStoreDropdownOpen(false);
                               }}
-                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
                                 isSelected 
                                   ? "bg-[#edf5ff] text-[#1b2748]" 
                                   : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
                               }`}
                             >
                               <span>{option}</span>
-                              {isSelected && <CheckCircle2 className="h-4 w-4 text-[#2b7cf5]" />}
+                              {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-[#2b7cf5]" />}
                             </button>
                           );
                         })}
@@ -3329,7 +3460,7 @@ export default function AddProductEditor({
                   </div>
 
                   {/* Track Inventory */}
-                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4" ref={trackInventoryDropdownRef}>
+                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3" ref={trackInventoryDropdownRef}>
                     <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Track Inventory</p>
                     <p className="mt-1 text-xs text-[#8ea0bf]">Controls whether Shopify tracks inventory levels for this product&apos;s variant.</p>
                     
@@ -3337,15 +3468,15 @@ export default function AddProductEditor({
                     <button
                       type="button"
                       onClick={() => setIsTrackInventoryDropdownOpen(!isTrackInventoryDropdownOpen)}
-                      className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-4 text-sm text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                      className="mt-2 h-9 w-full rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
                     >
                       <span>{publishTrackInventory ? "Yes" : "No"}</span>
-                      <ChevronDown className={`h-4 w-4 text-[#8ea0bf] transition-transform duration-200 ${isTrackInventoryDropdownOpen ? "transform rotate-180" : ""}`} />
+                      <ChevronDown className={`h-3.5 w-3.5 text-[#8ea0bf] transition-transform duration-200 ${isTrackInventoryDropdownOpen ? "transform rotate-180" : ""}`} />
                     </button>
 
                     {/* Dropdown Menu */}
                     {isTrackInventoryDropdownOpen && (
-                      <div className="absolute left-4 right-4 z-30 mt-1.5 rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                      <div className="absolute left-3 right-3 z-30 mt-1.5 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
                         {["Yes", "No"].map((option) => {
                           const optionVal = option === "Yes";
                           const isSelected = publishTrackInventory === optionVal;
@@ -3357,14 +3488,14 @@ export default function AddProductEditor({
                                 setPublishTrackInventory(optionVal);
                                 setIsTrackInventoryDropdownOpen(false);
                               }}
-                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
                                 isSelected 
                                   ? "bg-[#edf5ff] text-[#1b2748]" 
                                   : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
                               }`}
                             >
                               <span>{option}</span>
-                              {isSelected && <CheckCircle2 className="h-4 w-4 text-[#2b7cf5]" />}
+                              {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-[#2b7cf5]" />}
                             </button>
                           );
                         })}
@@ -3385,7 +3516,7 @@ export default function AddProductEditor({
 
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4 text-sm leading-6 text-[#667a99]">
-                  MVP publish sends basic Shopify product fields only. Images, inventory, SEO, and variants will be added later.
+                  Publish sends basic Shopify product fields only. Images, inventory, SEO, and variants will be added later.
                 </div>
                 <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Suggested Price Range</p>
@@ -3409,21 +3540,21 @@ export default function AddProductEditor({
                 </div>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
+              <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Dynamic Pricing</p>
-                    <p className="mt-1 text-sm text-[#6f82a3]">
+                    <p className="mt-1 text-xs text-[#6f82a3]">
                       Analyze the current draft and selected marketplace to calculate a recommended sell price.
                     </p>
                   </div>
                   <button
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white px-3.5 text-xs font-bold text-[#4a5d7d] hover:bg-[#edf2fb] hover:border-[#b8c9e4] shadow-xs active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                     disabled={!hasPersistedProduct || isAnalyzingPublishTarget}
                     onClick={() => void analyzeDynamicPricing()}
                     type="button"
                   >
-                    {isAnalyzingPublishTarget ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                    {isAnalyzingPublishTarget ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="h-3.5 w-3.5" />}
                     {isAnalyzingPublishTarget ? "Analyzing..." : "Analyze Dynamic Pricing"}
                   </button>
                 </div>
@@ -3584,47 +3715,47 @@ export default function AddProductEditor({
               </div>
 
               <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
+                <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Add Size Variant</p>
                   <p className="mt-1 text-xs text-[#8ea0bf]">Text-only option such as `32 oz`, `XL`, or `Large`.</p>
-                  <div className="mt-3 flex gap-3">
+                  <div className="mt-2.5 flex gap-2.5">
                     <input
-                      className="h-11 flex-1 rounded-xl border border-[#d4ddec] bg-white px-3 text-sm text-[#31415e] outline-none transition focus:border-[#97abd0]"
+                      className="h-9 flex-1 rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] outline-none transition focus:border-[#97abd0]"
                       onChange={(event) => updateVariantInput(activeMarket, "size", event.target.value)}
                       placeholder="e.g. 40 oz"
                       type="text"
                       value={variantInputs[activeMarket].size}
                     />
                     <button
-                      className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#172544] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#172544] px-3.5 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                       disabled={!hasPersistedProduct || variantSubmitting[activeMarket]}
                       onClick={() => void addVariant(activeMarket, "size")}
                       type="button"
                     >
-                      {variantSubmitting[activeMarket] ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                      {variantSubmitting[activeMarket] ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                       Add
                     </button>
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
+                <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Add Color Variant</p>
                   <p className="mt-1 text-xs text-[#8ea0bf]">Creates a color variant record and a generated color image asset.</p>
-                  <div className="mt-3 flex gap-3">
+                  <div className="mt-2.5 flex gap-2.5">
                     <input
-                      className="h-11 flex-1 rounded-xl border border-[#d4ddec] bg-white px-3 text-sm text-[#31415e] outline-none transition focus:border-[#97abd0]"
+                      className="h-9 flex-1 rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] outline-none transition focus:border-[#97abd0]"
                       onChange={(event) => updateVariantInput(activeMarket, "color", event.target.value)}
                       placeholder="e.g. Forest Green"
                       type="text"
                       value={variantInputs[activeMarket].color}
                     />
                     <button
-                      className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#35d3ce] px-4 text-sm font-semibold text-[#153c53] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#35d3ce] px-3.5 text-xs font-bold text-[#153c53] shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                       disabled={!hasPersistedProduct || variantSubmitting[activeMarket]}
                       onClick={() => void addVariant(activeMarket, "color")}
                       type="button"
                     >
-                      {variantSubmitting[activeMarket] ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {variantSubmitting[activeMarket] ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                       Generate
                     </button>
                   </div>
@@ -3679,43 +3810,43 @@ export default function AddProductEditor({
           </div>
 
           <aside className="space-y-5 xl:h-full xl:overflow-y-auto xl:pr-2">
-            <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
-              <div className="flex items-center justify-between gap-3 border-b border-[#eef2f6] pb-4">
+            <article className="rounded-2xl border border-[#dbe2ee] bg-white p-4 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
+              <div className="flex items-center justify-between gap-3 border-b border-[#eef2f6] pb-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eefaf7] text-[#2dc7c3]">
-                    <ImageIcon className="h-5 w-5" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eefaf7] text-[#2dc7c3]">
+                    <ImageIcon className="h-4.5 w-4.5" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-[#1f2c44]">Generated Images</h2>
+                    <h2 className="text-base font-bold text-[#1f2c44]">Generated Images</h2>
                     <p className="text-xs text-[#7f92b1]">Upload custom files or generate marketplace-ready views.</p>
                   </div>
                 </div>
               </div>
 
               {/* Channel Filter Dropdown */}
-              <div className="relative mt-4 z-40" ref={filterDropdownRef}>
+              <div className="relative mt-3 z-40" ref={filterDropdownRef}>
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2] mb-1.5">View Channel / Card</p>
                 <button
                   type="button"
                   onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                  className="h-11 w-full rounded-xl border border-[#d4ddec] bg-[#f8fbff] px-4 text-sm text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                  className="h-9 w-full rounded-lg border border-[#d4ddec] bg-[#f8fbff] px-3 text-xs text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
                 >
                   <span className="flex items-center gap-2.5">
                     {(() => {
                       const activeOpt = filterOptions.find(opt => opt.key === selectedFilterKey);
                       if (activeOpt) {
                         const IconComponent = activeOpt.icon;
-                        return <IconComponent className="h-4 w-4 text-[#2b7cf5]" />;
+                        return <IconComponent className="h-3.5 w-3.5 text-[#2b7cf5]" />;
                       }
-                      return <Filter className="h-4 w-4 text-[#8ea0bf]" />;
+                      return <Filter className="h-3.5 w-3.5 text-[#8ea0bf]" />;
                     })()}
                     {filterOptions.find(opt => opt.key === selectedFilterKey)?.label}
                   </span>
-                  <ChevronDown className={`h-4 w-4 text-[#8ea0bf] transition-transform duration-200 ${isFilterDropdownOpen ? "transform rotate-180" : ""}`} />
+                  <ChevronDown className={`h-3.5 w-3.5 text-[#8ea0bf] transition-transform duration-200 ${isFilterDropdownOpen ? "transform rotate-180" : ""}`} />
                 </button>
 
                 {isFilterDropdownOpen && (
-                  <div className="absolute left-0 right-0 z-50 mt-1.5 rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                  <div className="absolute left-0 right-0 z-50 mt-1 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
                     {filterOptions.map((opt) => {
                       const isSelected = selectedFilterKey === opt.key;
                       const IconComponent = opt.icon;
@@ -3727,7 +3858,7 @@ export default function AddProductEditor({
                             setSelectedFilterKey(opt.key);
                             setIsFilterDropdownOpen(false);
                           }}
-                          className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 cursor-pointer ${
+                          className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
                             isSelected 
                               ? "bg-[#edf5ff] text-[#1b2748]" 
                               : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
@@ -3746,27 +3877,27 @@ export default function AddProductEditor({
               </div>
 
               {/* Global Actions Area */}
-              <div className="flex gap-3 mt-4 border-b border-[#eef2f6] pb-4">
+              <div className="flex gap-2.5 mt-3 border-b border-[#eef2f6] pb-3.5">
                 <button
-                  className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#172544] to-[#263c70] px-4 text-xs font-bold text-white shadow-sm hover:shadow-md active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-[#172544] to-[#263c70] px-4 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                   disabled={!productId || Object.values(marketImageGenerating).some(Boolean) || isGenerating}
                   onClick={() => void generateAllMarketplaceImages()}
                   type="button"
                 >
                   {Object.values(marketImageGenerating).some(Boolean) ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin text-[#35d3ce]" />
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin text-[#35d3ce]" />
                   ) : (
-                    <Sparkles className="h-4 w-4 text-[#35d3ce]" />
+                    <Sparkles className="h-3.5 w-3.5 text-[#35d3ce]" />
                   )}
                   {Object.values(marketImageGenerating).some(Boolean) ? "Generating..." : "Generate All"}
                 </button>
                 <button
-                  className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dbe2ee] bg-white px-4 text-xs font-bold text-[#31415e] shadow-sm hover:bg-[#f8fbff] active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#dbe2ee] bg-white px-4 text-xs font-bold text-[#31415e] shadow-xs hover:bg-[#f8fbff] active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                   disabled={!imageCards.some(card => card.image?.absolute_path || card.image?.relative_path)}
                   onClick={() => void downloadAllImages()}
                   type="button"
                 >
-                  <Download className="h-4 w-4 text-[#4a5d7d]" />
+                  <Download className="h-3.5 w-3.5 text-[#4a5d7d]" />
                   Download All
                 </button>
               </div>

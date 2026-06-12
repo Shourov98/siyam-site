@@ -202,6 +202,13 @@ p {
 
 /* Rich Preview box styling rules for HTML rendering */
 .rich-preview-box {
+  padding-bottom: 1rem !important;
+  &::after {
+    content: "";
+    display: block;
+    height: 1.25rem;
+    width: 100%;
+  }
   p {
     margin-bottom: 0.75rem;
     line-height: 1.5;
