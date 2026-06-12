@@ -145,7 +145,13 @@ type ApiShopify = {
   barcode?: string;
   inventory_tracked?: boolean;
   continue_selling_out_of_stock?: boolean;
-  stock_locations?: Array<{ name: string; available: number; on_hand?: number }>;
+  stock_locations?: Array<{
+    name: string;
+    available: number;
+    on_hand?: number;
+    unavailable?: number;
+    committed?: number;
+  }>;
   physical_product?: boolean;
   weight?: string;
   weight_unit?: string;
@@ -536,7 +542,7 @@ const emptyProduct: ApiProduct = {
     barcode: "",
     inventory_tracked: true,
     continue_selling_out_of_stock: false,
-    stock_locations: [{ name: "Kingston Grove", available: 0, on_hand: 0 }],
+    stock_locations: [{ name: "Kingston Grove", available: 0, on_hand: 0, unavailable: 0, committed: 0 }],
     physical_product: true,
     weight: "0.0",
     weight_unit: "lb",
@@ -1670,6 +1676,14 @@ export default function AddProductEditor({
   const [newLocationName, setNewLocationName] = useState("");
   const [locationError, setLocationError] = useState("");
 
+  // Shopify high-fidelity UI states
+  const [showCompareAtPrice, setShowCompareAtPrice] = useState(false);
+  const [showCostPerItem, setShowCostPerItem] = useState(false);
+  const [isSeoCollapsed, setIsSeoCollapsed] = useState(true);
+  const [shippingPackage, setShippingPackage] = useState("Store default • Sample box - 8.6 × 5.4 × 1.8 in, 0 lb");
+  const [isPackageDropdownOpen, setIsPackageDropdownOpen] = useState(false);
+  const [isContinueSellingDropdownOpen, setIsContinueSellingDropdownOpen] = useState(false);
+
   const handleAddLocationSubmit = () => {
     const trimmedName = newLocationName.trim();
     if (!trimmedName) {
@@ -1733,6 +1747,12 @@ export default function AddProductEditor({
       if (!target.closest(".theme-select-container")) {
         setIsThemeOpen(false);
       }
+      if (!target.closest(".package-select-container")) {
+        setIsPackageDropdownOpen(false);
+      }
+      if (!target.closest(".shopify-continue-selling-container")) {
+        setIsContinueSellingDropdownOpen(false);
+      }
     }
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -1744,6 +1764,8 @@ export default function AddProductEditor({
         setIsStatusOpen(false);
         setIsThemeOpen(false);
         setIsAddLocationOpen(false);
+        setIsPackageDropdownOpen(false);
+        setIsContinueSellingDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -1869,7 +1891,13 @@ export default function AddProductEditor({
         ...emptyProduct.shopify.metafields,
         ...(snapshot.draft.shopify?.metafields ?? {}),
       },
-      stock_locations: snapshot.draft.shopify?.stock_locations ?? emptyProduct.shopify.stock_locations,
+      stock_locations: (snapshot.draft.shopify?.stock_locations ?? emptyProduct.shopify.stock_locations ?? []).map(loc => ({
+        name: loc.name,
+        available: loc.available ?? 0,
+        on_hand: loc.on_hand ?? 0,
+        unavailable: loc.unavailable ?? 0,
+        committed: loc.committed ?? 0
+      })),
       has_variants: snapshot.draft.shopify?.has_variants ?? false,
       options: snapshot.draft.shopify?.options ?? [{ name: "Size", values: [] }],
       variants: snapshot.draft.shopify?.variants ?? [],
@@ -1879,6 +1907,8 @@ export default function AddProductEditor({
       shopify: normalizedShopify,
     };
     setDraft(normalizedDraft);
+    setShowCompareAtPrice(!!normalizedShopify.compare_at_price);
+    setShowCostPerItem(!!normalizedShopify.cost_per_item);
     setVariantsByMarket(snapshot.variantsByMarket);
     setProductId(snapshot.productId);
     setShopifyProductId(snapshot.shopifyProductId);
@@ -1929,6 +1959,10 @@ export default function AddProductEditor({
       shopify: { size: "", color: "" },
     });
     setHasSavedDraft(false);
+    setShowCompareAtPrice(false);
+    setShowCostPerItem(false);
+    setIsSeoCollapsed(true);
+    setShippingPackage("Store default • Sample box - 8.6 × 5.4 × 1.8 in, 0 lb");
     setDraftSaveState("idle");
     lastSavedDraftRef.current = null;
     setRestoredLocalDraftProductId(undefined);
@@ -4242,8 +4276,10 @@ export default function AddProductEditor({
                     {/* Card 5: Pricing */}
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
                       <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Pricing</h3>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                      
+                      <div className="space-y-4">
+                        {/* Primary Price Field */}
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 max-w-xs transition focus-within:border-[#2b7cf5] focus-within:bg-white">
                           <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Price</span>
                           <div className="flex items-center">
                             <span className="text-xs font-semibold text-[#8ea0bf] select-none mr-1.5">£</span>
@@ -4260,92 +4296,121 @@ export default function AddProductEditor({
                           </div>
                         </div>
 
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Compare-at Price</span>
-                          <div className="flex items-center">
-                            <span className="text-xs font-semibold text-[#8ea0bf] select-none mr-1.5">£</span>
-                            <input
-                              type="text"
-                              value={draft.shopify.compare_at_price ?? ""}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(/[^0-9.]/g, "");
-                                setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, compare_at_price: val } }));
-                              }}
-                              className="w-full bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
-                              placeholder="0.00"
-                            />
-                          </div>
+                        {/* Interactive Pill Buttons */}
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setShowCompareAtPrice(!showCompareAtPrice)}
+                            className={`px-3 py-1.5 rounded-full border font-semibold transition cursor-pointer select-none ${
+                              showCompareAtPrice 
+                                ? "bg-[#eef2f6] border-[#d4ddec] text-[#31415e]" 
+                                : "bg-white border-dashed border-[#d5dcea] text-[#5a6d8d] hover:bg-[#f8fbff]"
+                            }`}
+                          >
+                            {showCompareAtPrice ? "✓ Compare-at price" : "+ Compare-at price"}
+                          </button>
+                          
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextTax = !(draft.shopify.charge_tax ?? true);
+                              setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, charge_tax: nextTax } }));
+                            }}
+                            className={`px-3 py-1.5 rounded-full border font-semibold transition cursor-pointer select-none ${
+                              (draft.shopify.charge_tax ?? true)
+                                ? "bg-[#eef2f6] border-[#d4ddec] text-[#31415e]"
+                                : "bg-white border-[#d5dcea] text-[#5a6d8d] hover:bg-[#f8fbff]"
+                            }`}
+                          >
+                            Charge tax: {(draft.shopify.charge_tax ?? true) ? "Yes" : "No"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setShowCostPerItem(!showCostPerItem)}
+                            className={`px-3 py-1.5 rounded-full border font-semibold transition cursor-pointer select-none ${
+                              showCostPerItem 
+                                ? "bg-[#eef2f6] border-[#d4ddec] text-[#31415e]" 
+                                : "bg-white border-dashed border-[#d5dcea] text-[#5a6d8d] hover:bg-[#f8fbff]"
+                            }`}
+                          >
+                            {showCostPerItem ? "✓ Cost per item" : "+ Cost per item"}
+                          </button>
                         </div>
 
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Cost Per Item</span>
-                          <div className="flex items-center">
-                            <span className="text-xs font-semibold text-[#8ea0bf] select-none mr-1.5">£</span>
-                            <input
-                              type="text"
-                              value={draft.shopify.cost_per_item ?? ""}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(/[^0-9.]/g, "");
-                                setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, cost_per_item: val } }));
-                              }}
-                              className="w-full bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
-                              placeholder="0.00"
-                            />
-                          </div>
-                        </div>
+                        {/* Secondary Toggled Inputs */}
+                        {(showCompareAtPrice || showCostPerItem) && (
+                          <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-[#eef2f6] animate-in fade-in duration-200">
+                            {showCompareAtPrice && (
+                              <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white animate-in slide-in-from-top-1 duration-150">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Compare-at Price</span>
+                                <div className="flex items-center">
+                                  <span className="text-xs font-semibold text-[#8ea0bf] select-none mr-1.5">£</span>
+                                  <input
+                                    type="text"
+                                    value={draft.shopify.compare_at_price ?? ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/[^0-9.]/g, "");
+                                      setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, compare_at_price: val } }));
+                                    }}
+                                    className="w-full bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                              </div>
+                            )}
 
-                        <div className="flex items-center gap-2 px-1">
-                          <input
-                            type="checkbox"
-                            id="charge_tax"
-                            checked={draft.shopify.charge_tax ?? true}
-                            onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, charge_tax: e.target.checked } }))}
-                            className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
-                          />
-                          <label htmlFor="charge_tax" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
-                            Charge tax on this product
-                          </label>
-                        </div>
+                            {showCostPerItem && (
+                              <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white animate-in slide-in-from-top-1 duration-150">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Cost Per Item</span>
+                                <div className="flex items-center">
+                                  <span className="text-xs font-semibold text-[#8ea0bf] select-none mr-1.5">£</span>
+                                  <input
+                                    type="text"
+                                    value={draft.shopify.cost_per_item ?? ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/[^0-9.]/g, "");
+                                      setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, cost_per_item: val } }));
+                                    }}
+                                    className="w-full bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Card 6: Inventory */}
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
-                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Inventory</h3>
-                      <div className="grid gap-4 sm:grid-cols-2 mb-4">
-                        <EditableField
-                          label="SKU (Stock Keeping Unit)"
-                          onChange={(value) => {
-                            setPublishSku(value);
-                            setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, sku: value } }));
-                          }}
-                          value={publishSku}
-                        />
-                        <EditableField
-                          label="Barcode (ISBN, UPC, GTIN, etc.)"
-                          onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, barcode: value } }))}
-                          value={draft.shopify.barcode ?? ""}
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-2 px-1 mb-4">
-                        <input
-                          type="checkbox"
-                          id="inventory_tracked"
-                          checked={publishTrackInventory}
-                          onChange={(e) => {
-                            setPublishTrackInventory(e.target.checked);
-                            setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, inventory_tracked: e.target.checked } }));
-                          }}
-                          className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
-                        />
-                        <label htmlFor="inventory_tracked" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
-                          Track inventory quantity
-                        </label>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-bold text-[#1f2c44]">Inventory</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-[#5a6d8d] select-none">Inventory tracked</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextVal = !publishTrackInventory;
+                              setPublishTrackInventory(nextVal);
+                              setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, inventory_tracked: nextVal } }));
+                            }}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              publishTrackInventory ? "bg-[#008060]" : "bg-slate-200"
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                publishTrackInventory ? "translate-x-4" : "translate-x-0"
+                              }`}
+                            />
+                          </button>
+                        </div>
                       </div>
 
                       {publishTrackInventory && (
-                        <div className="border-t border-[#eef2f6] pt-4">
+                        <div className="mb-4">
                           <div className="flex items-center justify-between mb-3">
                             <p className="text-xs font-bold uppercase tracking-wider text-[#8093b2]">Quantity & Locations</p>
                             <button
@@ -4366,8 +4431,10 @@ export default function AddProductEditor({
                               <thead>
                                 <tr className="bg-slate-50 border-b border-[#d5dcea] text-[#8093b2] font-semibold">
                                   <th className="p-2.5">Location</th>
-                                  <th className="p-2.5 w-24 text-center">Available</th>
-                                  <th className="p-2.5 w-24 text-center">On Hand</th>
+                                  <th className="p-2.5 w-20 text-center">Unavailable</th>
+                                  <th className="p-2.5 w-20 text-center">Committed</th>
+                                  <th className="p-2.5 w-20 text-center">Available</th>
+                                  <th className="p-2.5 w-20 text-center">On Hand</th>
                                   <th className="p-2.5 w-12 text-center">Action</th>
                                 </tr>
                               </thead>
@@ -4375,6 +4442,42 @@ export default function AddProductEditor({
                                 {(draft.shopify.stock_locations ?? []).map((loc, idx) => (
                                   <tr key={loc.name} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                                     <td className="p-2.5 font-semibold text-[#31415e]">{loc.name}</td>
+                                    
+                                    {/* Unavailable */}
+                                    <td className="p-2.5">
+                                      <input
+                                        type="number"
+                                        value={loc.unavailable ?? 0}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value, 10) || 0;
+                                          setDraft((prev) => {
+                                            const nextLocs = [...(prev.shopify.stock_locations ?? [])];
+                                            nextLocs[idx] = { ...nextLocs[idx], unavailable: val };
+                                            return { ...prev, shopify: { ...prev.shopify, stock_locations: nextLocs } };
+                                          });
+                                        }}
+                                        className="w-full h-8 border border-[#d4ddec] rounded-lg text-center text-xs outline-none focus:border-[#2b7cf5]"
+                                      />
+                                    </td>
+
+                                    {/* Committed */}
+                                    <td className="p-2.5">
+                                      <input
+                                        type="number"
+                                        value={loc.committed ?? 0}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value, 10) || 0;
+                                          setDraft((prev) => {
+                                            const nextLocs = [...(prev.shopify.stock_locations ?? [])];
+                                            nextLocs[idx] = { ...nextLocs[idx], committed: val };
+                                            return { ...prev, shopify: { ...prev.shopify, stock_locations: nextLocs } };
+                                          });
+                                        }}
+                                        className="w-full h-8 border border-[#d4ddec] rounded-lg text-center text-xs outline-none focus:border-[#2b7cf5]"
+                                      />
+                                    </td>
+
+                                    {/* Available */}
                                     <td className="p-2.5">
                                       <input
                                         type="number"
@@ -4392,21 +4495,13 @@ export default function AddProductEditor({
                                         className="w-full h-8 border border-[#d4ddec] rounded-lg text-center text-xs outline-none focus:border-[#2b7cf5]"
                                       />
                                     </td>
-                                    <td className="p-2.5">
-                                      <input
-                                        type="number"
-                                        value={loc.on_hand ?? 0}
-                                        onChange={(e) => {
-                                          const val = parseInt(e.target.value, 10) || 0;
-                                          setDraft((prev) => {
-                                            const nextLocs = [...(prev.shopify.stock_locations ?? [])];
-                                            nextLocs[idx] = { ...nextLocs[idx], on_hand: val };
-                                            return { ...prev, shopify: { ...prev.shopify, stock_locations: nextLocs } };
-                                          });
-                                        }}
-                                        className="w-full h-8 border border-[#d4ddec] rounded-lg text-center text-xs outline-none focus:border-[#2b7cf5]"
-                                      />
+
+                                    {/* On Hand (calculated) */}
+                                    <td className="p-2.5 text-center font-bold text-[#31415e]">
+                                      {(loc.available ?? 0) + (loc.committed ?? 0) + (loc.unavailable ?? 0)}
                                     </td>
+
+                                    {/* Action (Delete) */}
                                     <td className="p-2.5 text-center">
                                       <button
                                         type="button"
@@ -4418,7 +4513,7 @@ export default function AddProductEditor({
                                             return { ...prev, shopify: { ...prev.shopify, stock_locations: nextLocs } };
                                           });
                                         }}
-                                        className="text-[#ef6b6b] hover:text-[#cf4b4b] cursor-pointer border-0 bg-transparent"
+                                        className="text-[#ef6b6b] hover:text-[#cf4b4b] cursor-pointer border-0 bg-transparent text-xs font-semibold"
                                       >
                                         Delete
                                       </button>
@@ -4431,39 +4526,123 @@ export default function AddProductEditor({
                         </div>
                       )}
 
-                      <div className="flex items-center gap-2 px-1 mt-4">
-                        <input
-                          type="checkbox"
-                          id="continue_selling"
-                          checked={draft.shopify.continue_selling_out_of_stock ?? false}
-                          onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, continue_selling_out_of_stock: e.target.checked } }))}
-                          className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
-                        />
-                        <label htmlFor="continue_selling" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
-                          Continue selling when out of stock
-                        </label>
+                      {/* Inventory Card Footer: SKU, Barcode, Sell when out of stock */}
+                      <div className="border-t border-[#eef2f6] pt-4">
+                        <div className="grid gap-4 sm:grid-cols-3">
+                          <EditableField
+                            label="SKU (Stock Keeping Unit)"
+                            onChange={(value) => {
+                              setPublishSku(value);
+                              setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, sku: value } }));
+                            }}
+                            value={publishSku}
+                          />
+                          <EditableField
+                            label="Barcode (ISBN, UPC, GTIN, etc.)"
+                            onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, barcode: value } }))}
+                            value={draft.shopify.barcode ?? ""}
+                          />
+                          
+                          {/* Sell when out of stock dropdown picker */}
+                          <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 relative select-none shopify-continue-selling-container">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Sell when out of stock</span>
+                            <div 
+                              onClick={() => setIsContinueSellingDropdownOpen(!isContinueSellingDropdownOpen)}
+                              className="flex items-center justify-between cursor-pointer h-5 text-xs font-semibold text-[#31415e] mt-1"
+                            >
+                              <span>{draft.shopify.continue_selling_out_of_stock ? "Continue selling" : "Off"}</span>
+                              <ChevronDown className={`h-4.5 w-4.5 text-[#8ea0bf] transition-transform duration-200 ${isContinueSellingDropdownOpen ? "rotate-180" : ""}`} />
+                            </div>
+
+                            {isContinueSellingDropdownOpen && (
+                              <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 rounded-xl border border-[#d5dcea] bg-white py-1 shadow-lg text-xs font-semibold text-[#31415e] animate-in fade-in slide-in-from-top-1 duration-150">
+                                <div 
+                                  onClick={() => {
+                                    setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, continue_selling_out_of_stock: false } }));
+                                    setIsContinueSellingDropdownOpen(false);
+                                  }}
+                                  className={`px-3 py-2 cursor-pointer hover:bg-slate-50 flex items-center justify-between ${!draft.shopify.continue_selling_out_of_stock ? "text-[#2b7cf5] bg-blue-50/20" : ""}`}
+                                >
+                                  <span>Off</span>
+                                  {!draft.shopify.continue_selling_out_of_stock && <span className="text-[#2b7cf5]">✓</span>}
+                                </div>
+                                <div 
+                                  onClick={() => {
+                                    setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, continue_selling_out_of_stock: true } }));
+                                    setIsContinueSellingDropdownOpen(false);
+                                  }}
+                                  className={`px-3 py-2 cursor-pointer hover:bg-slate-50 flex items-center justify-between ${draft.shopify.continue_selling_out_of_stock ? "text-[#2b7cf5] bg-blue-50/20" : ""}`}
+                                >
+                                  <span>Continue selling</span>
+                                  {draft.shopify.continue_selling_out_of_stock && <span className="text-[#2b7cf5]">✓</span>}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
                     {/* Card 7: Shipping */}
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
-                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Shipping</h3>
-
-                      <div className="flex items-center gap-2 px-1 mb-4">
-                        <input
-                          type="checkbox"
-                          id="physical_product"
-                          checked={draft.shopify.physical_product ?? true}
-                          onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, physical_product: e.target.checked } }))}
-                          className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
-                        />
-                        <label htmlFor="physical_product" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
-                          This is a physical product
-                        </label>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-bold text-[#1f2c44]">Shipping</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-[#5a6d8d] select-none">Physical product</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextVal = !(draft.shopify.physical_product ?? true);
+                              setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, physical_product: nextVal } }));
+                            }}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              (draft.shopify.physical_product ?? true) ? "bg-[#008060]" : "bg-slate-200"
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                (draft.shopify.physical_product ?? true) ? "translate-x-4" : "translate-x-0"
+                              }`}
+                            />
+                          </button>
+                        </div>
                       </div>
 
                       {draft.shopify.physical_product !== false && (
                         <div className="space-y-4 border-t border-[#eef2f6] pt-4">
+                          {/* Package Selector */}
+                          <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 relative select-none package-select-container focus-within:border-[#2b7cf5] focus-within:bg-white max-w-md">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Package</span>
+                            <div
+                              onClick={() => setIsPackageDropdownOpen(!isPackageDropdownOpen)}
+                              className="flex items-center justify-between cursor-pointer py-0.5 select-none text-xs font-semibold text-[#31415e]"
+                            >
+                              <span>{shippingPackage}</span>
+                              <ChevronDown className={`h-4.5 w-4.5 text-[#8ea0bf] transition-transform duration-200 ${isPackageDropdownOpen ? "rotate-180" : ""}`} />
+                            </div>
+
+                            {isPackageDropdownOpen && (
+                              <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-45 rounded-xl border border-[#d5dcea] bg-white py-1 shadow-lg text-xs font-semibold text-[#31415e] animate-in fade-in slide-in-from-top-1 duration-150">
+                                {[
+                                  "Store default • Sample box - 8.6 × 5.4 × 1.8 in, 0 lb",
+                                  "Custom package • Custom box dimensions"
+                                ].map((pkg) => (
+                                  <div
+                                    key={pkg}
+                                    onClick={() => {
+                                      setShippingPackage(pkg);
+                                      setIsPackageDropdownOpen(false);
+                                    }}
+                                    className={`px-3 py-2 cursor-pointer hover:bg-slate-50 flex items-center justify-between ${shippingPackage === pkg ? "text-[#2b7cf5] bg-blue-50/20" : ""}`}
+                                  >
+                                    <span>{pkg}</span>
+                                    {shippingPackage === pkg && <span className="text-[#2b7cf5]">✓</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
                           <div className="grid gap-4 sm:grid-cols-2">
                             <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
                               <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Weight</span>
@@ -5222,7 +5401,21 @@ export default function AddProductEditor({
 
                     {/* Card 8: SEO Listing Preview */}
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
-                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Search Engine Listing Preview</h3>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-bold text-[#1f2c44]">Search Engine Listing Preview</h3>
+                        <button
+                          type="button"
+                          onClick={() => setIsSeoCollapsed(!isSeoCollapsed)}
+                          className="text-xs font-bold text-[#2b7cf5] hover:text-[#1d5fb8] cursor-pointer flex items-center gap-1 bg-transparent border-0 select-none"
+                          title="Edit search engine listing"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                          <span>Edit</span>
+                        </button>
+                      </div>
+
                       <div className="mb-4 p-4 rounded-xl border border-[#e2e8f0] bg-slate-50">
                         <div className="text-[#1a0dab] hover:underline text-base font-semibold leading-snug cursor-pointer truncate max-w-full">
                           {draft.shopify.seo_title || draft.shopify.title || "Jordan Air 1 Style — Burgundy"}
@@ -5235,91 +5428,101 @@ export default function AddProductEditor({
                         </div>
                       </div>
 
-                      <div className="space-y-4 border-t border-[#eef2f6] pt-4">
-                        <EditableField
-                          label="Page Title (SEO Title)"
-                          onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, seo_title: value } }))}
-                          value={draft.shopify.seo_title}
-                          helperText="Displayed in browser tab and search results. Recommended: 70 characters max."
-                        />
-                        <EditableField
-                          label="Meta Description (SEO Description)"
-                          multiline
-                          onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, seo_description: value } }))}
-                          value={draft.shopify.seo_description}
-                          helperText="Displayed in search results page descriptions. Recommended: 320 characters max."
-                        />
-                        <EditableField
-                          label="URL Handle"
-                          onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, seo_handle: value } }))}
-                          value={draft.shopify.seo_handle ?? ""}
-                          helperText="URL path handle of this product page."
-                        />
+                      {!isSeoCollapsed && (
+                        <div className="space-y-4 border-t border-[#eef2f6] pt-4 animate-in slide-in-from-top-2 duration-200">
+                          <EditableField
+                            label="Page Title (SEO Title)"
+                            onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, seo_title: value } }))}
+                            value={draft.shopify.seo_title}
+                            helperText="Displayed in browser tab and search results. Recommended: 70 characters max."
+                          />
+                          <EditableField
+                            label="Meta Description (SEO Description)"
+                            multiline
+                            onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, seo_description: value } }))}
+                            value={draft.shopify.seo_description}
+                            helperText="Displayed in search results page descriptions. Recommended: 320 characters max."
+                          />
+                          <EditableField
+                            label="URL Handle"
+                            onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, seo_handle: value } }))}
+                            value={draft.shopify.seo_handle ?? ""}
+                            helperText="URL path handle of this product page."
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card 9: Status */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Status</h3>
+                      <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 relative status-select-container focus-within:border-[#2b7cf5] focus-within:bg-white max-w-md">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Product Status</span>
+                        <div
+                          onClick={() => setIsStatusOpen(!isStatusOpen)}
+                          className="flex items-center justify-between cursor-pointer py-0.5 mt-1 select-none"
+                        >
+                          <span className="text-xs font-semibold text-[#31415e]">
+                            {publishStatus === "ACTIVE" ? "Active" : "Draft"}
+                          </span>
+                          <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${isStatusOpen ? "rotate-180" : ""}`} />
+                        </div>
+                        {isStatusOpen && (
+                          <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 max-h-56 overflow-y-auto">
+                            <div className="space-y-0.5">
+                              {[
+                                { value: "ACTIVE", label: "Active" },
+                                { value: "DRAFT", label: "Draft" },
+                              ].map((s) => {
+                                const isSelected = s.value === publishStatus;
+                                return (
+                                  <button
+                                    key={s.value}
+                                    type="button"
+                                    onClick={() => {
+                                      setPublishStatus(s.value as PublishStatus);
+                                      setIsStatusOpen(false);
+                                    }}
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border-0 flex items-center justify-between transition-all ${
+                                      isSelected ? "bg-[#edf5ff] text-[#2b7cf5]" : "text-slate-700 hover:bg-slate-50 bg-transparent"
+                                    }`}
+                                  >
+                                    <span>{s.label}</span>
+                                    {isSelected && (
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-3.5 w-3.5 text-[#2b7cf5]">
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {/* Card 9: Product Organization */}
+                    {/* Card 10: Publishing */}
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
-                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Product Organization & Sidebar</h3>
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Publishing</h3>
+                      <div className="flex items-center gap-2 px-1 py-1">
+                        <input
+                          type="checkbox"
+                          id="publish_store"
+                          checked={publishOnOnlineStore}
+                          onChange={(e) => setPublishOnOnlineStore(e.target.checked)}
+                          className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
+                        />
+                        <label htmlFor="publish_store" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
+                          Publish to Online Store
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Card 11: Product Organization */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Product Organization</h3>
                       <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 relative status-select-container focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Product Status</span>
-                          <div
-                            onClick={() => setIsStatusOpen(!isStatusOpen)}
-                            className="flex items-center justify-between cursor-pointer py-0.5 mt-1 select-none"
-                          >
-                            <span className="text-xs font-semibold text-[#31415e]">
-                              {publishStatus === "ACTIVE" ? "Active" : "Draft"}
-                            </span>
-                            <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${isStatusOpen ? "rotate-180" : ""}`} />
-                          </div>
-                          {isStatusOpen && (
-                            <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 max-h-56 overflow-y-auto">
-                              <div className="space-y-0.5">
-                                {[
-                                  { value: "ACTIVE", label: "Active" },
-                                  { value: "DRAFT", label: "Draft" },
-                                ].map((s) => {
-                                  const isSelected = s.value === publishStatus;
-                                  return (
-                                    <button
-                                      key={s.value}
-                                      type="button"
-                                      onClick={() => {
-                                        setPublishStatus(s.value as PublishStatus);
-                                        setIsStatusOpen(false);
-                                      }}
-                                      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border-0 flex items-center justify-between transition-all ${
-                                        isSelected ? "bg-[#edf5ff] text-[#2b7cf5]" : "text-slate-700 hover:bg-slate-50 bg-transparent"
-                                      }`}
-                                    >
-                                      <span>{s.label}</span>
-                                      {isSelected && (
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-3.5 w-3.5 text-[#2b7cf5]">
-                                          <polyline points="20 6 9 17 4 12" />
-                                        </svg>
-                                      )}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 px-1">
-                          <input
-                            type="checkbox"
-                            id="publish_store"
-                            checked={publishOnOnlineStore}
-                            onChange={(e) => setPublishOnOnlineStore(e.target.checked)}
-                            className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
-                          />
-                          <label htmlFor="publish_store" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
-                            Publish to Online Store
-                          </label>
-                        </div>
-
                         <EditableField
                           label="Product Type"
                           onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, product_type: value } }))}
@@ -5339,7 +5542,7 @@ export default function AddProductEditor({
                           value={publishVendor}
                         />
 
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white sm:col-span-2">
                           <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Collections</span>
                           <input
                             type="text"
@@ -5352,48 +5555,6 @@ export default function AddProductEditor({
                             className="mt-1 w-full bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
                           />
                         </div>
-
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 relative theme-select-container focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Theme Template</span>
-                          <div
-                            onClick={() => setIsThemeOpen(!isThemeOpen)}
-                            className="flex items-center justify-between cursor-pointer py-0.5 mt-1 select-none"
-                          >
-                            <span className="text-xs font-semibold text-[#31415e]">
-                              {draft.shopify.theme_template ?? "Default product"}
-                            </span>
-                            <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${isThemeOpen ? "rotate-180" : ""}`} />
-                          </div>
-                          {isThemeOpen && (
-                            <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 max-h-56 overflow-y-auto">
-                              <div className="space-y-0.5">
-                                {["Default product", "Custom template"].map((t) => {
-                                  const isSelected = t === draft.shopify.theme_template;
-                                  return (
-                                    <button
-                                      key={t}
-                                      type="button"
-                                      onClick={() => {
-                                        setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, theme_template: t } }));
-                                        setIsThemeOpen(false);
-                                      }}
-                                      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border-0 flex items-center justify-between transition-all ${
-                                        isSelected ? "bg-[#edf5ff] text-[#2b7cf5]" : "text-slate-700 hover:bg-slate-50 bg-transparent"
-                                      }`}
-                                    >
-                                      <span>{t}</span>
-                                      {isSelected && (
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-3.5 w-3.5 text-[#2b7cf5]">
-                                          <polyline points="20 6 9 17 4 12" />
-                                        </svg>
-                                      )}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
                       </div>
 
                       <div className="mt-4">
@@ -5404,6 +5565,52 @@ export default function AddProductEditor({
                           values={draft.shopify.tags}
                           renderAsTags={true}
                         />
+                      </div>
+                    </div>
+
+                    {/* Card 12: Theme Template */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Theme Template</h3>
+                      <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 relative theme-select-container focus-within:border-[#2b7cf5] focus-within:bg-white max-w-md">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Theme Template</span>
+                        <div
+                          onClick={() => setIsThemeOpen(!isThemeOpen)}
+                          className="flex items-center justify-between cursor-pointer py-0.5 mt-1 select-none"
+                        >
+                          <span className="text-xs font-semibold text-[#31415e]">
+                            {draft.shopify.theme_template ?? "Default product"}
+                          </span>
+                          <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${isThemeOpen ? "rotate-180" : ""}`} />
+                        </div>
+                        {isThemeOpen && (
+                          <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 max-h-56 overflow-y-auto">
+                            <div className="space-y-0.5">
+                              {["Default product", "Custom template"].map((t) => {
+                                const isSelected = t === draft.shopify.theme_template;
+                                return (
+                                  <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => {
+                                      setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, theme_template: t } }));
+                                      setIsThemeOpen(false);
+                                    }}
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border-0 flex items-center justify-between transition-all ${
+                                      isSelected ? "bg-[#edf5ff] text-[#2b7cf5]" : "text-slate-700 hover:bg-slate-50 bg-transparent"
+                                    }`}
+                                  >
+                                    <span>{t}</span>
+                                    {isSelected && (
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-3.5 w-3.5 text-[#2b7cf5]">
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
