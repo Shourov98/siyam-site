@@ -1,7 +1,7 @@
 import { requestWithAuth } from "@/lib/auth";
 
 export type WalletPlatformBalance = {
-  platform: "shopify" | "amazon" | "ebay" | "tiktok";
+  platform: "shopify" | "amazon" | "ebay" | "tiktok" | "etsy";
   label: string;
   amount: number;
   currency: string;

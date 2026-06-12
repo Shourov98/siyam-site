@@ -114,6 +114,22 @@ p {
   }
 }
 
+@keyframes new-order-to-center-etsy {
+  0%,
+  18% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  62% {
+    opacity: 1;
+  }
+  78%,
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -185px) scale(0.72);
+  }
+}
+
 .new-order-motion {
   animation-duration: 4.2s;
   animation-timing-function: cubic-bezier(0.22, 0.78, 0.25, 0.99);
@@ -140,6 +156,11 @@ p {
 .new-order-motion-ebay {
   animation-name: new-order-to-center-ebay;
   animation-delay: 2.4s;
+}
+
+.new-order-motion-etsy {
+  animation-name: new-order-to-center-etsy;
+  animation-delay: 4.8s;
 }
 
 @keyframes glow-outside-pulse {

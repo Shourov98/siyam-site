@@ -6,7 +6,7 @@ import { persist } from "zustand/middleware";
 import { ApiClientError } from "@/lib/auth";
 import { ordersApi, type OrderRecord, type OrderStats, type OrderStatus } from "@/lib/orders";
 
-export type OrderPlatform = "AMAZON" | "EBAY" | "TIKTOK" | "SHOPIFY" | "OTHER";
+export type OrderPlatform = "AMAZON" | "EBAY" | "TIKTOK" | "SHOPIFY" | "ETSY" | "OTHER";
 
 export type OrderRow = {
   id: string;
@@ -60,7 +60,7 @@ function getInitials(name: string) {
 
 function mapPlatform(marketplace?: string): OrderPlatform {
   const value = marketplace?.toUpperCase();
-  if (value === "AMAZON" || value === "EBAY" || value === "TIKTOK" || value === "SHOPIFY") {
+  if (value === "AMAZON" || value === "EBAY" || value === "TIKTOK" || value === "SHOPIFY" || value === "ETSY") {
     return value;
   }
   return "OTHER";

@@ -49,6 +49,10 @@ function PlatformBadge({ platform }: { platform: OrderRow["platform"] }) {
     return <span className="rounded-full bg-[#1f7a43] px-3 py-1 text-xs font-semibold text-white">SHOPIFY</span>;
   }
 
+  if (platform === "ETSY") {
+    return <span className="rounded-full bg-[#F1641E] px-3 py-1 text-xs font-semibold text-white">ETSY</span>;
+  }
+
   if (platform === "OTHER") {
     return <span className="rounded-full bg-[#60708d] px-3 py-1 text-xs font-semibold text-white">OTHER</span>;
   }

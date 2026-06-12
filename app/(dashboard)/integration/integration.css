@@ -24,6 +24,11 @@
   --theme-glow: rgba(16, 185, 129, 0.18);
   --theme-bubble: #ecfdf5;
 }
+.channel-card[data-platform="etsy"] {
+  --theme-bg: #F1641E;
+  --theme-glow: rgba(241, 100, 30, 0.18);
+  --theme-bubble: #fff4ee;
+}
 
 /* ── Card Accordion Deck ── */
 .channel-deck {

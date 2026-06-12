@@ -6,14 +6,14 @@ import { useWalletPageStore } from "@/lib/stores/wallet-page-store";
 type PlatformCard = {
   platform: string;
   status: string;
-  tone: "shopify" | "amazon" | "tiktok" | "ebay";
+  tone: "shopify" | "amazon" | "tiktok" | "ebay" | "etsy";
   className: string;
 };
 
-type ChannelKey = "shopify" | "amazon" | "tiktok" | "ebay";
+type ChannelKey = "shopify" | "amazon" | "tiktok" | "ebay" | "etsy";
 
 type ChannelMetric = {
-  name: "Shopify" | "Amazon" | "TikTok" | "eBay";
+  name: "Shopify" | "Amazon" | "TikTok" | "eBay" | "Etsy";
   mark: string;
   dot: string;
   row: string;
@@ -21,12 +21,13 @@ type ChannelMetric = {
   endAmount: number;
 };
 
-const ANIMATION_DURATION_MS = 4200;
+const ANIMATION_DURATION_MS = 5400;
 const ORDER_ANIMATION_DELAYS: Record<ChannelKey, number> = {
   shopify: 0,
   amazon: 1200,
   tiktok: 2400,
   ebay: 3600,
+  etsy: 4800,
 };
 
 const CHANNEL_METRICS: Record<ChannelKey, ChannelMetric> = {
@@ -62,6 +63,14 @@ const CHANNEL_METRICS: Record<ChannelKey, ChannelMetric> = {
     startAmount: 2000,
     endAmount: 2100,
   },
+  etsy: {
+    name: "Etsy",
+    mark: "E",
+    dot: "#F1641E",
+    row: "bg-orange-500/10",
+    startAmount: 1500,
+    endAmount: 1850,
+  },
 };
 
 const platformCards: PlatformCard[] = [
@@ -89,6 +98,12 @@ const platformCards: PlatformCard[] = [
     tone: "ebay",
     className: "bottom-[9.8%] right-[8.8%] md:bottom-[11.4%] md:right-[12.2%]",
   },
+  {
+    platform: "Etsy",
+    status: "Synced",
+    tone: "etsy",
+    className: "bottom-[6%] left-[50%] -translate-x-1/2 md:bottom-[6.5%] md:left-[50%]",
+  },
 ];
 
 function LogoChip({ tone }: { tone: PlatformCard["tone"] }) {
@@ -112,6 +127,14 @@ function LogoChip({ tone }: { tone: PlatformCard["tone"] }) {
     return (
       <div className="grid h-[42px] w-[42px] place-items-center rounded-xl bg-black text-[24px] font-bold text-white">
         ♪
+      </div>
+    );
+  }
+
+  if (tone === "etsy") {
+    return (
+      <div className="grid h-[42px] w-[42px] place-items-center rounded-xl bg-[#F1641E] text-[24px] font-black text-white italic tracking-tighter">
+        E
       </div>
     );
   }
@@ -151,6 +174,10 @@ function PlatformCardItem({ platform, status, tone, className }: PlatformCard) {
       ) : tone === "shopify" ? (
         <span className="absolute -bottom-5 right-4 z-30 -rotate-[2.5deg] rounded-lg bg-[#96bf48] px-2.5 py-1 text-[13px] font-bold leading-none text-white shadow-[0_10px_24px_-16px_rgba(150,191,72,0.95)] md:-bottom-6 md:right-5 md:text-[12px]">
           Active
+        </span>
+      ) : tone === "etsy" ? (
+        <span className="absolute -bottom-5 right-4 z-30 -rotate-[2.5deg] rounded-lg bg-[#F1641E] px-2.5 py-1 text-[13px] font-bold leading-none text-white shadow-[0_10px_24px_-16px_rgba(241,100,30,0.95)] md:-bottom-6 md:right-5 md:text-[12px]">
+          Synced
         </span>
       ) : null}
     </article>
@@ -206,20 +233,20 @@ function CenterOverview({
             Live
           </span>
         </div>
-        <p className="mt-1.5 text-[8px] font-bold uppercase tracking-[0.1em] text-[#136071]">
+        <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.1em] text-[#136071]">
           Total Sales
         </p>
         <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-[#136071]">
           Today
         </p>
-        <p className="mt-1 text-[30px] font-black leading-none text-[#07253d] md:text-[34px]">
+        <p className="mt-0.5 text-[30px] font-black leading-none text-[#07253d] md:text-[34px]">
           {formatMoney(total)}
         </p>
-        <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.1em] text-[#14758d]">
+        <p className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.1em] text-[#14758d]">
           +7.8% vs yesterday
         </p>
 
-        <div className="mx-auto mt-2.5 flex w-full max-w-[150px] flex-col gap-0.5 md:max-w-[164px]">
+        <div className="mx-auto mt-1.5 flex w-full max-w-[150px] flex-col gap-0.5 md:max-w-[164px]">
           {rows.map((row) => (
             <div
               className={`flex items-center justify-between rounded-md border border-white/25 px-2 py-0.5 ${row.row}`}
@@ -254,10 +281,17 @@ export default function DashboardHeroGraphic() {
   const overview = useWalletPageStore((state) => state.overview);
   const shopifyConnected = useWalletPageStore((state) => state.shopifyConnected);
 
-  const shopifyBalance = overview?.platformBalances?.find(b => b.platform === "shopify")?.amount ?? 0;
-  const amazonBalance = overview?.platformBalances?.find(b => b.platform === "amazon")?.amount ?? 0;
-  const ebayBalance = overview?.platformBalances?.find(b => b.platform === "ebay")?.amount ?? 0;
-  const tiktokBalance = overview?.platformBalances?.find(b => b.platform === "tiktok")?.amount ?? 0;
+  const shopifyPlatform = useMemo(() => overview?.platformBalances?.find(b => b.platform === "shopify"), [overview]);
+  const amazonPlatform = useMemo(() => overview?.platformBalances?.find(b => b.platform === "amazon"), [overview]);
+  const ebayPlatform = useMemo(() => overview?.platformBalances?.find(b => b.platform === "ebay"), [overview]);
+  const tiktokPlatform = useMemo(() => overview?.platformBalances?.find(b => b.platform === "tiktok"), [overview]);
+  const etsyPlatform = useMemo(() => overview?.platformBalances?.find(b => b.platform === "etsy"), [overview]);
+
+  const shopifyBalance = shopifyPlatform?.amount ?? 0;
+  const amazonBalance = amazonPlatform?.amount ?? 0;
+  const ebayBalance = ebayPlatform?.amount ?? 0;
+  const tiktokBalance = tiktokPlatform?.amount ?? 0;
+  const etsyBalance = etsyPlatform?.amount ?? 0;
 
   const targetAmounts = useMemo(() => {
     if (!overview) {
@@ -266,6 +300,7 @@ export default function DashboardHeroGraphic() {
         amazon: CHANNEL_METRICS.amazon.endAmount,
         tiktok: CHANNEL_METRICS.tiktok.endAmount,
         ebay: CHANNEL_METRICS.ebay.endAmount,
+        etsy: CHANNEL_METRICS.etsy.endAmount,
       };
     }
     return {
@@ -273,8 +308,9 @@ export default function DashboardHeroGraphic() {
       amazon: amazonBalance,
       tiktok: tiktokBalance,
       ebay: ebayBalance,
+      etsy: etsyBalance,
     };
-  }, [overview, shopifyBalance, amazonBalance, tiktokBalance, ebayBalance]);
+  }, [overview, shopifyBalance, amazonBalance, tiktokBalance, ebayBalance, etsyBalance]);
 
   const initialAmounts = useMemo(() => {
     if (!overview) {
@@ -283,6 +319,7 @@ export default function DashboardHeroGraphic() {
         amazon: CHANNEL_METRICS.amazon.startAmount,
         tiktok: CHANNEL_METRICS.tiktok.startAmount,
         ebay: CHANNEL_METRICS.ebay.startAmount,
+        etsy: CHANNEL_METRICS.etsy.startAmount,
       };
     }
     return {
@@ -290,6 +327,7 @@ export default function DashboardHeroGraphic() {
       amazon: 0,
       tiktok: 0,
       ebay: 0,
+      etsy: 0,
     };
   }, [overview]);
 
@@ -331,24 +369,30 @@ export default function DashboardHeroGraphic() {
       if (card.tone === "amazon") {
         return {
           ...card,
-          status: amazonBalance > 0 ? "Synced" : "Coming Soon",
+          status: amazonPlatform?.isConnected ? "Connected" : "Coming Soon",
         };
       }
       if (card.tone === "ebay") {
         return {
           ...card,
-          status: ebayBalance > 0 ? "Synced" : "Coming Soon",
+          status: ebayPlatform?.isConnected ? "Optimized" : "Not Connected",
         };
       }
       if (card.tone === "tiktok") {
         return {
           ...card,
-          status: tiktokBalance > 0 ? "Live" : "Coming Soon",
+          status: tiktokPlatform?.isConnected ? "Live" : "Coming Soon",
+        };
+      }
+      if (card.tone === "etsy") {
+        return {
+          ...card,
+          status: etsyPlatform?.isConnected ? "Synced" : "Not Connected",
         };
       }
       return card;
     });
-  }, [shopifyConnected, amazonBalance, ebayBalance, tiktokBalance]);
+  }, [shopifyConnected, amazonPlatform, ebayPlatform, tiktokPlatform, etsyPlatform]);
 
   return (
     <div className="relative h-[440px] w-full overflow-hidden bg-[radial-gradient(ellipse_at_52%_52%,rgba(50,228,232,0.56)_0%,rgba(8,64,106,0.8)_45%,#040d2a_100%)] md:h-[660px]">
@@ -359,6 +403,7 @@ export default function DashboardHeroGraphic() {
       <div className="absolute left-[56%] top-[35%] z-[5] h-px w-[20%] -rotate-[41deg] border-t border-dashed border-cyan-400/60" />
       <div className="absolute left-[23%] top-[63%] z-[5] h-px w-[20%] rotate-[139deg] border-t border-dashed border-cyan-400/60" />
       <div className="absolute left-[57%] top-[63%] z-[5] h-px w-[20%] -rotate-[139deg] border-t border-dashed border-cyan-400/60" />
+      <div className="absolute left-1/2 top-[76%] z-[5] h-[8%] w-px -translate-x-1/2 border-l border-dashed border-cyan-400/60" />
 
       <span className="absolute left-[36.7%] top-[30.7%] z-30 rounded-sm border border-lime-500/35 bg-[#020617]/65 px-1.5 py-0.5 text-[8px] font-semibold tracking-[0.06em] text-[#9bf68e]">
         API_OK
@@ -368,6 +413,7 @@ export default function DashboardHeroGraphic() {
       <PlatformCardItem {...dynamicPlatformCards[1]} />
       <PlatformCardItem {...dynamicPlatformCards[2]} />
       <PlatformCardItem {...dynamicPlatformCards[3]} />
+      <PlatformCardItem {...dynamicPlatformCards[4]} />
 
       <span className="absolute right-[8.2%] top-[11.1%] z-30 rotate-[-6deg] rounded-lg bg-[#27d8ff] px-2.5 py-1 text-[13px] font-bold leading-none text-[#052038] shadow-[0_8px_26px_-16px_rgba(39,216,255,0.95)] md:right-[10.7%] md:top-[9.8%] md:text-[12px]">
         Orders: +12%
@@ -387,6 +433,10 @@ export default function DashboardHeroGraphic() {
 
       <span className="new-order-motion new-order-motion-ebay absolute right-[25.2%] top-[70.7%] z-30 rounded-full border border-[#2d78ff] bg-[#081736]/95 px-3 py-1 text-[12px] font-semibold leading-none text-[#60b6ff] md:right-[26.2%] md:top-[70.3%] md:text-[11px]">
         New Order: #8431
+      </span>
+
+      <span className="new-order-motion new-order-motion-etsy absolute left-[50%] top-[73%] -translate-x-1/2 z-30 rounded-full border border-[#F1641E] bg-[#071a38]/95 px-3 py-1 text-[12px] font-semibold leading-none text-[#ff8347] md:top-[77%] md:text-[11px]">
+        New Order: #SBX-1004
       </span>
 
       <span className="absolute bottom-[20.8%] right-[8.4%] z-30 rounded-lg border border-cyan-400/45 bg-[#17313e]/88 px-2.5 py-1 text-[13px] font-bold leading-none text-white/95 md:bottom-[20.4%] md:right-[10.8%] md:text-[12px]">

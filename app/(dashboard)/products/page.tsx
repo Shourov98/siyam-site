@@ -256,13 +256,17 @@ export default function ProductsPage() {
                     <p className="text-sm normal-case leading-none text-white">♪ TikTok</p>
                     <p className="mt-1 text-[11px] normal-case text-white">Shop Price</p>
                   </th>
+                  <th className="w-[170px] bg-[#F1641E] px-4 py-4">
+                    <p className="text-sm normal-case leading-none text-white">Etsy</p>
+                    <p className="mt-1 text-[11px] normal-case text-white">Listing Price</p>
+                  </th>
                   <th className="w-[170px] bg-[#233a69] px-4 py-4 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {showInitialLoading ? (
                   <tr>
-                    <td className="px-4 py-12 text-center text-sm text-[#6f7f9f]" colSpan={9}>
+                    <td className="px-4 py-12 text-center text-sm text-[#6f7f9f]" colSpan={10}>
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Loading products...
@@ -364,6 +368,9 @@ export default function ProductsPage() {
                           <MarketPlaceholder />
                         </td>
                         <td className="border-l border-[#f5d4e6] px-4 py-4 text-center">
+                          <MarketPlaceholder />
+                        </td>
+                        <td className="border-l border-[#ffe4d6] px-4 py-4 text-center">
                           <MarketPlaceholder />
                         </td>
                         <td className="px-4 py-4">

@@ -24,6 +24,7 @@ function getPlatformFromTitle(title: string) {
   if (lower.includes("amazon")) return "Amazon";
   if (lower.includes("ebay")) return "eBay";
   if (lower.includes("tiktok")) return "TikTok";
+  if (lower.includes("etsy")) return "Etsy";
   return "Shopify";
 }
 
@@ -48,6 +49,7 @@ export default function DashboardPage() {
   const amazonBalance = useMemo(() => overview?.platformBalances?.find((b) => b.platform === "amazon"), [overview]);
   const ebayBalance = useMemo(() => overview?.platformBalances?.find((b) => b.platform === "ebay"), [overview]);
   const tiktokBalance = useMemo(() => overview?.platformBalances?.find((b) => b.platform === "tiktok"), [overview]);
+  const etsyBalance = useMemo(() => overview?.platformBalances?.find((b) => b.platform === "etsy"), [overview]);
 
   const displayTotal = overview ? formatCurrency(overview.paidRevenue) : "$12,450.80";
 
@@ -75,6 +77,12 @@ export default function DashboardPage() {
       amount: overview ? formatCurrency(ebayBalance?.amount ?? 0) : "$2,100.43",
       tag: ebayBalance?.status || "Synced",
       tone: "from-[#1a2547] via-[#22335a] to-[#1e5a54]",
+    },
+    {
+      platform: "ETSY",
+      amount: overview ? formatCurrency(etsyBalance?.amount ?? 0) : "$1,850.50",
+      tag: etsyBalance?.status || "Synced",
+      tone: "from-[#2b1610] via-[#3d2117] to-[#61382d]",
     },
   ];
 
@@ -110,7 +118,7 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        <div className="mt-6 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-6 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {walletCards.map((card) => (
             <article
               className={`rounded-2xl bg-gradient-to-br p-4 text-white shadow-[0_20px_40px_-35px_rgba(14,28,65,0.9)] ${card.tone}`}

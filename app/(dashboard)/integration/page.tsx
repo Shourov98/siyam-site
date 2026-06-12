@@ -1,6 +1,6 @@
 "use client";
 
-import { Layers, Moon, Music, ShoppingBag, Store, University, X } from "lucide-react";
+import { Gift, Layers, Moon, Music, ShoppingBag, Store, University, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 
@@ -8,6 +8,7 @@ import { ApiClientError } from "@/lib/auth";
 import { integrationApi } from "@/lib/integrations";
 import {
   initialEbayState,
+  initialEtsyState,
   initialShopifyState,
   useIntegrationPageStore,
   type BannerState,
@@ -40,11 +41,14 @@ export default function IntegrationPage() {
   const banner = useIntegrationPageStore((state) => state.banner);
   const shopifyState = useIntegrationPageStore((state) => state.shopifyState);
   const ebayState = useIntegrationPageStore((state) => state.ebayState);
+  const etsyState = useIntegrationPageStore((state) => state.etsyState);
   const isLoadingStatus = useIntegrationPageStore((state) => state.isLoadingStatus);
   const isConnectingShopify = useIntegrationPageStore((state) => state.isConnectingShopify);
   const isConnectingEbay = useIntegrationPageStore((state) => state.isConnectingEbay);
+  const isConnectingEtsy = useIntegrationPageStore((state) => state.isConnectingEtsy);
   const isDisconnectingShopify = useIntegrationPageStore((state) => state.isDisconnectingShopify);
   const isDisconnectingEbay = useIntegrationPageStore((state) => state.isDisconnectingEbay);
+  const isDisconnectingEtsy = useIntegrationPageStore((state) => state.isDisconnectingEtsy);
   const isSyncingProducts = useIntegrationPageStore((state) => state.isSyncingProducts);
   const isSyncingOrders = useIntegrationPageStore((state) => state.isSyncingOrders);
   const hasLoadedOnce = useIntegrationPageStore((state) => state.hasLoadedOnce);
@@ -52,10 +56,13 @@ export default function IntegrationPage() {
   const setBanner = useIntegrationPageStore((state) => state.setBanner);
   const setConnectingShopify = useIntegrationPageStore((state) => state.setConnectingShopify);
   const setConnectingEbay = useIntegrationPageStore((state) => state.setConnectingEbay);
+  const setConnectingEtsy = useIntegrationPageStore((state) => state.setConnectingEtsy);
   const loadShopifyStatus = useIntegrationPageStore((state) => state.loadShopifyStatus);
   const loadEbayStatus = useIntegrationPageStore((state) => state.loadEbayStatus);
+  const loadEtsyStatus = useIntegrationPageStore((state) => state.loadEtsyStatus);
   const disconnectShopify = useIntegrationPageStore((state) => state.disconnectShopify);
   const disconnectEbay = useIntegrationPageStore((state) => state.disconnectEbay);
+  const disconnectEtsy = useIntegrationPageStore((state) => state.disconnectEtsy);
   const syncProducts = useIntegrationPageStore((state) => state.syncProducts);
   const syncOrders = useIntegrationPageStore((state) => state.syncOrders);
 
@@ -70,19 +77,25 @@ export default function IntegrationPage() {
       ebayState.connected === initialEbayState.connected &&
       ebayState.displayName === initialEbayState.displayName &&
       ebayState.status === initialEbayState.status &&
-      ebayState.environment === initialEbayState.environment;
+      ebayState.environment === initialEbayState.environment &&
+      etsyState.connected === initialEtsyState.connected &&
+      etsyState.displayName === initialEtsyState.displayName &&
+      etsyState.status === initialEtsyState.status &&
+      etsyState.environment === initialEtsyState.environment;
 
     if (!hasLoadedOnce || isInitialState) {
       void loadShopifyStatus();
       void loadEbayStatus();
+      void loadEtsyStatus();
       return;
     }
 
     if (shouldRefresh()) {
       void loadShopifyStatus();
       void loadEbayStatus();
+      void loadEtsyStatus();
     }
-  }, [ebayState, hasLoadedOnce, loadEbayStatus, loadShopifyStatus, shopifyState, shouldRefresh]);
+  }, [ebayState, etsyState, hasLoadedOnce, loadEbayStatus, loadEtsyStatus, loadShopifyStatus, shopifyState, shouldRefresh]);
 
   useEffect(() => {
     const marketplace = searchParams.get("marketplace");
@@ -100,13 +113,17 @@ export default function IntegrationPage() {
           message:
             marketplace === "ebay"
               ? "eBay connected successfully."
-              : "Shopify connected successfully.",
+              : marketplace === "etsy"
+                ? "Etsy connected successfully."
+                : "Shopify connected successfully.",
         });
       });
 
       const timer = window.setTimeout(() => {
         if (marketplace === "ebay") {
           void loadEbayStatus();
+        } else if (marketplace === "etsy") {
+          void loadEtsyStatus();
         } else {
           void loadShopifyStatus();
         }
@@ -119,16 +136,18 @@ export default function IntegrationPage() {
       startTransition(() => {
         setBanner({
           type: "error",
-          message: message ?? (marketplace === "ebay" ? "eBay connection failed." : "Shopify connection failed."),
+          message: message ?? (marketplace === "ebay" ? "eBay connection failed." : marketplace === "etsy" ? "Etsy connection failed." : "Shopify connection failed."),
         });
       });
       if (marketplace === "ebay") {
         setConnectingEbay(false);
+      } else if (marketplace === "etsy") {
+        setConnectingEtsy(false);
       } else {
         setConnectingShopify(false);
       }
     }
-  }, [loadEbayStatus, loadShopifyStatus, searchParams, setBanner, setConnectingEbay, setConnectingShopify]);
+  }, [loadEbayStatus, loadEtsyStatus, loadShopifyStatus, searchParams, setBanner, setConnectingEbay, setConnectingEtsy, setConnectingShopify]);
 
   const handleConnectShopify = async () => {
     setBanner(null);
@@ -159,6 +178,22 @@ export default function IntegrationPage() {
         message: error instanceof ApiClientError ? error.message : "Failed to start eBay connection.",
       } satisfies NonNullable<BannerState>);
       setConnectingEbay(false);
+    }
+  };
+
+  const handleConnectEtsy = async () => {
+    setBanner(null);
+    setConnectingEtsy(true);
+
+    try {
+      const data = await integrationApi.getEtsyConnectUrl();
+      window.location.href = data.connectUrl;
+    } catch (error) {
+      setBanner({
+        type: "error",
+        message: error instanceof ApiClientError ? error.message : "Failed to start Etsy connection.",
+      } satisfies NonNullable<BannerState>);
+      setConnectingEtsy(false);
     }
   };
 
@@ -195,6 +230,16 @@ export default function IntegrationPage() {
         interactive: true,
       },
       {
+        id: "etsy",
+        title: "Etsy",
+        subtitle: "Handmade & Vintage",
+        description: "Connect your Etsy shop to sync and manage your listings and handmade inventory in CommandCtr.",
+        icon: <Gift className="h-5 w-5" />,
+        themeBg: "bg-[#F1641E]",
+        badgeText: etsyState.connected ? "CONNECTED" : null,
+        interactive: true,
+      },
+      {
         id: "shopify",
         title: "Shopify",
         subtitle: "Web Storefront",
@@ -205,7 +250,7 @@ export default function IntegrationPage() {
         interactive: true,
       },
     ],
-    [ebayState.connected, shopifyState.connected],
+    [ebayState.connected, etsyState.connected, shopifyState.connected],
   );
 
   const renderCollapsedFooter = (platformId: string) => {
@@ -227,6 +272,29 @@ export default function IntegrationPage() {
             disabled={isConnectingEbay || ebayState.connected}
           >
             {isConnectingEbay ? "..." : ebayState.connected ? "Connected" : "Connect"}
+          </button>
+        </div>
+      );
+    }
+
+    if (platformId === "etsy") {
+      return (
+        <div className="collapsed-footer-content">
+          <span className="text-xs font-semibold text-[#8ea4cb]">
+            {etsyState.connected ? "Connected" : "Not Connected"}
+          </span>
+          <button
+            className={`btn-premium btn-collapsed-action ${!etsyState.connected ? "active-connect" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (!etsyState.connected) {
+                void handleConnectEtsy();
+              }
+            }}
+            type="button"
+            disabled={isConnectingEtsy || etsyState.connected}
+          >
+            {isConnectingEtsy ? "..." : etsyState.connected ? "Connected" : "Connect"}
           </button>
         </div>
       );
@@ -307,6 +375,41 @@ export default function IntegrationPage() {
             disabled={isDisconnectingEbay}
           >
             {isDisconnectingEbay ? "Disconnecting..." : "Disconnect"}
+          </button>
+        </div>
+      );
+    }
+
+    if (platformId === "etsy") {
+      if (!etsyState.connected) {
+        return (
+          <button
+            className="btn-premium btn-primary-teal w-full sm:w-auto"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              void handleConnectEtsy();
+            }}
+            disabled={isConnectingEtsy}
+          >
+            <Gift className="h-4 w-4" />
+            {isConnectingEtsy ? "Connecting..." : "Connect Etsy"}
+          </button>
+        );
+      }
+
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            className="btn-premium btn-secondary-outline text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              void disconnectEtsy();
+            }}
+            disabled={isDisconnectingEtsy}
+          >
+            {isDisconnectingEtsy ? "Disconnecting..." : "Disconnect"}
           </button>
         </div>
       );

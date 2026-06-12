@@ -96,6 +96,7 @@ export default function MediaTabClient() {
     amazon: true,
     ebay: false,
     tiktok: false,
+    etsy: false,
   });
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -282,6 +283,7 @@ export default function MediaTabClient() {
                 ["amazon", "Amazon White Background"],
                 ["ebay", "eBay Optimized"],
                 ["tiktok", "Tiktok Optimized"],
+                ["etsy", "Etsy Optimized"],
               ].map(([key, label]) => {
                 const typedKey = key as keyof typeof channels;
                 const enabled = channels[typedKey];

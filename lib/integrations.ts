@@ -3,7 +3,7 @@ import { requestWithAuth } from "@/lib/auth";
 type MarketplaceConnection = {
   id: string;
   userId: string;
-  marketplace: "shopify" | "ebay";
+  marketplace: "shopify" | "ebay" | "etsy";
   providerAccountRef?: string;
   displayName?: string;
   shopDomain?: string;
@@ -44,6 +44,18 @@ type EbayStatus = {
   status: "connected" | "disconnected" | "error" | "not_connected";
 };
 
+type EtsyStatus = {
+  connected: boolean;
+  marketplace: "etsy";
+  environment: "sandbox" | "production";
+  displayName: string;
+  providerAccountRef: string;
+  scopes: string[];
+  connectedAt: string | null;
+  accessTokenExpiresAt: string | null;
+  status: "connected" | "disconnected" | "error" | "not_connected";
+};
+
 export const integrationApi = {
   getShopifyStatus() {
     return requestWithAuth<ShopifyStatus>("/shopify/status");
@@ -69,6 +81,20 @@ export const integrationApi = {
 
   disconnectEbay() {
     return requestWithAuth<MarketplaceConnection>("/ebay/disconnect", {
+      method: "POST",
+    });
+  },
+
+  getEtsyStatus() {
+    return requestWithAuth<EtsyStatus>("/etsy/status");
+  },
+
+  getEtsyConnectUrl() {
+    return requestWithAuth<{ connectUrl: string }>("/etsy/connect-url");
+  },
+
+  disconnectEtsy() {
+    return requestWithAuth<MarketplaceConnection>("/etsy/disconnect", {
       method: "POST",
     });
   },

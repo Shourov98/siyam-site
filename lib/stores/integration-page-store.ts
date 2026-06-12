@@ -28,6 +28,16 @@ export type EbayState = {
   accessTokenExpiresAt: string | null;
 };
 
+export type EtsyState = {
+  connected: boolean;
+  displayName: string;
+  providerAccountRef: string;
+  environment: "sandbox" | "production";
+  status: "connected" | "disconnected" | "error" | "not_connected";
+  connectedAt: string | null;
+  accessTokenExpiresAt: string | null;
+};
+
 export const initialShopifyState: ShopifyState = {
   connected: false,
   shopDomain: "",
@@ -45,15 +55,28 @@ export const initialEbayState: EbayState = {
   accessTokenExpiresAt: null,
 };
 
+export const initialEtsyState: EtsyState = {
+  connected: false,
+  displayName: "Etsy Shop",
+  providerAccountRef: "",
+  environment: "sandbox",
+  status: "not_connected",
+  connectedAt: null,
+  accessTokenExpiresAt: null,
+};
+
 type IntegrationPageState = {
   banner: BannerState;
   shopifyState: ShopifyState;
   ebayState: EbayState;
+  etsyState: EtsyState;
   isLoadingStatus: boolean;
   isConnectingShopify: boolean;
   isConnectingEbay: boolean;
+  isConnectingEtsy: boolean;
   isDisconnectingShopify: boolean;
   isDisconnectingEbay: boolean;
+  isDisconnectingEtsy: boolean;
   isSyncingProducts: boolean;
   isSyncingOrders: boolean;
   hasLoadedOnce: boolean;
@@ -62,10 +85,13 @@ type IntegrationPageState = {
   setBanner: (banner: BannerState) => void;
   setConnectingShopify: (value: boolean) => void;
   setConnectingEbay: (value: boolean) => void;
+  setConnectingEtsy: (value: boolean) => void;
   loadShopifyStatus: () => Promise<void>;
   loadEbayStatus: () => Promise<void>;
+  loadEtsyStatus: () => Promise<void>;
   disconnectShopify: () => Promise<void>;
   disconnectEbay: () => Promise<void>;
+  disconnectEtsy: () => Promise<void>;
   syncProducts: () => Promise<void>;
   syncOrders: () => Promise<void>;
 };
@@ -78,11 +104,14 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
       banner: null,
       shopifyState: initialShopifyState,
       ebayState: initialEbayState,
+      etsyState: initialEtsyState,
       isLoadingStatus: false,
       isConnectingShopify: false,
       isConnectingEbay: false,
+      isConnectingEtsy: false,
       isDisconnectingShopify: false,
       isDisconnectingEbay: false,
+      isDisconnectingEtsy: false,
       isSyncingProducts: false,
       isSyncingOrders: false,
       hasLoadedOnce: false,
@@ -94,6 +123,7 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
       setBanner: (banner) => set({ banner }),
       setConnectingShopify: (value) => set({ isConnectingShopify: value }),
       setConnectingEbay: (value) => set({ isConnectingEbay: value }),
+      setConnectingEtsy: (value) => set({ isConnectingEtsy: value }),
       async loadShopifyStatus() {
         const state = get();
         if (state.isLoadingStatus && state.hasLoadedOnce) {
@@ -150,6 +180,31 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
           });
         }
       },
+      async loadEtsyStatus() {
+        try {
+          const status = await integrationApi.getEtsyStatus();
+          set({
+            etsyState: {
+              connected: status.connected,
+              displayName: status.displayName || "Etsy Shop",
+              providerAccountRef: status.providerAccountRef || "",
+              environment: status.environment,
+              status: status.status,
+              connectedAt: status.connectedAt,
+              accessTokenExpiresAt: status.accessTokenExpiresAt,
+            },
+            hasLoadedOnce: true,
+            lastLoadedAt: Date.now(),
+          });
+        } catch (error) {
+          set({
+            banner: {
+              type: "error",
+              message: error instanceof ApiClientError ? error.message : "Failed to load Etsy status.",
+            },
+          });
+        }
+      },
       async disconnectShopify() {
         set({ banner: null, isDisconnectingShopify: true });
         try {
@@ -192,6 +247,28 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
           });
         } finally {
           set({ isDisconnectingEbay: false });
+        }
+      },
+      async disconnectEtsy() {
+        set({ banner: null, isDisconnectingEtsy: true });
+        try {
+          await integrationApi.disconnectEtsy();
+          set({
+            banner: {
+              type: "success",
+              message: "Etsy disconnected successfully.",
+            },
+          });
+          await get().loadEtsyStatus();
+        } catch (error) {
+          set({
+            banner: {
+              type: "error",
+              message: error instanceof ApiClientError ? error.message : "Failed to disconnect Etsy.",
+            },
+          });
+        } finally {
+          set({ isDisconnectingEtsy: false });
         }
       },
       async syncProducts() {
@@ -245,6 +322,7 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
         banner: state.banner,
         shopifyState: state.shopifyState,
         ebayState: state.ebayState,
+        etsyState: state.etsyState,
         hasLoadedOnce: state.hasLoadedOnce,
         lastLoadedAt: state.lastLoadedAt,
       }),
