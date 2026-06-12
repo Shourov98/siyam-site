@@ -33,6 +33,7 @@ import {
   List,
   GripVertical,
   X,
+  Globe,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -114,6 +115,23 @@ type ApiTiktok = {
   hashtags: string[];
 };
 
+type ApiShopifyVariant = {
+  title: string;
+  price: string;
+  sku: string;
+  inventoryQuantity: number;
+  trackInventory: boolean;
+  barcode: string;
+  compareAtPrice: string;
+  weight: string;
+  weightUnit: string;
+};
+
+type ApiShopifyOption = {
+  name: string;
+  values: string[];
+};
+
 type ApiShopify = {
   title: string;
   body_html: string;
@@ -121,6 +139,26 @@ type ApiShopify = {
   product_type: string;
   seo_title: string;
   seo_description: string;
+  compare_at_price?: string;
+  cost_per_item?: string;
+  charge_tax?: boolean;
+  barcode?: string;
+  inventory_tracked?: boolean;
+  continue_selling_out_of_stock?: boolean;
+  stock_locations?: Array<{ name: string; available: number; on_hand?: number }>;
+  physical_product?: boolean;
+  weight?: string;
+  weight_unit?: string;
+  country_of_origin?: string;
+  hs_code?: string;
+  collections?: string[];
+  theme_template?: string;
+  seo_handle?: string;
+  category?: string;
+  metafields?: Record<string, string>;
+  has_variants?: boolean;
+  options?: ApiShopifyOption[];
+  variants?: ApiShopifyVariant[];
 };
 
 type ApiEtsy = {
@@ -235,15 +273,56 @@ type PublishFieldErrors = {
 type DraftSaveState = "idle" | "saving" | "saved";
 type ShopifyUploadMode = "active" | "draft";
 
+const AmazonLogo = ({ className, mode = "light" }: { className?: string; mode?: "light" | "dark" }) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <path d="M19 8h-3V6a4 4 0 0 0-8 0v2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM10 6a2 2 0 0 1 4 0v2h-4V6z" fill={mode === "dark" ? "#FFFFFF" : "#232F3E"} />
+    <path d="M7 14.5c2.5 2 7.5 2 10 0" stroke="#FF9900" strokeWidth="2" strokeLinecap="round" />
+    <path d="M15.5 14l2.5 1-1 2" fill="#FF9900" />
+  </svg>
+);
+
+const EbayLogo = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <rect width="24" height="24" rx="5" fill="#f5f7fa" />
+    <path d="M6 14.5c0 1.2.8 1.8 1.8 1.8.6 0 1.2-.2 1.6-.5l.4.8c-.6.4-1.4.7-2.2.7-1.8 0-3-1-3-3 0-2 1.2-3 2.8-3 1.8 0 2.4 1.3 2.4 2.7v.5H6zm2.2-.8c0-.9-.4-1.4-1.2-1.4-.8 0-1.3.5-1.4 1.4h2.6z" fill="#e53238" />
+    <path d="M12 9.5v2.8c-.4-.5-1-.8-1.7-.8-1.5 0-2.5 1.1-2.5 2.8s1 2.8 2.5 2.8c.7 0 1.3-.3 1.7-.8v.7h1.2V9.5H12zm-.2 4.7c0 1-.6 1.6-1.3 1.6-.8 0-1.3-.6-1.3-1.6s.5-1.6 1.3-1.6c.7 0 1.3.6 1.3 1.6z" fill="#0064d2" />
+    <path d="M18 12.8c-.4-.7-1.1-1-1.9-1-1.4 0-2.4 1-2.4 2.5s1 2.5 2.4 2.5c.8 0 1.5-.3 1.9-1v1h1.2v-4.5h-1.2v.5zm-.2 1.8c0 .8-.5 1.3-1.2 1.3-.7 0-1.2-.5-1.2-1.3s.5-1.3 1.2-1.3c.7 0 1.2.5 1.2 1.3z" fill="#f5af02" />
+    <path d="M22 11.5l-1.6 4-1.2-4h-1.3l2 5.5-1.5 3.5h1.3L23.3 11.5H22z" fill="#86b817" />
+  </svg>
+);
+
+const EtsyLogo = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <rect width="24" height="24" rx="5" fill="#F1641E" />
+    <path d="M8 7h8v2.2h-1.8v-.7H10.6v3.7h3.9v1.5h-3.9v4.2H16v-.7h1.5v2.4H8V7z" fill="#FFFFFF" />
+  </svg>
+);
+
+const TikTokLogo = ({ className, mode = "light" }: { className?: string; mode?: "light" | "dark" }) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <path d="M12.5 5.5v9.5c0 1.9-1.5 3.5-3.5 3.5S5.5 16.9 5.5 15c0-1.9 1.5-3.5 3.5-3.5.3 0 .6.1.9.2V8.9c-.3-.1-.6-.1-.9-.1-3.6 0-6.5 2.9-6.5 6.5S5.4 21.8 9 21.8s6.5-2.9 6.5-6.5V9.5c1.4 1 3.1 1.5 5 1.5V8c-1.9 0-3.5-.8-4.5-2.2l-3.5-.3z" fill="#25F4EE" />
+    <path d="M11.5 4.5V14c0 1.9-1.5 3.5-3.5 3.5S4.5 15.9 4.5 14c0-1.9 1.5-3.5 3.5-3.5.3 0 .6.1.9.2V7.9c-.3-.1-.6-.1-.9-.1-3.6 0-6.5 2.9-6.5 6.5S4.4 20.8 8 20.8s6.5-2.9 6.5-6.5V8.5c1.4 1 3.1 1.5 5 1.5V7c-1.9 0-3.5-.8-4.5-2.2l-3.5-.3z" fill="#FE2C55" />
+    <path d="M12 5v9.5c0 1.9-1.5 3.5-3.5 3.5S5 16.4 5 14.5s1.5-3.5 3.5-3.5.6.1.9.2V8.4c-.3-.1-.6-.1-.9-.1-3.6 0-6.5 2.9-6.5 6.5S4.9 21.3 8.5 21.3s6.5-2.9 6.5-6.5V9c1.4 1 3.1 1.5 5 1.5V7.5c-1.9 0-3.5-.8-4.5-2.2L12 5z" fill={mode === "dark" ? "#FFFFFF" : "#000000"} />
+  </svg>
+);
+
+const ShopifyLogo = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <path d="M19 8h-3V6a4 4 0 0 0-8 0v2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM10 6a2 2 0 0 1 4 0v2h-4V6z" fill="#5e8e3e" />
+    <path d="M18.5 9h-13c-.8 0-1.5.7-1.5 1.5V20c0 .8.7 1.5 1.5 1.5h13c.8 0 1.5-.7 1.5-1.5V10.5c0-.8-.7-1.5-1.5-1.5z" fill="#95bf47" />
+    <path d="M11 12.5c-1.2 0-2 .6-2 1.5s.8 1.5 2 1.5 2 .5 2 1.5c0 .9-.8 1.5-2 1.5-1.2 0-2-.6-2-1.5" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
 const filterOptions = [
   { key: "all", label: "All Channels", icon: Boxes },
   { key: "source", label: "Source Upload", icon: Upload },
   { key: "transparent_cutout", label: "Transparent Cutout", icon: Scissors },
-  { key: "amazon", label: "Amazon Main", icon: ShoppingBag },
-  { key: "ebay", label: "eBay Main", icon: Tags },
-  { key: "etsy", label: "Etsy Hero", icon: Gift },
-  { key: "tiktok", label: "TikTok Shop", icon: Music },
-  { key: "shopify", label: "Shopify Composition", icon: Store },
+  { key: "amazon", label: "Amazon Main", icon: AmazonLogo },
+  { key: "ebay", label: "eBay Main", icon: EbayLogo },
+  { key: "etsy", label: "Etsy Hero", icon: EtsyLogo },
+  { key: "tiktok", label: "TikTok Shop", icon: TikTokLogo },
+  { key: "shopify", label: "Shopify Composition", icon: ShopifyLogo },
 ];
 
 const marketOrder: MarketKey[] = ["amazon", "ebay", "etsy", "tiktok", "shopify"];
@@ -255,6 +334,99 @@ const marketLabels: Record<MarketKey, string> = {
   tiktok: "TikTok Shop",
   shopify: "Shopify",
 };
+
+const marketIcons: Record<MarketKey, React.ComponentType<{ className?: string; mode?: "light" | "dark" }>> = {
+  amazon: AmazonLogo,
+  ebay: EbayLogo,
+  etsy: EtsyLogo,
+  tiktok: TikTokLogo,
+  shopify: ShopifyLogo,
+};
+
+const marketTabStyles: Record<
+  MarketKey,
+  {
+    active: string;
+    inactive: string;
+  }
+> = {
+  amazon: {
+    active: "bg-[#fffbf0] border-[#ff9900] text-[#7a4b00] shadow-[0_3px_12px_-3px_rgba(255,153,0,0.25)] border",
+    inactive: "bg-[#f8fafc] border-[#e2e8f0] text-[#64748b] hover:bg-[#fffdf7] hover:border-[#ff9900]/40 hover:text-slate-900 border",
+  },
+  ebay: {
+    active: "bg-[#f0f6ff] border-[#0064d2] text-[#004b9e] shadow-[0_3px_12px_-3px_rgba(0,100,210,0.2)] border",
+    inactive: "bg-[#f8fafc] border-[#e2e8f0] text-[#64748b] hover:bg-[#f4f8ff] hover:border-[#0064d2]/40 hover:text-slate-900 border",
+  },
+  etsy: {
+    active: "bg-[#fff5f0] border-[#F1641E] text-[#b33d00] shadow-[0_3px_12px_-3px_rgba(241,100,30,0.25)] border",
+    inactive: "bg-[#f8fafc] border-[#e2e8f0] text-[#64748b] hover:bg-[#fffcf7] hover:border-[#F1641E]/40 hover:text-slate-900 border",
+  },
+  tiktok: {
+    active: "bg-[#0d0d0d] border-[#222] text-white shadow-[0_3px_12px_-3px_rgba(0,0,0,0.4)] border",
+    inactive: "bg-[#f8fafc] border-[#e2e8f0] text-[#64748b] hover:bg-[#fafafa] hover:border-black/30 hover:text-slate-900 border",
+  },
+  shopify: {
+    active: "bg-[#f4faf0] border-[#95bf47] text-[#3b591b] shadow-[0_3px_12px_-3px_rgba(149,191,71,0.25)] border",
+    inactive: "bg-[#f8fafc] border-[#e2e8f0] text-[#64748b] hover:bg-[#f8fdf6] hover:border-[#95bf47]/40 hover:text-slate-900 border",
+  },
+};
+
+const publishTabStyles: Record<
+  PublishTarget,
+  {
+    active: string;
+    inactive: string;
+  }
+> = {
+  commandctr: {
+    active: "bg-[#f0f9ff] border-[#0284c7] text-[#0369a1] shadow-[0_3px_12px_-3px_rgba(2,132,199,0.25)] border",
+    inactive: "bg-[#f8fafc] border-[#e2e8f0] text-[#64748b] hover:bg-[#f0f9ff] hover:border-[#0284c7]/40 hover:text-slate-900 border",
+  },
+  amazon: {
+    active: "bg-[#fffbf0] border-[#ff9900] text-[#7a4b00] shadow-[0_3px_12px_-3px_rgba(255,153,0,0.25)] border",
+    inactive: "bg-[#f8fafc] border-[#e2e8f0] text-[#64748b] hover:bg-[#fffdf7] hover:border-[#ff9900]/40 hover:text-slate-900 border",
+  },
+  ebay: {
+    active: "bg-[#f0f6ff] border-[#0064d2] text-[#004b9e] shadow-[0_3px_12px_-3px_rgba(0,100,210,0.2)] border",
+    inactive: "bg-[#f8fafc] border-[#e2e8f0] text-[#64748b] hover:bg-[#f4f8ff] hover:border-[#0064d2]/40 hover:text-slate-900 border",
+  },
+  etsy: {
+    active: "bg-[#fff5f0] border-[#F1641E] text-[#b33d00] shadow-[0_3px_12px_-3px_rgba(241,100,30,0.25)] border",
+    inactive: "bg-[#f8fafc] border-[#e2e8f0] text-[#64748b] hover:bg-[#fffcf7] hover:border-[#F1641E]/40 hover:text-slate-900 border",
+  },
+  tiktok: {
+    active: "bg-[#0d0d0d] border-[#222] text-white shadow-[0_3px_12px_-3px_rgba(0,0,0,0.4)] border",
+    inactive: "bg-[#f8fafc] border-[#e2e8f0] text-[#64748b] hover:bg-[#fafafa] hover:border-black/30 hover:text-slate-900 border",
+  },
+  shopify: {
+    active: "bg-[#f4faf0] border-[#95bf47] text-[#3b591b] shadow-[0_3px_12px_-3px_rgba(149,191,71,0.25)] border",
+    inactive: "bg-[#f8fafc] border-[#e2e8f0] text-[#64748b] hover:bg-[#f8fdf6] hover:border-[#95bf47]/40 hover:text-slate-900 border",
+  },
+};
+
+const dropdownSelectedStyles: Record<string, string> = {
+  all: "bg-[#edf5ff] text-[#1b2748]",
+  source: "bg-[#f1f5f9] text-slate-700",
+  transparent_cutout: "bg-[#f1f5f9] text-slate-700",
+  amazon: "bg-[#fffbf0] text-[#7a4b00] border-l-2 border-[#ff9900]",
+  ebay: "bg-[#f0f6ff] text-[#004b9e] border-l-2 border-[#0064d2]",
+  etsy: "bg-[#fff5f0] text-[#b33d00] border-l-2 border-[#F1641E]",
+  tiktok: "bg-[#f4fafc] text-black border-l-2 border-[#25F4EE]",
+  shopify: "bg-[#f4faf0] text-[#3b591b] border-l-2 border-[#95bf47]",
+};
+
+const dropdownTriggerStyles: Record<string, string> = {
+  all: "border-[#d4ddec] bg-[#f8fbff] text-[#31415e]",
+  source: "border-[#cbd5e1] bg-[#f8fafc] text-slate-700",
+  transparent_cutout: "border-[#cbd5e1] bg-[#f8fafc] text-slate-700",
+  amazon: "border-[#ffd5b4] bg-[#fffbf0] text-[#7a4b00] shadow-[0_2px_8px_-3px_rgba(255,153,0,0.15)]",
+  ebay: "border-[#b3d4ff] bg-[#f0f6ff] text-[#004b9e] shadow-[0_2px_8px_-3px_rgba(0,100,210,0.15)]",
+  etsy: "border-[#ffcab0] bg-[#fff5f0] text-[#b33d00] shadow-[0_2px_8px_-3px_rgba(241,100,30,0.15)]",
+  tiktok: "border-[#b2f5f1] bg-[#f4fafc] text-black shadow-[0_2px_8px_-3px_rgba(37,244,238,0.15)]",
+  shopify: "border-[#cbe8ba] bg-[#f4faf0] text-[#3b591b] shadow-[0_2px_8px_-3px_rgba(149,191,71,0.15)]",
+};
+
 
 const emptyActionState: MarketActionState = {
   amazon: false,
@@ -324,6 +496,26 @@ const emptyProduct: ApiProduct = {
     product_type: "",
     seo_title: "",
     seo_description: "",
+    compare_at_price: "",
+    cost_per_item: "",
+    charge_tax: true,
+    barcode: "",
+    inventory_tracked: true,
+    continue_selling_out_of_stock: false,
+    stock_locations: [{ name: "Kingston Grove", available: 0, on_hand: 0 }],
+    physical_product: true,
+    weight: "0.0",
+    weight_unit: "lb",
+    country_of_origin: "",
+    hs_code: "",
+    collections: [],
+    theme_template: "Default product",
+    seo_handle: "",
+    category: "",
+    metafields: {},
+    has_variants: false,
+    options: [{ name: "Size", values: [] }],
+    variants: [],
   },
   images: {
     source: {
@@ -521,6 +713,21 @@ function imageUrlFor(pathValue: string) {
   return `/api/product-ai/image?path=${encodeURIComponent(pathValue)}`;
 }
 
+function cartesianProduct(arrays: string[][]): string[][] {
+  return arrays.reduce<string[][]>(
+    (acc, val) => {
+      const temp: string[][] = [];
+      acc.forEach((x) => {
+        val.forEach((y) => {
+          temp.push([...x, y]);
+        });
+      });
+      return temp;
+    },
+    [[]]
+  );
+}
+
 function isGenerationTimeoutMessage(message: string) {
   return message.includes("timed out") || message.includes("504");
 }
@@ -574,15 +781,23 @@ function MarketTabLink({
 }) {
   const active = market === activeMarket;
   const suffix = productId ? `&productId=${productId}` : "";
+  const IconComponent = marketIcons[market];
+  const styles = marketTabStyles[market];
   return (
     <Link
-      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-        active ? "bg-[#1b2748] text-white" : "bg-[#edf2fb] text-[#49607f] hover:bg-[#dfe9fb]"
+      className={`group inline-flex items-center gap-2 rounded-full px-4.5 py-2 text-xs font-bold transition-all duration-300 ${
+        active ? styles.active : styles.inactive
       }`}
       href={`/products/add?market=${market}${suffix}`}
       scroll={false}
     >
-      {marketLabels[market]}
+      <IconComponent
+        className={`h-4 w-4 transition-all duration-300 group-hover:scale-110 shrink-0 ${
+          active ? "grayscale-0 opacity-100" : "grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100"
+        }`}
+        mode={active && market === "tiktok" ? "dark" : "light"}
+      />
+      <span>{marketLabels[market]}</span>
     </Link>
   );
 }
@@ -611,11 +826,10 @@ function EditableField({
 
   return (
     <div
-      className={`flex flex-col rounded-xl border bg-[#f8fbff] p-3 transition-all duration-200 ${
-        invalid 
-          ? "border-[#ef6b6b] bg-[#fff7f7] shadow-[0_4px_12px_rgba(239,107,107,0.05)]" 
+      className={`flex flex-col rounded-xl border bg-[#f8fbff] p-3 transition-all duration-200 ${invalid
+          ? "border-[#ef6b6b] bg-[#fff7f7] shadow-[0_4px_12px_rgba(239,107,107,0.05)]"
           : "border-[#dbe2ee] hover:border-[#cbd5e1] focus-within:border-[#2b7cf5] focus-within:bg-white focus-within:shadow-[0_8px_20px_-6px_rgba(43,124,245,0.08)]"
-      } ${className}`}
+        } ${className}`}
     >
       <div className="flex items-center justify-between mb-1">
         <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2]">{label}</span>
@@ -624,22 +838,20 @@ function EditableField({
             <button
               type="button"
               onClick={() => setManualShowPreview(false)}
-              className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
-                !showPreview 
-                  ? "bg-[#1b2748] text-white shadow-xs" 
+              className={`px-2 py-0.5 rounded transition-all cursor-pointer ${!showPreview
+                  ? "bg-[#1b2748] text-white shadow-xs"
                   : "text-[#5e718e] hover:bg-[#edf2fb]"
-              }`}
+                }`}
             >
               HTML
             </button>
             <button
               type="button"
               onClick={() => setManualShowPreview(true)}
-              className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
-                showPreview 
-                  ? "bg-[#1b2748] text-white shadow-xs" 
+              className={`px-2 py-0.5 rounded transition-all cursor-pointer ${showPreview
+                  ? "bg-[#1b2748] text-white shadow-xs"
                   : "text-[#5e718e] hover:bg-[#edf2fb]"
-              }`}
+                }`}
             >
               Visual
             </button>
@@ -742,7 +954,7 @@ function EditableField({
               >
                 <LinkIcon className="h-3.5 w-3.5" />
               </button>
-              
+
               <button
                 type="button"
                 onClick={() => {
@@ -782,22 +994,20 @@ function EditableField({
           </div>
         ) : (
           <textarea
-            className={`w-full rounded-lg bg-white px-3 pt-2 pb-5 text-xs text-[#31415e] outline-none transition resize-none overflow-y-auto ${heightClasses} ${
-              invalid 
-                ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" 
+            className={`w-full rounded-lg bg-white px-3 pt-2 pb-5 text-xs text-[#31415e] outline-none transition resize-none overflow-y-auto ${heightClasses} ${invalid
+                ? "border border-[#ef6b6b] focus:border-[#ef6b6b]"
                 : "border border-[#d4ddec] focus:border-[#2b7cf5]"
-            }`}
+              }`}
             onChange={(event) => onChange(event.target.value)}
             value={value}
           />
         )
       ) : (
         <input
-          className={`h-9 w-full rounded-lg bg-white px-3 text-xs text-[#31415e] outline-none transition ${
-            invalid 
-              ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" 
+          className={`h-9 w-full rounded-lg bg-white px-3 text-xs text-[#31415e] outline-none transition ${invalid
+              ? "border border-[#ef6b6b] focus:border-[#ef6b6b]"
               : "border border-[#d4ddec] focus:border-[#2b7cf5]"
-          }`}
+            }`}
           onChange={(event) => onChange(event.target.value)}
           type="text"
           value={value}
@@ -853,13 +1063,13 @@ function EditableListField({
 
   const handleDragEnter = (e: React.DragEvent, targetIndex: number) => {
     if (draggedIndex === null || draggedIndex === targetIndex) return;
-    
+
     const updated = [...values];
     const temp = updated[draggedIndex];
     updated[draggedIndex] = updated[targetIndex];
     updated[targetIndex] = temp;
     onChange(updated);
-    
+
     setDraggedIndex(targetIndex);
   };
 
@@ -909,11 +1119,10 @@ function EditableListField({
           <button
             type="button"
             onClick={() => setRawMode(false)}
-            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-              !rawMode 
-                ? "bg-[#1b2748] text-white shadow-xs" 
+            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${!rawMode
+                ? "bg-[#1b2748] text-white shadow-xs"
                 : "text-[#5e718e] hover:bg-[#edf2fb]"
-            }`}
+              }`}
           >
             <List className="h-3 w-3" />
             <span>List</span>
@@ -921,11 +1130,10 @@ function EditableListField({
           <button
             type="button"
             onClick={() => setRawMode(true)}
-            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-              rawMode 
-                ? "bg-[#1b2748] text-white shadow-xs" 
+            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${rawMode
+                ? "bg-[#1b2748] text-white shadow-xs"
                 : "text-[#5e718e] hover:bg-[#edf2fb]"
-            }`}
+              }`}
           >
             <Code className="h-3 w-3" />
             <span>Raw</span>
@@ -942,8 +1150,8 @@ function EditableListField({
       ) : renderAsTags ? (
         <div className="flex flex-wrap gap-1.5 items-center p-3 border border-[#d4ddec] rounded-xl bg-white min-h-[90px] max-h-[200px] overflow-y-auto focus-within:border-[#2b7cf5] transition-all">
           {values.map((tag, idx) => (
-            <span 
-              key={idx} 
+            <span
+              key={idx}
               className="bg-[#edf5ff] text-[#1b2748] px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-[#d2e5ff] hover:bg-[#e0eeff] transition-all"
             >
               <span>{tag}</span>
@@ -984,18 +1192,17 @@ function EditableListField({
             values.map((item, index) => {
               const isDragging = draggedIndex === index;
               return (
-                <div 
-                  key={index} 
+                <div
+                  key={index}
                   draggable={activeDraggableIndex === index}
                   onDragStart={(e) => handleDragStart(e, index)}
                   onDragEnd={handleDragEnd}
                   onDragEnter={(e) => handleDragEnter(e, index)}
                   onDragOver={handleDragOver}
-                  className={`flex items-center gap-2 transition-all duration-150 rounded-lg p-1 border ${
-                    isDragging 
-                      ? "border-dashed border-[#2b7cf5] bg-[#2b7cf5]/5 opacity-50" 
+                  className={`flex items-center gap-2 transition-all duration-150 rounded-lg p-1 border ${isDragging
+                      ? "border-dashed border-[#2b7cf5] bg-[#2b7cf5]/5 opacity-50"
                       : "border-transparent"
-                  }`}
+                    }`}
                 >
                   <div
                     onMouseDown={() => setActiveDraggableIndex(index)}
@@ -1107,11 +1314,10 @@ function EditableAttributesField({
           <button
             type="button"
             onClick={() => setRawMode(false)}
-            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-              !rawMode 
-                ? "bg-[#1b2748] text-white shadow-xs" 
+            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${!rawMode
+                ? "bg-[#1b2748] text-white shadow-xs"
                 : "text-[#5e718e] hover:bg-[#edf2fb]"
-            }`}
+              }`}
           >
             <List className="h-3 w-3" />
             <span>Grid</span>
@@ -1119,11 +1325,10 @@ function EditableAttributesField({
           <button
             type="button"
             onClick={() => setRawMode(true)}
-            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-              rawMode 
-                ? "bg-[#1b2748] text-white shadow-xs" 
+            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1 ${rawMode
+                ? "bg-[#1b2748] text-white shadow-xs"
                 : "text-[#5e718e] hover:bg-[#edf2fb]"
-            }`}
+              }`}
           >
             <Code className="h-3 w-3" />
             <span>Raw</span>
@@ -1338,6 +1543,35 @@ export default function AddProductEditor({
     };
   }
 
+  const handleUpdateShopifyVariants = (
+    options: Array<{ name: string; values: string[] }>,
+    currentVariants: ApiShopifyVariant[]
+  ) => {
+    const validOptions = options.filter((opt) => opt.name.trim() !== "" && opt.values.length > 0);
+    if (validOptions.length === 0) {
+      return [];
+    }
+    const combinations = cartesianProduct(validOptions.map((opt) => opt.values));
+    return combinations.map((combo) => {
+      const title = combo.join(" / ");
+      const existing = currentVariants.find((v) => v.title === title);
+      if (existing) {
+        return existing;
+      }
+      return {
+        title,
+        price: publishPrice || "0.00",
+        sku: "",
+        inventoryQuantity: 0,
+        trackInventory: true,
+        barcode: "",
+        compareAtPrice: "",
+        weight: draft.shopify.weight || "0.0",
+        weightUnit: draft.shopify.weight_unit || "lb",
+      };
+    });
+  };
+
   function clearPublishTargetAnalysis() {
     publishAnalysisJobRef.current = null;
     setPublishAnalysis(null);
@@ -1396,7 +1630,23 @@ export default function AddProductEditor({
   }
 
   function applySavedDraft(snapshot: SavedDraftSnapshot, message: string) {
-    setDraft(snapshot.draft);
+    const normalizedShopify: ApiShopify = {
+      ...emptyProduct.shopify,
+      ...snapshot.draft.shopify,
+      metafields: {
+        ...emptyProduct.shopify.metafields,
+        ...(snapshot.draft.shopify?.metafields ?? {}),
+      },
+      stock_locations: snapshot.draft.shopify?.stock_locations ?? emptyProduct.shopify.stock_locations,
+      has_variants: snapshot.draft.shopify?.has_variants ?? false,
+      options: snapshot.draft.shopify?.options ?? [{ name: "Size", values: [] }],
+      variants: snapshot.draft.shopify?.variants ?? [],
+    };
+    const normalizedDraft = {
+      ...snapshot.draft,
+      shopify: normalizedShopify,
+    };
+    setDraft(normalizedDraft);
     setVariantsByMarket(snapshot.variantsByMarket);
     setProductId(snapshot.productId);
     setShopifyProductId(snapshot.shopifyProductId);
@@ -1968,15 +2218,45 @@ export default function AddProductEditor({
         tags: getPublishTags(),
         imagePath,
         publishToOnlineStore: mode === "active" && publishOnOnlineStore,
-        variants: [
-          {
-            title: "Default Title",
-            price: numericPrice.toFixed(2),
-            sku: publishSku.trim() || undefined,
-            inventoryQuantity: Number(publishStock) || 0,
-            trackInventory: publishTrackInventory,
-          },
-        ],
+        compareAtPrice: draft.shopify.compare_at_price || undefined,
+        costPerItem: draft.shopify.cost_per_item || undefined,
+        chargeTax: draft.shopify.charge_tax,
+        barcode: draft.shopify.barcode || undefined,
+        weight: draft.shopify.weight ? parseFloat(draft.shopify.weight) : undefined,
+        weightUnit: draft.shopify.weight_unit || undefined,
+        countryOfOrigin: draft.shopify.country_of_origin || undefined,
+        hsCode: draft.shopify.hs_code || undefined,
+        collections: draft.shopify.collections || undefined,
+        themeTemplate: draft.shopify.theme_template || undefined,
+        seoTitle: draft.shopify.seo_title || undefined,
+        seoDescription: draft.shopify.seo_description || undefined,
+        seoHandle: draft.shopify.seo_handle || undefined,
+        metafields: draft.shopify.metafields || undefined,
+        variants: draft.shopify.has_variants && draft.shopify.variants && draft.shopify.variants.length > 0
+          ? draft.shopify.variants.map((v) => ({
+            title: v.title,
+            price: parseFloat(v.price || publishPrice || "0").toFixed(2),
+            sku: v.sku?.trim() || undefined,
+            inventoryQuantity: v.inventoryQuantity || 0,
+            trackInventory: v.trackInventory ?? true,
+            barcode: v.barcode?.trim() || undefined,
+            compareAtPrice: v.compareAtPrice ? parseFloat(v.compareAtPrice).toFixed(2) : undefined,
+            weight: v.weight ? parseFloat(v.weight) : undefined,
+            weightUnit: v.weightUnit || undefined,
+          }))
+          : [
+            {
+              title: "Default Title",
+              price: numericPrice.toFixed(2),
+              sku: publishSku.trim() || undefined,
+              inventoryQuantity: Number(publishStock) || 0,
+              trackInventory: publishTrackInventory,
+              barcode: draft.shopify.barcode?.trim() || undefined,
+              compareAtPrice: draft.shopify.compare_at_price ? parseFloat(draft.shopify.compare_at_price).toFixed(2) : undefined,
+              weight: draft.shopify.weight ? parseFloat(draft.shopify.weight) : undefined,
+              weightUnit: draft.shopify.weight_unit || undefined,
+            },
+          ],
       };
 
       let result;
@@ -2042,7 +2322,7 @@ export default function AddProductEditor({
       price: !trimmedPrice,
     };
     setPublishFieldErrors(nextFieldErrors);
-    
+
     const missingFields: string[] = [];
     if (nextFieldErrors.title) {
       missingFields.push("Product title");
@@ -2067,7 +2347,7 @@ export default function AddProductEditor({
 
     setShopifySubmitMode(mode);
     setPublishSubmitting((prev) => ({ ...prev, [shop]: true }));
-    
+
     const shopLabel = marketLabels[shop as MarketKey] || shop;
     setShopifyPublishMessage(
       mode === "draft"
@@ -2126,11 +2406,11 @@ export default function AddProductEditor({
       price: !trimmedPrice,
     };
     setPublishFieldErrors(nextFieldErrors);
-    
+
     const missingFields: string[] = [];
     if (nextFieldErrors.title) missingFields.push("Product title");
     if (nextFieldErrors.price) missingFields.push("Default price");
-    
+
     if (missingFields.length > 0) {
       const msg = `Required before uploading to all shops: ${missingFields.join(", ")}.`;
       setShopifyPublishMessage(msg);
@@ -2172,15 +2452,27 @@ export default function AddProductEditor({
             tags: getPublishTags(),
             imagePath,
             publishToOnlineStore: publishOnOnlineStore,
-            variants: [
-              {
-                title: "Default Title",
-                price: numericPrice.toFixed(2),
-                sku: publishSku.trim() || undefined,
-                inventoryQuantity: Number(publishStock) || 0,
-                trackInventory: publishTrackInventory,
-              },
-            ],
+            variants: draft.shopify.has_variants && draft.shopify.variants && draft.shopify.variants.length > 0
+              ? draft.shopify.variants.map((v) => ({
+                title: v.title,
+                price: parseFloat(v.price || publishPrice || "0").toFixed(2),
+                sku: v.sku?.trim() || undefined,
+                inventoryQuantity: v.inventoryQuantity || 0,
+                trackInventory: v.trackInventory ?? true,
+                barcode: v.barcode?.trim() || undefined,
+                compareAtPrice: v.compareAtPrice ? parseFloat(v.compareAtPrice).toFixed(2) : undefined,
+                weight: v.weight ? parseFloat(v.weight) : undefined,
+                weightUnit: v.weightUnit || undefined,
+              }))
+              : [
+                {
+                  title: "Default Title",
+                  price: numericPrice.toFixed(2),
+                  sku: publishSku.trim() || undefined,
+                  inventoryQuantity: Number(publishStock) || 0,
+                  trackInventory: publishTrackInventory,
+                },
+              ],
           };
 
           const result = shopifyProductId
@@ -2910,10 +3202,10 @@ export default function AddProductEditor({
       }
 
       const result = (await response.json()) as { relative_path: string; absolute_path: string };
-      
+
       const nextImages = { ...draft.images };
       const currentImage = nextImages[key];
-      
+
       let width: number | null = currentImage?.validation?.width ?? null;
       let height: number | null = currentImage?.validation?.height ?? null;
 
@@ -2967,7 +3259,7 @@ export default function AddProductEditor({
   async function validateAndUploadCardImage(key: ImageCardKey, file: File) {
     const allowedExtensions = [".png", ".jpg", ".jpeg", ".webp"];
     const fileExt = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
-    
+
     if (!allowedExtensions.includes(fileExt)) {
       setStatusMessage(`Invalid file type. Allowed: PNG, JPG, WEBP.`);
       return;
@@ -3102,9 +3394,8 @@ export default function AddProductEditor({
               {/* Product title input */}
               <div className="flex-1 max-w-xl">
                 <input
-                  className={`w-full h-10 rounded-xl bg-white/5 px-3.5 text-sm text-white outline-none transition placeholder:text-[#aab8d6] ${
-                    publishFieldErrors.title ? "border border-[#ff7d7d] focus:border-[#ff9b9b]" : "border border-[#51658f] focus:border-[#8ea0bf]"
-                  }`}
+                  className={`w-full h-10 rounded-xl bg-white/5 px-3.5 text-sm text-white outline-none transition placeholder:text-[#aab8d6] ${publishFieldErrors.title ? "border border-[#ff7d7d] focus:border-[#ff9b9b]" : "border border-[#51658f] focus:border-[#8ea0bf]"
+                    }`}
                   onChange={(event) => {
                     const value = event.target.value;
                     setSourceTitle(value);
@@ -3139,11 +3430,10 @@ export default function AddProductEditor({
                     Clear
                   </button>
                   <button
-                    className={`h-8 rounded-lg px-3 text-xs font-semibold transition hover:bg-white/10 disabled:opacity-30 cursor-pointer ${
-                      draftSaveState === "saved"
+                    className={`h-8 rounded-lg px-3 text-xs font-semibold transition hover:bg-white/10 disabled:opacity-30 cursor-pointer ${draftSaveState === "saved"
                         ? "text-[#8ea0bf] opacity-60"
                         : "text-[#ccebdc]"
-                    }`}
+                      }`}
                     disabled={isSaving}
                     onClick={() => void saveDraft()}
                     type="button"
@@ -3230,7 +3520,7 @@ export default function AddProductEditor({
 
               {/* Grid content divided into visual subgroups */}
               <div className="space-y-4">
-                
+
                 {/* 4-column layout for main meta fields */}
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <EditableField
@@ -3292,28 +3582,35 @@ export default function AddProductEditor({
             </article>
 
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-[#1f2c44]">Marketplace Content</h2>
-                  <p className="text-sm text-[#7f92b1]">You can edit per-marketplace content and optimize the active marketplace data from the backend.</p>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b border-[#eef2f6] pb-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#e0f2fe] to-[#bae6fd] text-[#0284c7] shadow-xs border border-[#bae6fd]">
+                    <Globe className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-[#1f2c44]">Marketplace Content</h2>
+                    <p className="text-xs text-[#7f92b1]">Edit per-marketplace listings and optimize active channel data from the backend.</p>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {marketOrder.map((marketKey) => (
                     <MarketTabLink activeMarket={activeMarket} key={marketKey} market={marketKey} productId={productId} />
                   ))}
+                  <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block" />
+                  <button
+                    className="group inline-flex w-36 items-center justify-center gap-1.5 rounded-full bg-[#e8f2ff] border border-[#c2ddff] py-1.5 text-xs font-bold text-[#2b7cf5] hover:bg-[#2b7cf5] hover:text-white hover:border-[#2b7cf5] hover:shadow-[0_4px_12px_rgba(43,124,245,0.15)] transition-all duration-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!hasPersistedProduct || marketRegenerating[activeMarket]}
+                    onClick={() => void optimizeMarketplace(activeMarket)}
+                    type="button"
+                  >
+                    {marketRegenerating[activeMarket] ? (
+                      <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCcw className="h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-180 text-[#2b7cf5] group-hover:text-white" />
+                    )}
+                    <span>{marketRegenerating[activeMarket] ? "Optimizing..." : "Optimize"}</span>
+                  </button>
                 </div>
-              </div>
-
-              <div className="mt-4 flex justify-end">
-                <button
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={!hasPersistedProduct || marketRegenerating[activeMarket]}
-                  onClick={() => void optimizeMarketplace(activeMarket)}
-                  type="button"
-                >
-                  {marketRegenerating[activeMarket] ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                  {marketRegenerating[activeMarket] ? "Optimizing..." : `Optimize ${marketLabels[activeMarket]}`}
-                </button>
               </div>
 
               <div className="mt-5 grid gap-4">
@@ -3443,44 +3740,1020 @@ export default function AddProductEditor({
                 ) : null}
 
                 {activeMarket === "shopify" ? (
-                  <>
-                    <EditableField
-                      label="Storefront Title"
-                      onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, title: value } }))}
-                      helperText={publishFieldErrors.title ? "Required for Shopify publish." : undefined}
-                      invalid={publishFieldErrors.title}
-                      value={draft.shopify.title}
-                    />
-                    <EditableField
-                      label="Product Type"
-                      onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, product_type: value } }))}
-                      value={draft.shopify.product_type}
-                    />
-                    <EditableField
-                      label="SEO Title"
-                      onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, seo_title: value } }))}
-                      value={draft.shopify.seo_title}
-                    />
-                    <EditableField
-                      label="SEO Description"
-                      multiline
-                      onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, seo_description: value } }))}
-                      value={draft.shopify.seo_description}
-                    />
-                    <EditableListField
-                      helperText="One tag per line"
-                      label="Tags"
-                      onChange={(values) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, tags: values } }))}
-                      values={draft.shopify.tags}
-                      renderAsTags={true}
-                    />
-                    <EditableField
-                      label="Body HTML"
-                      multiline
-                      onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, body_html: value } }))}
-                      value={draft.shopify.body_html}
-                    />
-                  </>
+                  <div className="space-y-6">
+                    {/* Card 1: Title & Description */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Title & Description</h3>
+                      <div className="space-y-4">
+                        <EditableField
+                          label="Storefront Title"
+                          onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, title: value } }))}
+                          helperText={publishFieldErrors.title ? "Required for Shopify publish." : undefined}
+                          invalid={publishFieldErrors.title}
+                          value={draft.shopify.title}
+                        />
+                        <EditableField
+                          label="Body HTML (Description)"
+                          multiline
+                          onChange={(value) => {
+                            setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, body_html: value } }));
+                            setPublishDescription(value);
+                          }}
+                          value={draft.shopify.body_html}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Card 2: Media */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Media</h3>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2] mb-2">Shopify Composition Image</p>
+                          {draft.images.shopify.relative_path || draft.images.shopify.absolute_path ? (
+                            <div className="relative group overflow-hidden rounded-xl border border-[#dbe2ee] bg-slate-50 flex items-center justify-center p-2 aspect-[4/3]">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={imageUrlFor(draft.images.shopify.absolute_path || draft.images.shopify.relative_path) || ""}
+                                alt="Shopify product"
+                                className="max-h-full max-w-full object-contain"
+                              />
+                              <div className="absolute inset-0 bg-[#0f172a]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => void regenerateMarketplaceImage("shopify")}
+                                  className="h-8 rounded-lg bg-white/20 hover:bg-white/30 text-white px-3 text-xs font-semibold backdrop-blur-xs transition flex items-center gap-1 cursor-pointer border-0"
+                                >
+                                  <RefreshCcw className="h-3.5 w-3.5" />
+                                  <span>Regenerate</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void clearMarketplaceImage("shopify")}
+                                  className="h-8 rounded-lg bg-[#ef6b6b]/90 hover:bg-[#ef6b6b] text-white px-3 text-xs font-semibold transition flex items-center gap-1 cursor-pointer border-0"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span>Clear</span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => handleCardDrop(e, "shopify")}
+                              className="flex flex-col items-center justify-center aspect-[4/3] rounded-xl border-2 border-dashed border-[#d4ddec] bg-[#f8fbff] text-center p-4"
+                            >
+                              <ImageIcon className="h-8 w-8 text-[#8ea0bf] mb-2" />
+                              <p className="text-xs text-[#5e718e] font-medium mb-2">Drag image here or upload</p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveUploadCardKey("shopify");
+                                  productImageUploadInputRef.current?.click();
+                                }}
+                                className="h-7 rounded-lg bg-[#1b2748] hover:bg-[#253663] text-white px-3 text-xs font-bold transition cursor-pointer border-0"
+                              >
+                                Upload File
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col justify-center text-xs text-[#667a99] space-y-2 leading-relaxed">
+                          <p className="font-semibold text-[#31415e]">About Shopify Media:</p>
+                          <p>This image represents the visual storefront representation. You can regenerate the image using AI tailored for Shopify or upload a custom image file.</p>
+                          <p>Supported file formats: <span className="font-semibold text-slate-800">PNG, JPG, WEBP</span>. Size limit: <span className="font-semibold text-slate-800">10 MB</span>.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Category */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Product Category</h3>
+                      <EditableField
+                        label="Category"
+                        onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, category: value } }))}
+                        value={draft.shopify.category ?? ""}
+                        helperText="Determines tax rates and suggests metafield parameters."
+                      />
+                      <div className="mt-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2] mb-1.5">Suggestions</p>
+                        <div className="flex flex-wrap gap-2">
+                          {["Shoes in Apparel & Accessories", "Sneakers in Shoes", "Activewear in Clothing", "Apparel & Accessories", "Athletic Shoes"].map((cat) => (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, category: cat } }))}
+                              className="rounded-full bg-[#edf2fb] hover:bg-[#dfe9fb] px-3 py-1 text-xs font-semibold text-[#49607f] transition cursor-pointer border-0"
+                            >
+                              {cat}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 4: Category Metafields */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <div className="flex items-center justify-between border-b border-[#eef2f6] pb-3 mb-4">
+                        <div>
+                          <h3 className="text-sm font-bold text-[#1f2c44]">Category Metafields</h3>
+                          <p className="text-xs text-[#8ea0bf] mt-0.5">Shopify specific attributes for shoes and apparel products.</p>
+                        </div>
+                        <span className="rounded-full bg-[#f1f5f9] px-2.5 py-0.5 text-[10px] font-semibold text-slate-600 border border-slate-200">
+                          Active Category: {draft.shopify.category || "Shoes"}
+                        </span>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Color</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="h-4 w-4 rounded-full border border-slate-300" style={{ backgroundColor: draft.shopify.metafields?.color?.toLowerCase() || 'transparent' }} />
+                            <select
+                              value={draft.shopify.metafields?.color ?? ""}
+                              onChange={(e) => setDraft((prev) => ({
+                                ...prev,
+                                shopify: {
+                                  ...prev.shopify,
+                                  metafields: { ...prev.shopify.metafields, color: e.target.value }
+                                }
+                              }))}
+                              className="flex-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                            >
+                              <option value="">Select Color</option>
+                              <option value="Red">Red</option>
+                              <option value="Blue">Blue</option>
+                              <option value="Black">Black</option>
+                              <option value="White">White</option>
+                              <option value="Burgundy">Burgundy</option>
+                              <option value="Grey">Grey</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Age Group</span>
+                          <select
+                            value={draft.shopify.metafields?.age_group ?? ""}
+                            onChange={(e) => setDraft((prev) => ({
+                              ...prev,
+                              shopify: {
+                                ...prev.shopify,
+                                metafields: { ...prev.shopify.metafields, age_group: e.target.value }
+                              }
+                            }))}
+                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                          >
+                            <option value="">Select Age Group</option>
+                            <option value="Adults">Adults</option>
+                            <option value="Kids">Kids</option>
+                            <option value="Toddler">Toddler</option>
+                            <option value="Infant">Infant</option>
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Closure Type</span>
+                          <select
+                            value={draft.shopify.metafields?.closure_type ?? ""}
+                            onChange={(e) => setDraft((prev) => ({
+                              ...prev,
+                              shopify: {
+                                ...prev.shopify,
+                                metafields: { ...prev.shopify.metafields, closure_type: e.target.value }
+                              }
+                            }))}
+                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                          >
+                            <option value="">Select Closure Type</option>
+                            <option value="Lace-up">Lace-up</option>
+                            <option value="Slip-on">Slip-on</option>
+                            <option value="Velcro">Velcro</option>
+                            <option value="Zipper">Zipper</option>
+                            <option value="Buckle">Buckle</option>
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Heel Height Type</span>
+                          <select
+                            value={draft.shopify.metafields?.heel_height_type ?? ""}
+                            onChange={(e) => setDraft((prev) => ({
+                              ...prev,
+                              shopify: {
+                                ...prev.shopify,
+                                metafields: { ...prev.shopify.metafields, heel_height_type: e.target.value }
+                              }
+                            }))}
+                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                          >
+                            <option value="">Select Heel Height</option>
+                            <option value="Flat">Flat</option>
+                            <option value="Low heel">Low heel</option>
+                            <option value="Mid heel">Mid heel</option>
+                            <option value="High heel">High heel</option>
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Occasion Style</span>
+                          <select
+                            value={draft.shopify.metafields?.occasion_style ?? ""}
+                            onChange={(e) => setDraft((prev) => ({
+                              ...prev,
+                              shopify: {
+                                ...prev.shopify,
+                                metafields: { ...prev.shopify.metafields, occasion_style: e.target.value }
+                              }
+                            }))}
+                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                          >
+                            <option value="">Select Occasion</option>
+                            <option value="Casual">Casual</option>
+                            <option value="Dress">Dress</option>
+                            <option value="Athletic">Athletic</option>
+                            <option value="Formal">Formal</option>
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Target Gender</span>
+                          <select
+                            value={draft.shopify.metafields?.target_gender ?? ""}
+                            onChange={(e) => setDraft((prev) => ({
+                              ...prev,
+                              shopify: {
+                                ...prev.shopify,
+                                metafields: { ...prev.shopify.metafields, target_gender: e.target.value }
+                              }
+                            }))}
+                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                          >
+                            <option value="">Select Gender</option>
+                            <option value="Unisex">Unisex</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Toe Style</span>
+                          <select
+                            value={draft.shopify.metafields?.toe_style ?? ""}
+                            onChange={(e) => setDraft((prev) => ({
+                              ...prev,
+                              shopify: {
+                                ...prev.shopify,
+                                metafields: { ...prev.shopify.metafields, toe_style: e.target.value }
+                              }
+                            }))}
+                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                          >
+                            <option value="">Select Toe Style</option>
+                            <option value="Round">Round</option>
+                            <option value="Pointed">Pointed</option>
+                            <option value="Square">Square</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 border-t border-[#eef2f6] pt-3.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2] mb-2">Add Additional Details</p>
+                        <div className="flex flex-wrap gap-2">
+                          {["Shoe size", "Shoe fit", "Care instructions", "Footwear material", "Shoe features"].map((detail) => {
+                            const key = detail.toLowerCase().replace(" ", "_");
+                            const exists = Boolean(draft.shopify.metafields?.[key]);
+                            return (
+                              <button
+                                key={detail}
+                                type="button"
+                                onClick={() => {
+                                  if (exists) {
+                                    setDraft((prev) => {
+                                      const copy = { ...prev.shopify.metafields };
+                                      delete copy[key];
+                                      return { ...prev, shopify: { ...prev.shopify, metafields: copy } };
+                                    });
+                                  } else {
+                                    const val = prompt(`Enter ${detail} value:`);
+                                    if (val) {
+                                      setDraft((prev) => ({
+                                        ...prev,
+                                        shopify: {
+                                          ...prev.shopify,
+                                          metafields: { ...prev.shopify.metafields, [key]: val }
+                                        }
+                                      }));
+                                    }
+                                  }
+                                }}
+                                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition cursor-pointer border-solid ${exists
+                                    ? "bg-[#172544] border-[#172544] text-white"
+                                    : "bg-white border-[#d5dcea] text-[#4a5d7d] hover:bg-[#f8fbff]"
+                                  }`}
+                              >
+                                <span>{exists ? `✓ ${detail}` : `+ ${detail}`}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 5: Pricing */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Pricing</h3>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Price</span>
+                          <div className="flex items-center">
+                            <span className="text-xs font-semibold text-[#8ea0bf] select-none mr-1.5">£</span>
+                            <input
+                              type="text"
+                              value={publishPrice}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9.]/g, "");
+                                updatePublishPrice(val);
+                              }}
+                              className="w-full bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Compare-at Price</span>
+                          <div className="flex items-center">
+                            <span className="text-xs font-semibold text-[#8ea0bf] select-none mr-1.5">£</span>
+                            <input
+                              type="text"
+                              value={draft.shopify.compare_at_price ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9.]/g, "");
+                                setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, compare_at_price: val } }));
+                              }}
+                              className="w-full bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Cost Per Item</span>
+                          <div className="flex items-center">
+                            <span className="text-xs font-semibold text-[#8ea0bf] select-none mr-1.5">£</span>
+                            <input
+                              type="text"
+                              value={draft.shopify.cost_per_item ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9.]/g, "");
+                                setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, cost_per_item: val } }));
+                              }}
+                              className="w-full bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 px-1">
+                          <input
+                            type="checkbox"
+                            id="charge_tax"
+                            checked={draft.shopify.charge_tax ?? true}
+                            onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, charge_tax: e.target.checked } }))}
+                            className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
+                          />
+                          <label htmlFor="charge_tax" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
+                            Charge tax on this product
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 6: Inventory */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Inventory</h3>
+                      <div className="grid gap-4 sm:grid-cols-2 mb-4">
+                        <EditableField
+                          label="SKU (Stock Keeping Unit)"
+                          onChange={(value) => {
+                            setPublishSku(value);
+                            setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, sku: value } }));
+                          }}
+                          value={publishSku}
+                        />
+                        <EditableField
+                          label="Barcode (ISBN, UPC, GTIN, etc.)"
+                          onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, barcode: value } }))}
+                          value={draft.shopify.barcode ?? ""}
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2 px-1 mb-4">
+                        <input
+                          type="checkbox"
+                          id="inventory_tracked"
+                          checked={publishTrackInventory}
+                          onChange={(e) => {
+                            setPublishTrackInventory(e.target.checked);
+                            setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, inventory_tracked: e.target.checked } }));
+                          }}
+                          className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
+                        />
+                        <label htmlFor="inventory_tracked" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
+                          Track inventory quantity
+                        </label>
+                      </div>
+
+                      {publishTrackInventory && (
+                        <div className="border-t border-[#eef2f6] pt-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-xs font-bold uppercase tracking-wider text-[#8093b2]">Quantity & Locations</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const locName = prompt("Enter new location name:");
+                                if (locName) {
+                                  setDraft((prev) => {
+                                    const currentLocs = prev.shopify.stock_locations ?? [];
+                                    if (currentLocs.some(l => l.name.toLowerCase() === locName.toLowerCase())) {
+                                      return prev;
+                                    }
+                                    return {
+                                      ...prev,
+                                      shopify: {
+                                        ...prev.shopify,
+                                        stock_locations: [...currentLocs, { name: locName, available: 0, on_hand: 0 }]
+                                      }
+                                    };
+                                  });
+                                }
+                              }}
+                              className="text-xs font-bold text-[#2b7cf5] hover:text-[#1d5fb8] cursor-pointer border-0 bg-transparent"
+                            >
+                              + Add Location
+                            </button>
+                          </div>
+
+                          <div className="overflow-hidden rounded-xl border border-[#d5dcea] bg-white">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="bg-slate-50 border-b border-[#d5dcea] text-[#8093b2] font-semibold">
+                                  <th className="p-2.5">Location</th>
+                                  <th className="p-2.5 w-24 text-center">Available</th>
+                                  <th className="p-2.5 w-24 text-center">On Hand</th>
+                                  <th className="p-2.5 w-12 text-center">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(draft.shopify.stock_locations ?? []).map((loc, idx) => (
+                                  <tr key={loc.name} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                                    <td className="p-2.5 font-semibold text-[#31415e]">{loc.name}</td>
+                                    <td className="p-2.5">
+                                      <input
+                                        type="number"
+                                        value={loc.available}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value, 10) || 0;
+                                          setDraft((prev) => {
+                                            const nextLocs = [...(prev.shopify.stock_locations ?? [])];
+                                            nextLocs[idx] = { ...nextLocs[idx], available: val };
+                                            const newTotal = nextLocs.reduce((acc, l) => acc + l.available, 0);
+                                            setPublishStock(newTotal.toString());
+                                            return { ...prev, shopify: { ...prev.shopify, stock_locations: nextLocs } };
+                                          });
+                                        }}
+                                        className="w-full h-8 border border-[#d4ddec] rounded-lg text-center text-xs outline-none focus:border-[#2b7cf5]"
+                                      />
+                                    </td>
+                                    <td className="p-2.5">
+                                      <input
+                                        type="number"
+                                        value={loc.on_hand ?? 0}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value, 10) || 0;
+                                          setDraft((prev) => {
+                                            const nextLocs = [...(prev.shopify.stock_locations ?? [])];
+                                            nextLocs[idx] = { ...nextLocs[idx], on_hand: val };
+                                            return { ...prev, shopify: { ...prev.shopify, stock_locations: nextLocs } };
+                                          });
+                                        }}
+                                        className="w-full h-8 border border-[#d4ddec] rounded-lg text-center text-xs outline-none focus:border-[#2b7cf5]"
+                                      />
+                                    </td>
+                                    <td className="p-2.5 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setDraft((prev) => {
+                                            const nextLocs = (prev.shopify.stock_locations ?? []).filter((_, i) => i !== idx);
+                                            const newTotal = nextLocs.reduce((acc, l) => acc + l.available, 0);
+                                            setPublishStock(newTotal.toString());
+                                            return { ...prev, shopify: { ...prev.shopify, stock_locations: nextLocs } };
+                                          });
+                                        }}
+                                        className="text-[#ef6b6b] hover:text-[#cf4b4b] cursor-pointer border-0 bg-transparent"
+                                      >
+                                        Delete
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 px-1 mt-4">
+                        <input
+                          type="checkbox"
+                          id="continue_selling"
+                          checked={draft.shopify.continue_selling_out_of_stock ?? false}
+                          onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, continue_selling_out_of_stock: e.target.checked } }))}
+                          className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
+                        />
+                        <label htmlFor="continue_selling" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
+                          Continue selling when out of stock
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Card 7: Shipping */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Shipping</h3>
+
+                      <div className="flex items-center gap-2 px-1 mb-4">
+                        <input
+                          type="checkbox"
+                          id="physical_product"
+                          checked={draft.shopify.physical_product ?? true}
+                          onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, physical_product: e.target.checked } }))}
+                          className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
+                        />
+                        <label htmlFor="physical_product" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
+                          This is a physical product
+                        </label>
+                      </div>
+
+                      {draft.shopify.physical_product !== false && (
+                        <div className="space-y-4 border-t border-[#eef2f6] pt-4">
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Weight</span>
+                              <div className="flex items-center">
+                                <input
+                                  type="text"
+                                  value={draft.shopify.weight ?? "0.0"}
+                                  onChange={(e) => {
+                                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                                    setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, weight: val } }));
+                                  }}
+                                  className="flex-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                                  placeholder="0.0"
+                                />
+                                <select
+                                  value={draft.shopify.weight_unit ?? "lb"}
+                                  onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, weight_unit: e.target.value } }))}
+                                  className="bg-transparent text-xs text-[#31415e] font-semibold outline-none border-l border-slate-200 pl-2 ml-2 cursor-pointer border-0"
+                                >
+                                  <option value="lb">lb</option>
+                                  <option value="oz">oz</option>
+                                  <option value="kg">kg</option>
+                                  <option value="g">g</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Country/Region of Origin</span>
+                              <select
+                                value={draft.shopify.country_of_origin ?? ""}
+                                onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, country_of_origin: e.target.value } }))}
+                                className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none cursor-pointer border-0"
+                              >
+                                <option value="">Select Country</option>
+                                <option value="US">United States</option>
+                                <option value="GB">United Kingdom</option>
+                                <option value="BD">Bangladesh</option>
+                                <option value="VN">Vietnam</option>
+                                <option value="CN">China</option>
+                              </select>
+                            </div>
+
+                            <EditableField
+                              label="HS Code (Harmonized System)"
+                              onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, hs_code: value } }))}
+                              value={draft.shopify.hs_code ?? ""}
+                              helperText="Required for international customs mapping."
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card 7.5: Variants options */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-bold text-[#1f2c44]">Variants</h3>
+                      </div>
+
+                      <div className="flex items-center gap-2 px-1 mb-4">
+                        <input
+                          type="checkbox"
+                          id="has_variants"
+                          checked={draft.shopify.has_variants ?? false}
+                          onChange={(e) => {
+                            const hasVars = e.target.checked;
+                            const nextOptions = hasVars ? (draft.shopify.options ?? [{ name: "Size", values: [] }]) : [];
+                            const nextVariants = hasVars ? handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []) : [];
+                            setDraft((prev) => ({
+                              ...prev,
+                              shopify: {
+                                ...prev.shopify,
+                                has_variants: hasVars,
+                                options: nextOptions,
+                                variants: nextVariants,
+                              },
+                            }));
+                          }}
+                          className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
+                        />
+                        <label htmlFor="has_variants" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
+                          This product has options, like size or color
+                        </label>
+                      </div>
+
+                      {(draft.shopify.has_variants ?? false) && (
+                        <div className="space-y-4 border-t border-[#eef2f6] pt-4">
+                          {/* Options List */}
+                          {(draft.shopify.options ?? []).map((opt, optIdx) => (
+                            <div key={optIdx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 relative">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextOptions = (draft.shopify.options ?? []).filter((_, i) => i !== optIdx);
+                                  const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
+                                  setDraft((prev) => ({
+                                    ...prev,
+                                    shopify: {
+                                      ...prev.shopify,
+                                      options: nextOptions,
+                                      variants: nextVariants,
+                                    },
+                                  }));
+                                }}
+                                className="absolute top-3 right-3 text-xs font-semibold text-rose-500 hover:text-rose-700 cursor-pointer border-0 bg-transparent"
+                              >
+                                Delete
+                              </button>
+
+                              <div className="flex flex-col gap-2">
+                                <div className="flex flex-col max-w-xs">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Option Name</span>
+                                  <input
+                                    type="text"
+                                    value={opt.name}
+                                    placeholder="e.g. Size or Color"
+                                    onChange={(e) => {
+                                      const nextOptions = [...(draft.shopify.options ?? [])];
+                                      nextOptions[optIdx] = {
+                                        ...opt,
+                                        name: e.target.value,
+                                      };
+                                      const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
+                                      setDraft((prev) => ({
+                                        ...prev,
+                                        shopify: {
+                                          ...prev.shopify,
+                                          options: nextOptions,
+                                          variants: nextVariants,
+                                        },
+                                      }));
+                                    }}
+                                    className="h-8 border border-[#d4ddec] rounded-lg px-2 text-xs outline-none bg-white focus:border-[#2b7cf5]"
+                                  />
+                                </div>
+
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Option Values</span>
+                                  <div className="flex flex-wrap gap-1.5 items-center p-2 border border-[#d4ddec] rounded-lg bg-white min-h-[36px] focus-within:border-[#2b7cf5]">
+                                    {opt.values.map((val, valIdx) => (
+                                      <span key={valIdx} className="bg-[#edf5ff] text-[#1b2748] px-2 py-0.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-[#d2e5ff] hover:bg-[#e0eeff]">
+                                        <span>{val}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const nextOptions = [...(draft.shopify.options ?? [])];
+                                            nextOptions[optIdx] = {
+                                              ...opt,
+                                              values: opt.values.filter((_, i) => i !== valIdx),
+                                            };
+                                            const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
+                                            setDraft((prev) => ({
+                                              ...prev,
+                                              shopify: {
+                                                ...prev.shopify,
+                                                options: nextOptions,
+                                                variants: nextVariants,
+                                              },
+                                            }));
+                                          }}
+                                          className="w-4.5 h-4.5 flex items-center justify-center text-[#5e718e] hover:text-[#ef6b6b] hover:bg-[#fff0f0] rounded-md transition-colors cursor-pointer border-0 bg-transparent font-bold"
+                                        >
+                                          <X className="h-2.5 w-2.5" />
+                                        </button>
+                                      </span>
+                                    ))}
+                                    <input
+                                      type="text"
+                                      placeholder="Add value..."
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === ",") {
+                                          e.preventDefault();
+                                          const val = e.currentTarget.value.trim();
+                                          if (val && !opt.values.includes(val)) {
+                                            const nextOptions = [...(draft.shopify.options ?? [])];
+                                            nextOptions[optIdx] = {
+                                              ...opt,
+                                              values: [...opt.values, val],
+                                            };
+                                            const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
+                                            setDraft((prev) => ({
+                                              ...prev,
+                                              shopify: {
+                                                ...prev.shopify,
+                                                options: nextOptions,
+                                                variants: nextVariants,
+                                              },
+                                            }));
+                                          }
+                                          e.currentTarget.value = "";
+                                        }
+                                      }}
+                                      className="h-6 flex-1 min-w-[80px] bg-transparent text-xs text-[#31415e] outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+
+                          {/* Add Option button */}
+                          {(draft.shopify.options ?? []).length < 3 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextOptions = [...(draft.shopify.options ?? []), { name: "", values: [] }];
+                                setDraft((prev) => ({
+                                  ...prev,
+                                  shopify: {
+                                    ...prev.shopify,
+                                    options: nextOptions,
+                                  },
+                                }));
+                              }}
+                              className="text-xs font-bold text-[#2b7cf5] hover:text-[#1d5fb8] cursor-pointer bg-transparent border-0"
+                            >
+                              + Add another option
+                            </button>
+                          )}
+
+                          {/* Variants Table */}
+                          {(draft.shopify.variants ?? []).length > 0 && (
+                            <div className="mt-4">
+                              <p className="text-xs font-bold uppercase tracking-wider text-[#8093b2] mb-2">Variants list</p>
+                              <div className="overflow-x-auto rounded-xl border border-[#dbe2ee] bg-white">
+                                <table className="w-full text-left text-xs border-collapse">
+                                  <thead>
+                                    <tr className="bg-slate-50 border-b border-[#dbe2ee] text-[#8093b2] font-semibold">
+                                      <th className="p-2.5">Variant</th>
+                                      <th className="p-2.5 w-24">Price</th>
+                                      <th className="p-2.5 w-24">Available</th>
+                                      <th className="p-2.5 w-32">SKU</th>
+                                      <th className="p-2.5 w-32">Barcode</th>
+                                      <th className="p-2.5 w-12 text-center">Action</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {(draft.shopify.variants ?? []).map((variant, varIdx) => (
+                                      <tr key={varIdx} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                                        <td className="p-2.5 font-semibold text-[#31415e]">{variant.title}</td>
+                                        <td className="p-2.5">
+                                          <input
+                                            type="text"
+                                            value={variant.price}
+                                            onChange={(e) => {
+                                              const val = e.target.value.replace(/[^0-9.]/g, "");
+                                              const nextVariants = [...(draft.shopify.variants ?? [])];
+                                              nextVariants[varIdx] = { ...variant, price: val };
+                                              setDraft((prev) => ({
+                                                ...prev,
+                                                shopify: { ...prev.shopify, variants: nextVariants },
+                                              }));
+                                            }}
+                                            className="w-full h-8 px-2 border border-[#d4ddec] rounded-lg text-xs outline-none focus:border-[#2b7cf5]"
+                                          />
+                                        </td>
+                                        <td className="p-2.5">
+                                          <input
+                                            type="number"
+                                            value={variant.inventoryQuantity}
+                                            onChange={(e) => {
+                                              const val = parseInt(e.target.value, 10) || 0;
+                                              const nextVariants = [...(draft.shopify.variants ?? [])];
+                                              nextVariants[varIdx] = { ...variant, inventoryQuantity: val };
+                                              setDraft((prev) => ({
+                                                ...prev,
+                                                shopify: { ...prev.shopify, variants: nextVariants },
+                                              }));
+                                            }}
+                                            className="w-full h-8 px-2 border border-[#d4ddec] rounded-lg text-xs outline-none focus:border-[#2b7cf5]"
+                                          />
+                                        </td>
+                                        <td className="p-2.5">
+                                          <input
+                                            type="text"
+                                            value={variant.sku}
+                                            onChange={(e) => {
+                                              const nextVariants = [...(draft.shopify.variants ?? [])];
+                                              nextVariants[varIdx] = { ...variant, sku: e.target.value };
+                                              setDraft((prev) => ({
+                                                ...prev,
+                                                shopify: { ...prev.shopify, variants: nextVariants },
+                                              }));
+                                            }}
+                                            className="w-full h-8 px-2 border border-[#d4ddec] rounded-lg text-xs outline-none focus:border-[#2b7cf5]"
+                                            placeholder="SKU"
+                                          />
+                                        </td>
+                                        <td className="p-2.5">
+                                          <input
+                                            type="text"
+                                            value={variant.barcode}
+                                            onChange={(e) => {
+                                              const nextVariants = [...(draft.shopify.variants ?? [])];
+                                              nextVariants[varIdx] = { ...variant, barcode: e.target.value };
+                                              setDraft((prev) => ({
+                                                ...prev,
+                                                shopify: { ...prev.shopify, variants: nextVariants },
+                                              }));
+                                            }}
+                                            className="w-full h-8 px-2 border border-[#d4ddec] rounded-lg text-xs outline-none focus:border-[#2b7cf5]"
+                                            placeholder="Barcode"
+                                          />
+                                        </td>
+                                        <td className="p-2.5 text-center">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const nextVariants = (draft.shopify.variants ?? []).filter((_, i) => i !== varIdx);
+                                              setDraft((prev) => ({
+                                                ...prev,
+                                                shopify: { ...prev.shopify, variants: nextVariants },
+                                              }));
+                                            }}
+                                            className="text-[#ef6b6b] hover:text-[#cf4b4b] cursor-pointer bg-transparent border-0"
+                                          >
+                                            Delete
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card 8: SEO Listing Preview */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Search Engine Listing Preview</h3>
+                      <div className="mb-4 p-4 rounded-xl border border-[#e2e8f0] bg-slate-50">
+                        <div className="text-[#1a0dab] hover:underline text-base font-semibold leading-snug cursor-pointer truncate max-w-full">
+                          {draft.shopify.seo_title || draft.shopify.title || "Jordan Air 1 Style — Burgundy"}
+                        </div>
+                        <div className="text-[#006621] text-xs leading-normal truncate max-w-full">
+                          https://my-store.myshopify.com/products/{draft.shopify.seo_handle || (draft.shopify.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-") || "jordan-air-1-style-burgundy"}
+                        </div>
+                        <div className="text-[#545454] text-xs leading-relaxed line-clamp-2 mt-1">
+                          {draft.shopify.seo_description || (draft.shopify.body_html || "").replace(/<[^>]*>/g, "") || "A modern essential in a rich burgundy finish, crafted with a balanced look that fits seamlessly..."}
+                        </div>
+                      </div>
+
+                      <div className="space-y-4 border-t border-[#eef2f6] pt-4">
+                        <EditableField
+                          label="Page Title (SEO Title)"
+                          onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, seo_title: value } }))}
+                          value={draft.shopify.seo_title}
+                          helperText="Displayed in browser tab and search results. Recommended: 70 characters max."
+                        />
+                        <EditableField
+                          label="Meta Description (SEO Description)"
+                          multiline
+                          onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, seo_description: value } }))}
+                          value={draft.shopify.seo_description}
+                          helperText="Displayed in search results page descriptions. Recommended: 320 characters max."
+                        />
+                        <EditableField
+                          label="URL Handle"
+                          onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, seo_handle: value } }))}
+                          value={draft.shopify.seo_handle ?? ""}
+                          helperText="URL path handle of this product page."
+                        />
+                      </div>
+                    </div>
+
+                    {/* Card 9: Product Organization */}
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                      <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Product Organization & Sidebar</h3>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Product Status</span>
+                          <select
+                            value={publishStatus}
+                            onChange={(e) => setPublishStatus(e.target.value as PublishStatus)}
+                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none cursor-pointer border-0"
+                          >
+                            <option value="ACTIVE">Active</option>
+                            <option value="DRAFT">Draft</option>
+                          </select>
+                        </div>
+
+                        <div className="flex items-center gap-2 px-1">
+                          <input
+                            type="checkbox"
+                            id="publish_store"
+                            checked={publishOnOnlineStore}
+                            onChange={(e) => setPublishOnOnlineStore(e.target.checked)}
+                            className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
+                          />
+                          <label htmlFor="publish_store" className="text-xs font-semibold text-[#4a5d7d] cursor-pointer select-none">
+                            Publish to Online Store
+                          </label>
+                        </div>
+
+                        <EditableField
+                          label="Product Type"
+                          onChange={(value) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, product_type: value } }))}
+                          value={draft.shopify.product_type}
+                        />
+
+                        <EditableField
+                          label="Vendor"
+                          onChange={(value) => {
+                            setPublishVendor(value);
+                            setDraft((prev) => {
+                              const nextAttrs = { ...prev.core.attributes };
+                              nextAttrs.brand = value;
+                              return { ...prev, core: { ...prev.core, attributes: nextAttrs } };
+                            });
+                          }}
+                          value={publishVendor}
+                        />
+
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Collections</span>
+                          <input
+                            type="text"
+                            placeholder="e.g. Home page, Shoes"
+                            value={(draft.shopify.collections ?? []).join(", ")}
+                            onChange={(e) => {
+                              const vals = e.target.value.split(",").map(v => v.trim()).filter(Boolean);
+                              setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, collections: vals } }));
+                            }}
+                            className="mt-1 w-full bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                          />
+                        </div>
+
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Theme Template</span>
+                          <select
+                            value={draft.shopify.theme_template ?? "Default product"}
+                            onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, theme_template: e.target.value } }))}
+                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none cursor-pointer border-0"
+                          >
+                            <option value="Default product">Default product</option>
+                            <option value="Custom template">Custom template</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <EditableListField
+                          helperText="One tag per line"
+                          label="Tags"
+                          onChange={(values) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, tags: values } }))}
+                          values={draft.shopify.tags}
+                          renderAsTags={true}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 ) : null}
               </div>
             </article>
@@ -3496,320 +4769,325 @@ export default function AddProductEditor({
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-4 lg:grid-cols-4">
-                <EditableField
-                  label="Vendor / Brand"
-                  onChange={(value) => {
-                    setPublishVendor(value);
-                    setDraft((prev) => {
-                      const nextAttributes = { ...prev.core.attributes };
-                      if (value.trim()) {
-                        nextAttributes.brand = value.trim();
-                      } else {
-                        delete nextAttributes.brand;
-                      }
+              {activeMarket !== "shopify" ? (
+                <>
+                  <div className="mt-5 grid gap-4 lg:grid-cols-4">
+                    <EditableField
+                      label="Vendor / Brand"
+                      onChange={(value) => {
+                        setPublishVendor(value);
+                        setDraft((prev) => {
+                          const nextAttributes = { ...prev.core.attributes };
+                          if (value.trim()) {
+                            nextAttributes.brand = value.trim();
+                          } else {
+                            delete nextAttributes.brand;
+                          }
 
-                      return {
-                        ...prev,
-                        core: {
-                          ...prev.core,
-                          attributes: nextAttributes,
-                        },
-                      };
-                    });
-                  }}
-                  value={publishVendor}
-                />
-                <EditableField
-                  label="Default SKU"
-                  onChange={(value) => {
-                    setPublishSku(value);
-                    setDraft((prev) => {
-                      const nextAttributes = { ...prev.core.attributes };
-                      if (value.trim()) {
-                        nextAttributes.sku = value.trim();
-                      } else {
-                        delete nextAttributes.sku;
-                      }
-
-                      return {
-                        ...prev,
-                        core: {
-                          ...prev.core,
-                          attributes: nextAttributes,
-                        },
-                      };
-                    });
-                  }}
-                  value={publishSku}
-                />
-                <div className={`block rounded-2xl border bg-[#f8fbff] p-3 ${publishFieldErrors.price ? "border-[#ef6b6b] bg-[#fff7f7]" : "border-[#dbe2ee]"}`}>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Default Price</p>
-                  {publishFieldErrors.price ? <p className="mt-1 text-xs text-[#cf4b4b]">Required for Shopify publish.</p> : null}
-                  <div className={`mt-2 flex h-9 w-full items-center rounded-lg border bg-white overflow-hidden transition-all focus-within:border-[#97abd0] ${publishFieldErrors.price ? "border-[#ef6b6b]" : "border-[#d4ddec]"}`}>
-                    {/* Decrement Button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const current = parseFloat(publishPrice) || 0;
-                        const nextVal = Math.max(0, current - 1);
-                        updatePublishPrice(nextVal.toFixed(2));
+                          return {
+                            ...prev,
+                            core: {
+                              ...prev.core,
+                              attributes: nextAttributes,
+                            },
+                          };
+                        });
                       }}
-                      className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-[#d4ddec] select-none font-bold text-base cursor-pointer"
-                    >
-                      &minus;
-                    </button>
-
-                    {/* Currency Symbol Prefix */}
-                    <span className="pl-2.5 text-xs font-semibold text-[#8ea0bf] select-none">
-                      £
-                    </span>
-                    
-                    {/* Numeric Input */}
-                    <input
-                      className="h-full flex-1 bg-transparent pl-1 pr-3 text-center text-xs font-semibold text-[#31415e] outline-none"
-                      onChange={(event) => {
-                        const val = event.target.value.replace(/[^0-9.]/g, "");
-                        const parts = val.split(".");
-                        if (parts.length > 2) {
-                          return;
-                        }
-                        updatePublishPrice(val);
-                      }}
-                      onBlur={() => {
-                        const parsed = parseFloat(publishPrice);
-                        if (!isNaN(parsed) && parsed >= 0) {
-                          updatePublishPrice(parsed.toFixed(2));
-                        }
-                      }}
-                      type="text"
-                      value={publishPrice}
+                      value={publishVendor}
                     />
+                    <EditableField
+                      label="Default SKU"
+                      onChange={(value) => {
+                        setPublishSku(value);
+                        setDraft((prev) => {
+                          const nextAttributes = { ...prev.core.attributes };
+                          if (value.trim()) {
+                            nextAttributes.sku = value.trim();
+                          } else {
+                            delete nextAttributes.sku;
+                          }
 
-                    {/* Increment Button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const current = parseFloat(publishPrice) || 0;
-                        const nextVal = Math.max(0, current + 1);
-                        updatePublishPrice(nextVal.toFixed(2));
+                          return {
+                            ...prev,
+                            core: {
+                              ...prev.core,
+                              attributes: nextAttributes,
+                            },
+                          };
+                        });
                       }}
-                      className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-l border-[#d4ddec] select-none font-bold text-base cursor-pointer"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-                <div className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Stock Count</p>
-                  <div className="mt-2 flex h-9 w-full items-center rounded-lg border border-[#d4ddec] bg-white overflow-hidden transition-all focus-within:border-[#97abd0]">
-                    {/* Decrement Button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const current = parseInt(publishStock, 10) || 0;
-                        setPublishStock(Math.max(0, current - 1).toString());
-                      }}
-                      className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-[#d4ddec] select-none font-bold text-base cursor-pointer"
-                    >
-                      &minus;
-                    </button>
-                    
-                    {/* Numeric Input */}
-                    <input
-                      className="h-full flex-1 bg-transparent px-3 text-center text-xs font-semibold text-[#31415e] outline-none"
-                      onChange={(event) => {
-                        const val = event.target.value.replace(/[^0-9]/g, "");
-                        setPublishStock(val || "0");
-                      }}
-                      type="text"
-                      value={publishStock}
+                      value={publishSku}
                     />
+                    <div className={`block rounded-2xl border bg-[#f8fbff] p-3 ${publishFieldErrors.price ? "border-[#ef6b6b] bg-[#fff7f7]" : "border-[#dbe2ee]"}`}>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Default Price</p>
+                      {publishFieldErrors.price ? <p className="mt-1 text-xs text-[#cf4b4b]">Required for Shopify publish.</p> : null}
+                      <div className={`mt-2 flex h-9 w-full items-center rounded-lg border bg-white overflow-hidden transition-all focus-within:border-[#97abd0] ${publishFieldErrors.price ? "border-[#ef6b6b]" : "border-[#d4ddec]"}`}>
+                        {/* Decrement Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const current = parseFloat(publishPrice) || 0;
+                            const nextVal = Math.max(0, current - 1);
+                            updatePublishPrice(nextVal.toFixed(2));
+                          }}
+                          className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-[#d4ddec] select-none font-bold text-base cursor-pointer"
+                        >
+                          &minus;
+                        </button>
 
-                    {/* Increment Button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const current = parseInt(publishStock, 10) || 0;
-                        setPublishStock((current + 1).toString());
-                      }}
-                      className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-l border-[#d4ddec] select-none font-bold text-base cursor-pointer"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
+                        {/* Currency Symbol Prefix */}
+                        <span className="pl-2.5 text-xs font-semibold text-[#8ea0bf] select-none">
+                          £
+                        </span>
 
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <div className="space-y-4">
-                  {/* Primary Upload Status */}
-                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3" ref={statusDropdownRef}>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Primary Upload Status</p>
-                    <p className="mt-1 text-xs text-[#8ea0bf]">`Upload to Shopify` always creates or updates an ACTIVE Shopify product. `Upload as Draft` always forces DRAFT.</p>
-                    
-                    {/* Dropdown Trigger */}
-                    <button
-                      type="button"
-                      onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                      className="mt-2 h-9 w-full rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
-                    >
-                      <span>{publishStatus}</span>
-                      <ChevronDown className={`h-3.5 w-3.5 text-[#8ea0bf] transition-transform duration-200 ${isStatusDropdownOpen ? "transform rotate-180" : ""}`} />
-                    </button>
+                        {/* Numeric Input */}
+                        <input
+                          className="h-full flex-1 bg-transparent pl-1 pr-3 text-center text-xs font-semibold text-[#31415e] outline-none"
+                          onChange={(event) => {
+                            const val = event.target.value.replace(/[^0-9.]/g, "");
+                            const parts = val.split(".");
+                            if (parts.length > 2) {
+                              return;
+                            }
+                            updatePublishPrice(val);
+                          }}
+                          onBlur={() => {
+                            const parsed = parseFloat(publishPrice);
+                            if (!isNaN(parsed) && parsed >= 0) {
+                              updatePublishPrice(parsed.toFixed(2));
+                            }
+                          }}
+                          type="text"
+                          value={publishPrice}
+                        />
 
-                    {/* Dropdown Menu */}
-                    {isStatusDropdownOpen && (
-                      <div className="absolute left-3 right-3 z-30 mt-1.5 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
-                        {publishStatusOptions.map((status) => {
-                          const isSelected = publishStatus === status;
-                          return (
-                            <button
-                              key={status}
-                              type="button"
-                              onClick={() => {
-                                setPublishStatus(status);
-                                setIsStatusDropdownOpen(false);
-                              }}
-                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                                isSelected 
-                                  ? "bg-[#edf5ff] text-[#1b2748]" 
-                                  : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
-                              }`}
-                            >
-                               <span>{status}</span>
-                               {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-[#2b7cf5]" />}
-                            </button>
-                          );
-                        })}
+                        {/* Increment Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const current = parseFloat(publishPrice) || 0;
+                            const nextVal = Math.max(0, current + 1);
+                            updatePublishPrice(nextVal.toFixed(2));
+                          }}
+                          className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-l border-[#d4ddec] select-none font-bold text-base cursor-pointer"
+                        >
+                          +
+                        </button>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                    <div className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Stock Count</p>
+                      <div className="mt-2 flex h-9 w-full items-center rounded-lg border border-[#d4ddec] bg-white overflow-hidden transition-all focus-within:border-[#97abd0]">
+                        {/* Decrement Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const current = parseInt(publishStock, 10) || 0;
+                            setPublishStock(Math.max(0, current - 1).toString());
+                          }}
+                          className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-r border-[#d4ddec] select-none font-bold text-base cursor-pointer"
+                        >
+                          &minus;
+                        </button>
 
-                  {/* Publish to Online Store */}
-                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3" ref={onlineStoreDropdownRef}>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Publish to Online Store</p>
-                    <p className="mt-1 text-xs text-[#8ea0bf]">Controls storefront channel availability immediately upon upload.</p>
-                    
-                    {/* Dropdown Trigger */}
-                    <button
-                      type="button"
-                      onClick={() => setIsOnlineStoreDropdownOpen(!isOnlineStoreDropdownOpen)}
-                      className="mt-2 h-9 w-full rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
-                    >
-                      <span>{publishOnOnlineStore ? "Yes" : "No"}</span>
-                      <ChevronDown className={`h-3.5 w-3.5 text-[#8ea0bf] transition-transform duration-200 ${isOnlineStoreDropdownOpen ? "transform rotate-180" : ""}`} />
-                    </button>
+                        {/* Numeric Input */}
+                        <input
+                          className="h-full flex-1 bg-transparent px-3 text-center text-xs font-semibold text-[#31415e] outline-none"
+                          onChange={(event) => {
+                            const val = event.target.value.replace(/[^0-9]/g, "");
+                            setPublishStock(val || "0");
+                          }}
+                          type="text"
+                          value={publishStock}
+                        />
 
-                    {/* Dropdown Menu */}
-                    {isOnlineStoreDropdownOpen && (
-                      <div className="absolute left-3 right-3 z-30 mt-1.5 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
-                        {["Yes", "No"].map((option) => {
-                          const optionVal = option === "Yes";
-                          const isSelected = publishOnOnlineStore === optionVal;
-                          return (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => {
-                                setPublishOnOnlineStore(optionVal);
-                                setIsOnlineStoreDropdownOpen(false);
-                              }}
-                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                                isSelected 
-                                  ? "bg-[#edf5ff] text-[#1b2748]" 
-                                  : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
-                              }`}
-                            >
-                              <span>{option}</span>
-                              {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-[#2b7cf5]" />}
-                            </button>
-                          );
-                        })}
+                        {/* Increment Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const current = parseInt(publishStock, 10) || 0;
+                            setPublishStock((current + 1).toString());
+                          }}
+                          className="flex h-full w-9 items-center justify-center text-[#64748b] hover:bg-slate-50 active:bg-slate-100 transition-colors border-l border-[#d4ddec] select-none font-bold text-base cursor-pointer"
+                        >
+                          +
+                        </button>
                       </div>
-                    )}
+                    </div>
                   </div>
 
-                  {/* Track Inventory */}
-                  <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3" ref={trackInventoryDropdownRef}>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Track Inventory</p>
-                    <p className="mt-1 text-xs text-[#8ea0bf]">Controls whether Shopify tracks inventory levels for this product&apos;s variant.</p>
-                    
-                    {/* Dropdown Trigger */}
-                    <button
-                      type="button"
-                      onClick={() => setIsTrackInventoryDropdownOpen(!isTrackInventoryDropdownOpen)}
-                      className="mt-2 h-9 w-full rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
-                    >
-                      <span>{publishTrackInventory ? "Yes" : "No"}</span>
-                      <ChevronDown className={`h-3.5 w-3.5 text-[#8ea0bf] transition-transform duration-200 ${isTrackInventoryDropdownOpen ? "transform rotate-180" : ""}`} />
-                    </button>
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="space-y-4">
+                      {/* Primary Upload Status */}
+                      <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3" ref={statusDropdownRef}>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Primary Upload Status</p>
+                        <p className="mt-1 text-xs text-[#8ea0bf]">`Upload to Shopify` always creates or updates an ACTIVE Shopify product. `Upload as Draft` always forces DRAFT.</p>
 
-                    {/* Dropdown Menu */}
-                    {isTrackInventoryDropdownOpen && (
-                      <div className="absolute left-3 right-3 z-30 mt-1.5 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
-                        {["Yes", "No"].map((option) => {
-                          const optionVal = option === "Yes";
-                          const isSelected = publishTrackInventory === optionVal;
-                          return (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => {
-                                setPublishTrackInventory(optionVal);
-                                setIsTrackInventoryDropdownOpen(false);
-                              }}
-                              className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                                isSelected 
-                                  ? "bg-[#edf5ff] text-[#1b2748]" 
-                                  : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
-                              }`}
-                            >
-                              <span>{option}</span>
-                              {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-[#2b7cf5]" />}
-                            </button>
-                          );
-                        })}
+                        {/* Dropdown Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                          className="mt-2 h-9 w-full rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                        >
+                          <span>{publishStatus}</span>
+                          <ChevronDown className={`h-3.5 w-3.5 text-[#8ea0bf] transition-transform duration-200 ${isStatusDropdownOpen ? "transform rotate-180" : ""}`} />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {isStatusDropdownOpen && (
+                          <div className="absolute left-3 right-3 z-30 mt-1.5 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                            {publishStatusOptions.map((status) => {
+                              const isSelected = publishStatus === status;
+                              return (
+                                <button
+                                  key={status}
+                                  type="button"
+                                  onClick={() => {
+                                    setPublishStatus(status);
+                                    setIsStatusDropdownOpen(false);
+                                  }}
+                                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${isSelected
+                                      ? "bg-[#edf5ff] text-[#1b2748]"
+                                      : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
+                                    }`}
+                                >
+                                  <span>{status}</span>
+                                  {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-[#2b7cf5]" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
+
+                      {/* Publish to Online Store */}
+                      <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3" ref={onlineStoreDropdownRef}>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Publish to Online Store</p>
+                        <p className="mt-1 text-xs text-[#8ea0bf]">Controls storefront channel availability immediately upon upload.</p>
+
+                        {/* Dropdown Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => setIsOnlineStoreDropdownOpen(!isOnlineStoreDropdownOpen)}
+                          className="mt-2 h-9 w-full rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                        >
+                          <span>{publishOnOnlineStore ? "Yes" : "No"}</span>
+                          <ChevronDown className={`h-3.5 w-3.5 text-[#8ea0bf] transition-transform duration-200 ${isOnlineStoreDropdownOpen ? "transform rotate-180" : ""}`} />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {isOnlineStoreDropdownOpen && (
+                          <div className="absolute left-3 right-3 z-30 mt-1.5 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                            {["Yes", "No"].map((option) => {
+                              const optionVal = option === "Yes";
+                              const isSelected = publishOnOnlineStore === optionVal;
+                              return (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  onClick={() => {
+                                    setPublishOnOnlineStore(optionVal);
+                                    setIsOnlineStoreDropdownOpen(false);
+                                  }}
+                                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${isSelected
+                                      ? "bg-[#edf5ff] text-[#1b2748]"
+                                      : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
+                                    }`}
+                                >
+                                  <span>{option}</span>
+                                  {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-[#2b7cf5]" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Track Inventory */}
+                      <div className="relative rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3" ref={trackInventoryDropdownRef}>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Track Inventory</p>
+                        <p className="mt-1 text-xs text-[#8ea0bf]">Controls whether Shopify tracks inventory levels for this product&apos;s variant.</p>
+
+                        {/* Dropdown Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => setIsTrackInventoryDropdownOpen(!isTrackInventoryDropdownOpen)}
+                          className="mt-2 h-9 w-full rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                        >
+                          <span>{publishTrackInventory ? "Yes" : "No"}</span>
+                          <ChevronDown className={`h-3.5 w-3.5 text-[#8ea0bf] transition-transform duration-200 ${isTrackInventoryDropdownOpen ? "transform rotate-180" : ""}`} />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {isTrackInventoryDropdownOpen && (
+                          <div className="absolute left-3 right-3 z-30 mt-1.5 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                            {["Yes", "No"].map((option) => {
+                              const optionVal = option === "Yes";
+                              const isSelected = publishTrackInventory === optionVal;
+                              return (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  onClick={() => {
+                                    setPublishTrackInventory(optionVal);
+                                    setIsTrackInventoryDropdownOpen(false);
+                                  }}
+                                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${isSelected
+                                      ? "bg-[#edf5ff] text-[#1b2748]"
+                                      : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
+                                    }`}
+                                >
+                                  <span>{option}</span>
+                                  {isSelected && <CheckCircle2 className="h-3.5 w-3.5 text-[#2b7cf5]" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <EditableField
+                      label="Publish Description"
+                      helperText="Used as the default storefront description during publish."
+                      multiline
+                      onChange={setPublishDescription}
+                      value={publishDescription}
+                      className="h-full"
+                    />
                   </div>
-                </div>
 
-                <EditableField
-                  label="Publish Description"
-                  helperText="Used as the default storefront description during publish."
-                  multiline
-                  onChange={setPublishDescription}
-                  value={publishDescription}
-                  className="h-full"
-                />
-              </div>
-
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4 text-sm leading-6 text-[#667a99]">
-                  Publish sends basic Shopify product fields only. Images, inventory, SEO, and variants will be added later.
-                </div>
-                <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Suggested Price Range</p>
-                  <p className="mt-1 text-xs text-[#8ea0bf]">
-                    {getEstimatedPriceRange()
-                      ? `Estimated from ${publishAnalysis?.suggested_price_range?.source ?? "market research"} for ${marketLabels[activeMarket]}.`
-                      : "Run dynamic pricing to calculate a recommended convenience range."}
-                  </p>
-                  {getEstimatedPriceRange() ? (
-                    <>
-                      <p className="mt-3 text-lg font-semibold text-[#31415e]">
-                        £{getEstimatedPriceRange()?.minimum.toFixed(2)} - £{getEstimatedPriceRange()?.maximum.toFixed(2)}
-                      </p>
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4 text-sm leading-6 text-[#667a99]">
+                      Publish sends basic Shopify product fields only. Images, inventory, SEO, and variants will be added later.
+                    </div>
+                    <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Suggested Price Range</p>
                       <p className="mt-1 text-xs text-[#8ea0bf]">
-                        Recommended: £{getEstimatedPriceRange()?.recommended.toFixed(2)} | Source: {getEstimatedPriceRange()?.source}
+                        {getEstimatedPriceRange()
+                          ? `Estimated from ${publishAnalysis?.suggested_price_range?.source ?? "market research"} for ${marketLabels[activeMarket]}.`
+                          : "Run dynamic pricing to calculate a recommended convenience range."}
                       </p>
-                    </>
-                  ) : (
-                    <p className="mt-3 text-sm text-[#667a99]">No calculated range yet.</p>
-                  )}
+                      {getEstimatedPriceRange() ? (
+                        <>
+                          <p className="mt-3 text-lg font-semibold text-[#31415e]">
+                            £{getEstimatedPriceRange()?.minimum.toFixed(2)} - £{getEstimatedPriceRange()?.maximum.toFixed(2)}
+                          </p>
+                          <p className="mt-1 text-xs text-[#8ea0bf]">
+                            Recommended: £{getEstimatedPriceRange()?.recommended.toFixed(2)} | Source: {getEstimatedPriceRange()?.source}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="mt-3 text-sm text-[#667a99]">No calculated range yet.</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-5 rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] px-4 py-4 text-xs font-semibold text-[#667a99]">
+                  Shopify active: Control all pricing, inventory, descriptions, and storefront channels directly in the Marketplace Content tab above.
                 </div>
-              </div>
+              )}
 
               <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -3875,15 +5153,15 @@ export default function AddProductEditor({
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2] mb-2">Publish Target Channel</p>
                   <div className="flex flex-wrap gap-2">
                     {[
-                      { key: "shopify", label: "Shopify", icon: Store },
-                      { key: "commandctr", label: "CommandCtr DB", icon: Boxes },
-                      { key: "amazon", label: "Amazon", icon: ShoppingBag },
-                      { key: "ebay", label: "eBay", icon: Tags },
-                      { key: "tiktok", label: "TikTok Shop", icon: Music },
-                      { key: "etsy", label: "Etsy", icon: Gift }
+                      { key: "commandctr", label: "CommandCtr DB" },
+                      { key: "amazon", label: "Amazon" },
+                      { key: "ebay", label: "eBay" },
+                      { key: "etsy", label: "Etsy" },
+                      { key: "tiktok", label: "TikTok Shop" },
+                      { key: "shopify", label: "Shopify" }
                     ].map((target) => {
-                      const IconComponent = target.icon;
                       const isSelected = selectedPublishShop === target.key;
+                      const styles = publishTabStyles[target.key as PublishTarget];
                       return (
                         <button
                           key={target.key}
@@ -3895,14 +5173,55 @@ export default function AddProductEditor({
                               router.replace(`/products/add?market=${target.key}${suffix}`, { scroll: false });
                             }
                           }}
-                          className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold transition-all duration-200 cursor-pointer border ${
-                            isSelected
-                              ? "bg-[#172544] border-[#172544] text-white shadow-sm"
-                              : "bg-white border-[#d5dcea] text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
+                          className={`group inline-flex h-9.5 items-center justify-center gap-2 rounded-lg px-4.5 text-xs font-bold transition-all duration-300 cursor-pointer ${
+                            isSelected ? styles.active : styles.inactive
                           }`}
                         >
-                          <IconComponent className={`h-3.5 w-3.5 ${isSelected ? "text-[#35d3ce]" : "text-[#8ea0bf]"}`} />
-                          {target.label}
+                          {target.key === "amazon" && (
+                            <AmazonLogo
+                              className={`h-4 w-4 transition-all duration-300 group-hover:scale-110 shrink-0 ${
+                                isSelected ? "grayscale-0 opacity-100" : "grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100"
+                              }`}
+                              mode={isSelected ? "light" : "light"}
+                            />
+                          )}
+                          {target.key === "ebay" && (
+                            <EbayLogo
+                              className={`h-4 w-4 transition-all duration-300 group-hover:scale-110 shrink-0 ${
+                                isSelected ? "grayscale-0 opacity-100" : "grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100"
+                              }`}
+                            />
+                          )}
+                          {target.key === "etsy" && (
+                            <EtsyLogo
+                              className={`h-4 w-4 transition-all duration-300 group-hover:scale-110 shrink-0 ${
+                                isSelected ? "grayscale-0 opacity-100" : "grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100"
+                              }`}
+                            />
+                          )}
+                          {target.key === "tiktok" && (
+                            <TikTokLogo
+                              className={`h-4 w-4 transition-all duration-300 group-hover:scale-110 shrink-0 ${
+                                isSelected ? "grayscale-0 opacity-100" : "grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100"
+                              }`}
+                              mode={isSelected ? "dark" : "light"}
+                            />
+                          )}
+                          {target.key === "shopify" && (
+                            <ShopifyLogo
+                              className={`h-4 w-4 transition-all duration-300 group-hover:scale-110 shrink-0 ${
+                                isSelected ? "grayscale-0 opacity-100" : "grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100"
+                              }`}
+                            />
+                          )}
+                          {target.key === "commandctr" && (
+                            <Boxes
+                              className={`h-4 w-4 transition-all duration-300 group-hover:scale-110 shrink-0 ${
+                                isSelected ? "text-[#0284c7] opacity-100" : "text-[#8ea0bf] opacity-50 group-hover:opacity-100"
+                              }`}
+                            />
+                          )}
+                          <span>{target.label}</span>
                         </button>
                       );
                     })}
@@ -3995,123 +5314,19 @@ export default function AddProductEditor({
               ) : null}
               {shopifyPublishMessage ? (
                 <div
-                  className={`mt-4 rounded-2xl px-4 py-3 text-sm whitespace-pre-line ${
-                    Object.values(publishSubmitting).some(Boolean)
+                  className={`mt-4 rounded-2xl px-4 py-3 text-sm whitespace-pre-line ${Object.values(publishSubmitting).some(Boolean)
                       ? "border border-[#cde4ff] bg-[#f3f8ff] text-[#355b91]"
                       : shopifyPublishMessage.toLowerCase().includes("success")
                         ? "border border-[#ccebdc] bg-[#eefbf4] text-[#267a4f]"
                         : "border border-[#dbe2ee] bg-[#f8fbff] text-[#546884]"
-                  }`}
+                    }`}
                 >
                   {shopifyPublishMessage}
                 </div>
               ) : null}
             </article>
 
-            <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-[#1f2c44]">Marketplace Variants</h2>
-                  <p className="text-sm text-[#7f92b1]">These controls are now live against the backend variant APIs.</p>
-                </div>
-                <div className="rounded-full bg-[#eef5ff] px-3 py-2 text-xs font-semibold text-[#4d6284]">
-                  Active market: {marketLabels[activeMarket]}
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Add Size Variant</p>
-                  <p className="mt-1 text-xs text-[#8ea0bf]">Text-only option such as `32 oz`, `XL`, or `Large`.</p>
-                  <div className="mt-2.5 flex gap-2.5">
-                    <input
-                      className="h-9 flex-1 rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] outline-none transition focus:border-[#97abd0]"
-                      onChange={(event) => updateVariantInput(activeMarket, "size", event.target.value)}
-                      placeholder="e.g. 40 oz"
-                      type="text"
-                      value={variantInputs[activeMarket].size}
-                    />
-                    <button
-                      className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#172544] px-3.5 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-                      disabled={!hasPersistedProduct || variantSubmitting[activeMarket]}
-                      onClick={() => void addVariant(activeMarket, "size")}
-                      type="button"
-                    >
-                      {variantSubmitting[activeMarket] ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                      Add
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Add Color Variant</p>
-                  <p className="mt-1 text-xs text-[#8ea0bf]">Creates a color variant record and a generated color image asset.</p>
-                  <div className="mt-2.5 flex gap-2.5">
-                    <input
-                      className="h-9 flex-1 rounded-lg border border-[#d4ddec] bg-white px-3 text-xs text-[#31415e] outline-none transition focus:border-[#97abd0]"
-                      onChange={(event) => updateVariantInput(activeMarket, "color", event.target.value)}
-                      placeholder="e.g. Forest Green"
-                      type="text"
-                      value={variantInputs[activeMarket].color}
-                    />
-                    <button
-                      className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#35d3ce] px-3.5 text-xs font-bold text-[#153c53] shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-                      disabled={!hasPersistedProduct || variantSubmitting[activeMarket]}
-                      onClick={() => void addVariant(activeMarket, "color")}
-                      type="button"
-                    >
-                      {variantSubmitting[activeMarket] ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                      Generate
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                {currentVariants.length > 0 ? (
-                  currentVariants.map((variant) => (
-                    <div className="rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4" key={variant.id}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-[#20314d]">{variant.name}</p>
-                          <p className="mt-1 text-xs text-[#8597b5]">
-                            {variant.variant_type === "color" ? "Color Variant" : "Size Variant"}
-                          </p>
-                        </div>
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                            variant.variant_type === "color" ? "bg-[#def7ea] text-[#2ba66d]" : "bg-[#eef2f7] text-[#5e718e]"
-                          }`}
-                        >
-                          {variant.variant_type === "color" ? "Image Ready" : "Text Only"}
-                        </span>
-                      </div>
-
-                      {variant.variant_type === "color" ? (
-                        <div className="mt-4 space-y-3">
-                          <ProductPreview
-                            alt={`${variant.name} variant`}
-                            backgroundLabel="Color variant"
-                            image={variant.image}
-                          />
-                          <p className="text-xs leading-5 text-[#6d7f9f]">
-                            Stored as a generated color-specific asset for {marketLabels[activeMarket]}.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="mt-4 rounded-2xl border border-dashed border-[#d4ddec] bg-white px-4 py-5 text-sm text-[#546884]">
-                          This size variant updates listing options only. No extra image is required.
-                        </div>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-[#d4ddec] bg-[#f8fbff] px-4 py-10 text-center text-sm text-[#667a99] md:col-span-2">
-                    No {marketLabels[activeMarket]} variants yet. Generate the product first, then add size or color variants.
-                  </div>
-                )}
-              </div>
-            </article>
+            {/* Marketplace Variants removed */}
           </div>
 
           <aside className="space-y-5 xl:h-full xl:overflow-y-auto xl:pr-2">
@@ -4134,20 +5349,27 @@ export default function AddProductEditor({
                 <button
                   type="button"
                   onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                  className="h-9 w-full rounded-lg border border-[#d4ddec] bg-[#f8fbff] px-3 text-xs text-[#31415e] font-semibold outline-none transition-all flex items-center justify-between hover:border-[#b8c9e4] focus:border-[#97abd0] cursor-pointer"
+                  className={`h-9.5 w-full rounded-lg border px-3 text-xs font-semibold outline-none transition-all flex items-center justify-between cursor-pointer ${
+                    dropdownTriggerStyles[selectedFilterKey] || "border-[#d4ddec] bg-[#f8fbff] text-[#31415e]"
+                  } hover:border-[#b8c9e4]`}
                 >
                   <span className="flex items-center gap-2.5">
                     {(() => {
                       const activeOpt = filterOptions.find(opt => opt.key === selectedFilterKey);
                       if (activeOpt) {
                         const IconComponent = activeOpt.icon;
-                        return <IconComponent className="h-3.5 w-3.5 text-[#2b7cf5]" />;
+                        const isMarket = ["amazon", "ebay", "etsy", "tiktok", "shopify"].includes(activeOpt.key);
+                        return (
+                          <IconComponent
+                            className={`h-4 w-4 transition-transform duration-200 shrink-0 ${isMarket ? "" : "text-[#2b7cf5]"}`}
+                          />
+                        );
                       }
-                      return <Filter className="h-3.5 w-3.5 text-[#8ea0bf]" />;
+                      return <Filter className="h-4 w-4 text-[#8ea0bf] shrink-0" />;
                     })()}
                     {filterOptions.find(opt => opt.key === selectedFilterKey)?.label}
                   </span>
-                  <ChevronDown className={`h-3.5 w-3.5 text-[#8ea0bf] transition-transform duration-200 ${isFilterDropdownOpen ? "transform rotate-180" : ""}`} />
+                  <ChevronDown className={`h-4 w-4 text-[#8ea0bf] transition-transform duration-200 ${isFilterDropdownOpen ? "transform rotate-180" : ""}`} />
                 </button>
 
                 {isFilterDropdownOpen && (
@@ -4155,6 +5377,7 @@ export default function AddProductEditor({
                     {filterOptions.map((opt) => {
                       const isSelected = selectedFilterKey === opt.key;
                       const IconComponent = opt.icon;
+                      const isMarket = ["amazon", "ebay", "etsy", "tiktok", "shopify"].includes(opt.key);
                       return (
                         <button
                           key={opt.key}
@@ -4164,13 +5387,17 @@ export default function AddProductEditor({
                             setIsFilterDropdownOpen(false);
                           }}
                           className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 cursor-pointer ${
-                            isSelected 
-                              ? "bg-[#edf5ff] text-[#1b2748]" 
+                            isSelected
+                              ? dropdownSelectedStyles[opt.key] || "bg-[#edf5ff] text-[#1b2748]"
                               : "text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544]"
                           }`}
                         >
                           <span className="flex items-center gap-2.5">
-                            <IconComponent className={`h-4 w-4 transition-colors duration-150 ${isSelected ? "text-[#2b7cf5]" : "text-[#8ea0bf]"}`} />
+                            <IconComponent
+                              className={`h-4 w-4 transition-colors duration-150 shrink-0 ${
+                                isMarket ? "" : isSelected ? "text-[#2b7cf5]" : "text-[#8ea0bf]"
+                              }`}
+                            />
                             {opt.label}
                           </span>
                           {isSelected && <CheckCircle2 className="h-4 w-4 text-[#2b7cf5]" />}
@@ -4221,251 +5448,249 @@ export default function AddProductEditor({
                 {imageCards
                   .filter(({ key }) => selectedFilterKey === "all" || key === selectedFilterKey)
                   .map(({ key, label, image, note }) => {
-                  const hasPath = Boolean(image?.absolute_path || image?.relative_path);
-                  const isUploading = Boolean(imageUploadingMap[key]);
-                  const isGeneratingThis = key !== "source" && key !== "transparent_cutout" && Boolean(marketImageGenerating[key as MarketKey]);
-                  const isBusy = isUploading || isGeneratingThis || (key === "transparent_cutout" && isUploadingSourceImage);
+                    const hasPath = Boolean(image?.absolute_path || image?.relative_path);
+                    const isUploading = Boolean(imageUploadingMap[key]);
+                    const isGeneratingThis = key !== "source" && key !== "transparent_cutout" && Boolean(marketImageGenerating[key as MarketKey]);
+                    const isBusy = isUploading || isGeneratingThis || (key === "transparent_cutout" && isUploadingSourceImage);
 
-                  const rawErrors = image?.validation?.errors ?? [];
-                  const validationErrors = rawErrors.filter((err) => {
-                    if (err === "No source image uploaded yet." && (hasPath || (key === "source" && selectedImagePreviewUrl))) {
-                      return false;
+                    const rawErrors = image?.validation?.errors ?? [];
+                    const validationErrors = rawErrors.filter((err) => {
+                      if (err === "No source image uploaded yet." && (hasPath || (key === "source" && selectedImagePreviewUrl))) {
+                        return false;
+                      }
+                      return true;
+                    });
+
+                    // Status resolving
+                    let statusText = "Not Generated";
+                    let badgeStyles = "bg-slate-50 text-slate-600 border-slate-200";
+
+                    if (isUploading) {
+                      statusText = "Uploading...";
+                      badgeStyles = "bg-blue-50 text-blue-600 border-blue-200 animate-pulse";
+                    } else if (isGeneratingThis) {
+                      statusText = "Generating...";
+                      badgeStyles = "bg-purple-50 text-purple-600 border-purple-200 animate-pulse";
+                    } else if (hasPath) {
+                      if (validationErrors.length > 0) {
+                        statusText = "Failed";
+                        badgeStyles = "bg-rose-50 text-rose-700 border-rose-200";
+                      } else if (image?.validation?.passed) {
+                        statusText = "Ready";
+                        badgeStyles = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                      } else {
+                        statusText = "Review";
+                        badgeStyles = "bg-amber-50 text-amber-700 border-amber-200";
+                      }
+                    } else if (key === "source" && selectedImagePreviewUrl) {
+                      statusText = "Selected";
+                      badgeStyles = "bg-indigo-50 text-indigo-700 border-indigo-200";
                     }
-                    return true;
-                  });
-                  
-                  // Status resolving
-                  let statusText = "Not Generated";
-                  let badgeStyles = "bg-slate-50 text-slate-600 border-slate-200";
-                  
-                  if (isUploading) {
-                    statusText = "Uploading...";
-                    badgeStyles = "bg-blue-50 text-blue-600 border-blue-200 animate-pulse";
-                  } else if (isGeneratingThis) {
-                    statusText = "Generating...";
-                    badgeStyles = "bg-purple-50 text-purple-600 border-purple-200 animate-pulse";
-                  } else if (hasPath) {
-                    if (validationErrors.length > 0) {
-                      statusText = "Failed";
-                      badgeStyles = "bg-rose-50 text-rose-700 border-rose-200";
-                    } else if (image?.validation?.passed) {
-                      statusText = "Ready";
-                      badgeStyles = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                    } else {
-                      statusText = "Review";
-                      badgeStyles = "bg-amber-50 text-amber-700 border-amber-200";
-                    }
-                  } else if (key === "source" && selectedImagePreviewUrl) {
-                    statusText = "Selected";
-                    badgeStyles = "bg-indigo-50 text-indigo-700 border-indigo-200";
-                  }
 
-                  const isDraggingOver = draggingOverCardKey === key;
-                  const filename = `${(getPublishTitle() || "product").replace(/\s+/g, "_").toLowerCase()}_${key}.png`;
+                    const isDraggingOver = draggingOverCardKey === key;
+                    const filename = `${(getPublishTitle() || "product").replace(/\s+/g, "_").toLowerCase()}_${key}.png`;
 
-                  return (
-                    <div 
-                      className={`group relative rounded-2xl border bg-white p-4 transition-all duration-300 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] ${
-                        isDraggingOver 
-                          ? "border-indigo-500 ring-2 ring-indigo-50" 
-                          : "border-[#e2e8f0] hover:border-[#cbd5e1] hover:shadow-[0_4px_16px_-4px_rgba(0,0,0,0.08)]"
-                      }`}
-                      key={key}
-                      onDragLeave={() => setDraggingOverCardKey(null)}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        setDraggingOverCardKey(key);
-                      }}
-                      onDrop={(e) => {
-                        setDraggingOverCardKey(null);
-                        handleCardDrop(e, key);
-                      }}
-                    >
-                      {/* Card Header */}
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div>
-                          <h3 className="text-sm font-semibold text-[#1e293b] flex items-center gap-1.5">
-                            {label}
-                          </h3>
-                          <span className="text-[10px] font-mono tracking-wider text-[#94a3b8] uppercase">
-                            {key === "source" && selectedImagePreviewUrl && !hasPath
-                              ? "local_selection"
-                              : image?.generation_mode ?? "inactive_slot"}
+                    return (
+                      <div
+                        className={`group relative rounded-2xl border bg-white p-4 transition-all duration-300 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] ${isDraggingOver
+                            ? "border-indigo-500 ring-2 ring-indigo-50"
+                            : "border-[#e2e8f0] hover:border-[#cbd5e1] hover:shadow-[0_4px_16px_-4px_rgba(0,0,0,0.08)]"
+                          }`}
+                        key={key}
+                        onDragLeave={() => setDraggingOverCardKey(null)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDraggingOverCardKey(key);
+                        }}
+                        onDrop={(e) => {
+                          setDraggingOverCardKey(null);
+                          handleCardDrop(e, key);
+                        }}
+                      >
+                        {/* Card Header */}
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div>
+                            <h3 className="text-sm font-semibold text-[#1e293b] flex items-center gap-1.5">
+                              {label}
+                            </h3>
+                            <span className="text-[10px] font-mono tracking-wider text-[#94a3b8] uppercase">
+                              {key === "source" && selectedImagePreviewUrl && !hasPath
+                                ? "local_selection"
+                                : image?.generation_mode ?? "inactive_slot"}
+                            </span>
+                          </div>
+                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold transition-all duration-300 ${badgeStyles}`}>
+                            {statusText}
                           </span>
                         </div>
-                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold transition-all duration-300 ${badgeStyles}`}>
-                          {statusText}
-                        </span>
-                      </div>
 
-                      {/* Preview Box Area */}
-                      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-50 border border-dashed border-[#e2e8f0] transition-all duration-300 flex items-center justify-center">
-                        {isBusy ? (
-                          <div className="absolute inset-0 bg-white/85 z-10 flex flex-col items-center justify-center gap-2 backdrop-blur-xs">
-                            <LoaderCircle className="h-8 w-8 animate-spin text-[#172544]" />
-                            <p className="text-xs font-semibold text-[#334155] animate-pulse">
-                              {isUploading ? "Uploading file..." : "Generating image..."}
-                            </p>
-                          </div>
-                        ) : null}
-
-                        {hasPath ? (
-                          <div className="relative w-full h-full">
-                            <ProductPreview
-                              alt={label}
-                              backgroundLabel={image?.validation?.expected_background ?? "Image"}
-                              image={image}
-                              previewSrc={null}
-                            />
-                          </div>
-                        ) : key === "source" && selectedImagePreviewUrl ? (
-                          <div className="relative w-full h-full">
-                            <ProductPreview
-                              alt={label}
-                              backgroundLabel="source"
-                              image={null}
-                              previewSrc={selectedImagePreviewUrl}
-                            />
-                          </div>
-                        ) : (
-                          // Drag and Drop Empty State
-                          <div 
-                            className={`flex flex-col items-center justify-center p-6 text-center w-full h-full select-none cursor-pointer transition-all duration-200 ${
-                              isDraggingOver ? "bg-indigo-50/50" : "hover:bg-slate-100/30"
-                            }`}
-                            onClick={() => {
-                              setActiveUploadCardKey(key);
-                              manualUploadInputRef.current?.click();
-                            }}
-                          >
-                            <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-[#475569] group-hover:scale-110 transition-transform duration-300">
-                              <Upload className="h-5 w-5" />
+                        {/* Preview Box Area */}
+                        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-50 border border-dashed border-[#e2e8f0] transition-all duration-300 flex items-center justify-center">
+                          {isBusy ? (
+                            <div className="absolute inset-0 bg-white/85 z-10 flex flex-col items-center justify-center gap-2 backdrop-blur-xs">
+                              <LoaderCircle className="h-8 w-8 animate-spin text-[#172544]" />
+                              <p className="text-xs font-semibold text-[#334155] animate-pulse">
+                                {isUploading ? "Uploading file..." : "Generating image..."}
+                              </p>
                             </div>
-                            <p className="text-xs font-semibold text-[#334155]">
-                              {isDraggingOver ? "Drop image here" : "Upload or drop image"}
-                            </p>
-                            <p className="mt-1 text-[10px] text-[#94a3b8]">
-                              PNG, JPG, WEBP • Max 10MB
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Technical/Validation Meta Deck */}
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-medium text-[#64748b]">
-                        <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5 flex flex-col justify-between">
-                          <span className="text-[9px] uppercase tracking-wider text-[#94a3b8] font-bold">Template BG</span>
-                          <span className="text-[#334155] truncate font-semibold mt-0.5">
-                            {key === "source" && selectedImagePreviewUrl && !hasPath
-                              ? "selected local"
-                              : image?.validation?.expected_background ?? "unknown"}
-                          </span>
-                        </div>
-                        <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5 flex flex-col justify-between">
-                          <span className="text-[9px] uppercase tracking-wider text-[#94a3b8] font-bold">Size & Format</span>
-                          <span className="text-[#334155] truncate font-semibold mt-0.5">
-                            {image?.validation?.width && image?.validation?.height
-                              ? `${image.validation.width} x ${image.validation.height}`
-                              : "Not generated"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Card Control Bar */}
-                      <div className="mt-3 flex flex-col gap-2">
-                        {/* Row 1: Primary Actions */}
-                        <div className="flex gap-2 w-full">
-                          {/* Generate/Regenerate for markets */}
-                          {key !== "source" ? (
-                            <button
-                              className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200 px-3 whitespace-nowrap"
-                              disabled={isBusy || isUploadingSourceImage || isGenerating}
-                              onClick={() => {
-                                if (key === "transparent_cutout") {
-                                  void uploadProductSourceImage();
-                                } else {
-                                  void regenerateMarketplaceImage(key as MarketKey);
-                                }
-                              }}
-                              type="button"
-                            >
-                              <RefreshCcw className={`h-3.5 w-3.5 ${(isGeneratingThis || (key === "transparent_cutout" && isUploadingSourceImage)) ? "animate-spin" : ""}`} />
-                              {hasPath ? "Regenerate" : "Generate"}
-                            </button>
-                          ) : selectedImage ? (
-                            <button
-                              className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#172544] text-xs font-bold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200 px-3 whitespace-nowrap"
-                              disabled={isUploadingSourceImage || isGenerating}
-                              onClick={() => void uploadProductSourceImage()}
-                              type="button"
-                            >
-                              {isUploadingSourceImage ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 text-[#35d3ce]" />}
-                              Create Cutout
-                            </button>
                           ) : null}
 
-                          {/* Direct manual upload */}
-                          <button
-                            className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white px-3 text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200 whitespace-nowrap"
-                            disabled={isBusy}
-                            onClick={() => {
-                              setActiveUploadCardKey(key);
-                              manualUploadInputRef.current?.click();
-                            }}
-                            title={hasPath ? "Replace Custom Image" : "Upload Custom Image"}
-                            type="button"
-                          >
-                            <Upload className="h-3.5 w-3.5" />
-                            {hasPath ? "Replace" : "Upload"}
-                          </button>
+                          {hasPath ? (
+                            <div className="relative w-full h-full">
+                              <ProductPreview
+                                alt={label}
+                                backgroundLabel={image?.validation?.expected_background ?? "Image"}
+                                image={image}
+                                previewSrc={null}
+                              />
+                            </div>
+                          ) : key === "source" && selectedImagePreviewUrl ? (
+                            <div className="relative w-full h-full">
+                              <ProductPreview
+                                alt={label}
+                                backgroundLabel="source"
+                                image={null}
+                                previewSrc={selectedImagePreviewUrl}
+                              />
+                            </div>
+                          ) : (
+                            // Drag and Drop Empty State
+                            <div
+                              className={`flex flex-col items-center justify-center p-6 text-center w-full h-full select-none cursor-pointer transition-all duration-200 ${isDraggingOver ? "bg-indigo-50/50" : "hover:bg-slate-100/30"
+                                }`}
+                              onClick={() => {
+                                setActiveUploadCardKey(key);
+                                manualUploadInputRef.current?.click();
+                              }}
+                            >
+                              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-[#475569] group-hover:scale-110 transition-transform duration-300">
+                                <Upload className="h-5 w-5" />
+                              </div>
+                              <p className="text-xs font-semibold text-[#334155]">
+                                {isDraggingOver ? "Drop image here" : "Upload or drop image"}
+                              </p>
+                              <p className="mt-1 text-[10px] text-[#94a3b8]">
+                                PNG, JPG, WEBP • Max 10MB
+                              </p>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Row 2: Secondary/Utility Actions */}
-                        {hasPath ? (
+                        {/* Technical/Validation Meta Deck */}
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-medium text-[#64748b]">
+                          <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5 flex flex-col justify-between">
+                            <span className="text-[9px] uppercase tracking-wider text-[#94a3b8] font-bold">Template BG</span>
+                            <span className="text-[#334155] truncate font-semibold mt-0.5">
+                              {key === "source" && selectedImagePreviewUrl && !hasPath
+                                ? "selected local"
+                                : image?.validation?.expected_background ?? "unknown"}
+                            </span>
+                          </div>
+                          <div className="rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5 flex flex-col justify-between">
+                            <span className="text-[9px] uppercase tracking-wider text-[#94a3b8] font-bold">Size & Format</span>
+                            <span className="text-[#334155] truncate font-semibold mt-0.5">
+                              {image?.validation?.width && image?.validation?.height
+                                ? `${image.validation.width} x ${image.validation.height}`
+                                : "Not generated"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Card Control Bar */}
+                        <div className="mt-3 flex flex-col gap-2">
+                          {/* Row 1: Primary Actions */}
                           <div className="flex gap-2 w-full">
+                            {/* Generate/Regenerate for markets */}
+                            {key !== "source" ? (
+                              <button
+                                className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200 px-3 whitespace-nowrap"
+                                disabled={isBusy || isUploadingSourceImage || isGenerating}
+                                onClick={() => {
+                                  if (key === "transparent_cutout") {
+                                    void uploadProductSourceImage();
+                                  } else {
+                                    void regenerateMarketplaceImage(key as MarketKey);
+                                  }
+                                }}
+                                type="button"
+                              >
+                                <RefreshCcw className={`h-3.5 w-3.5 ${(isGeneratingThis || (key === "transparent_cutout" && isUploadingSourceImage)) ? "animate-spin" : ""}`} />
+                                {hasPath ? "Regenerate" : "Generate"}
+                              </button>
+                            ) : selectedImage ? (
+                              <button
+                                className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#172544] text-xs font-bold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200 px-3 whitespace-nowrap"
+                                disabled={isUploadingSourceImage || isGenerating}
+                                onClick={() => void uploadProductSourceImage()}
+                                type="button"
+                              >
+                                {isUploadingSourceImage ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 text-[#35d3ce]" />}
+                                Create Cutout
+                              </button>
+                            ) : null}
+
+                            {/* Direct manual upload */}
                             <button
-                              className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white px-3 text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544] transition-all duration-200"
-                              onClick={() => void downloadMarketplaceImage(key, filename)}
-                              title="Download Variant"
+                              className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white px-3 text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200 whitespace-nowrap"
+                              disabled={isBusy}
+                              onClick={() => {
+                                setActiveUploadCardKey(key);
+                                manualUploadInputRef.current?.click();
+                              }}
+                              title={hasPath ? "Replace Custom Image" : "Upload Custom Image"}
                               type="button"
                             >
-                              <Download className="h-3.5 w-3.5" />
-                              <span>Download</span>
-                            </button>
-                            <button
-                              className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-rose-100 bg-rose-50 px-3 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-all duration-200"
-                              onClick={() => void clearMarketplaceImage(key)}
-                              title="Clear Image"
-                              type="button"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              <span>Delete</span>
+                              <Upload className="h-3.5 w-3.5" />
+                              {hasPath ? "Replace" : "Upload"}
                             </button>
                           </div>
+
+                          {/* Row 2: Secondary/Utility Actions */}
+                          {hasPath ? (
+                            <div className="flex gap-2 w-full">
+                              <button
+                                className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white px-3 text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] hover:text-[#172544] transition-all duration-200"
+                                onClick={() => void downloadMarketplaceImage(key, filename)}
+                                title="Download Variant"
+                                type="button"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                <span>Download</span>
+                              </button>
+                              <button
+                                className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-rose-100 bg-rose-50 px-3 text-xs font-bold text-rose-600 hover:bg-rose-100 transition-all duration-200"
+                                onClick={() => void clearMarketplaceImage(key)}
+                                title="Clear Image"
+                                type="button"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {/* Display warning or file size validation details */}
+                        {image?.validation?.file_size_bytes ? (
+                          <p className="mt-2 text-[10px] text-[#94a3b8] flex items-center justify-between">
+                            <span>File size: {formatBytes(image.validation.file_size_bytes)}</span>
+                            {image.validation.mime_type ? (
+                              <span className="font-semibold">{image.validation.mime_type}</span>
+                            ) : null}
+                          </p>
+                        ) : null}
+
+                        {validationErrors.length > 0 ? (
+                          <div className="mt-2 rounded-lg bg-rose-50 border border-rose-100 p-2 text-[10px] text-rose-700 flex items-start gap-1">
+                            <CircleAlert className="h-3 w-3 shrink-0 mt-0.5" />
+                            <span className="leading-normal">{validationErrors[0]}</span>
+                          </div>
+                        ) : note ? (
+                          <p className="mt-2 text-[10px] text-[#94a3b8] leading-normal">{note}</p>
                         ) : null}
                       </div>
-
-                      {/* Display warning or file size validation details */}
-                      {image?.validation?.file_size_bytes ? (
-                        <p className="mt-2 text-[10px] text-[#94a3b8] flex items-center justify-between">
-                          <span>File size: {formatBytes(image.validation.file_size_bytes)}</span>
-                          {image.validation.mime_type ? (
-                            <span className="font-semibold">{image.validation.mime_type}</span>
-                          ) : null}
-                        </p>
-                      ) : null}
-
-                      {validationErrors.length > 0 ? (
-                        <div className="mt-2 rounded-lg bg-rose-50 border border-rose-100 p-2 text-[10px] text-rose-700 flex items-start gap-1">
-                          <CircleAlert className="h-3 w-3 shrink-0 mt-0.5" />
-                          <span className="leading-normal">{validationErrors[0]}</span>
-                        </div>
-                      ) : note ? (
-                        <p className="mt-2 text-[10px] text-[#94a3b8] leading-normal">{note}</p>
-                      ) : null}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </article>
 

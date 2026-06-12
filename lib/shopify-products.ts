@@ -10,12 +10,30 @@ export type ShopifyProductPayload = {
   tags: string[];
   imagePath?: string;
   publishToOnlineStore?: boolean;
+  compareAtPrice?: string;
+  costPerItem?: string;
+  chargeTax?: boolean;
+  barcode?: string;
+  weight?: number;
+  weightUnit?: string;
+  countryOfOrigin?: string;
+  hsCode?: string;
+  collections?: string[];
+  themeTemplate?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoHandle?: string;
+  metafields?: Record<string, string>;
   variants: Array<{
     title: string;
     price: string;
     sku?: string;
     inventoryQuantity?: number;
     trackInventory?: boolean;
+    barcode?: string;
+    compareAtPrice?: string;
+    weight?: number;
+    weightUnit?: string;
   }>;
 };
 
