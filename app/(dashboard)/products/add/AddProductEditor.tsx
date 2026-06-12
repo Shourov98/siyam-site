@@ -602,20 +602,20 @@ function EditableField({
 
   return (
     <div
-      className={`flex flex-col rounded-2xl border bg-[#f8fbff] p-4 transition-all duration-200 ${
+      className={`flex flex-col rounded-xl border bg-[#f8fbff] p-3 transition-all duration-200 ${
         invalid 
           ? "border-[#ef6b6b] bg-[#fff7f7] shadow-[0_4px_12px_rgba(239,107,107,0.05)]" 
           : "border-[#dbe2ee] hover:border-[#cbd5e1] focus-within:border-[#2b7cf5] focus-within:bg-white focus-within:shadow-[0_8px_20px_-6px_rgba(43,124,245,0.08)]"
       } ${className}`}
     >
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-[#8093b2]">{label}</span>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2]">{label}</span>
         {multiline && hasHtml && (
-          <div className="flex bg-white rounded-lg p-0.5 border border-[#d4ddec] text-[10px] font-bold shadow-xs">
+          <div className="flex bg-white rounded-md p-0.5 border border-[#d4ddec] text-[9px] font-bold shadow-xs">
             <button
               type="button"
               onClick={() => setManualShowPreview(false)}
-              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+              className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
                 !showPreview 
                   ? "bg-[#1b2748] text-white shadow-xs" 
                   : "text-[#5e718e] hover:bg-[#edf2fb]"
@@ -626,7 +626,7 @@ function EditableField({
             <button
               type="button"
               onClick={() => setManualShowPreview(true)}
-              className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+              className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
                 showPreview 
                   ? "bg-[#1b2748] text-white shadow-xs" 
                   : "text-[#5e718e] hover:bg-[#edf2fb]"
@@ -638,19 +638,19 @@ function EditableField({
         )}
       </div>
       {helperText && (
-        <p className={`mb-2 text-xs leading-normal ${invalid ? "text-[#cf4b4b] font-medium" : "text-[#8ea0bf]"}`}>
+        <p className={`mb-1 text-[10px] leading-normal ${invalid ? "text-[#cf4b4b] font-medium" : "text-[#8ea0bf]"}`}>
           {helperText}
         </p>
       )}
       {multiline ? (
         showPreview ? (
           <div
-            className="min-h-28 max-h-72 w-full flex-1 rounded-xl bg-white px-4 py-3 text-sm text-[#31415e] border border-[#d4ddec] overflow-y-auto rich-preview-box transition-all"
+            className="min-h-20 max-h-56 w-full flex-1 rounded-lg bg-white px-3 py-2 text-xs text-[#31415e] border border-[#d4ddec] overflow-y-auto rich-preview-box transition-all"
             dangerouslySetInnerHTML={{ __html: value }}
           />
         ) : (
           <textarea
-            className={`min-h-28 max-h-72 w-full flex-1 rounded-xl bg-white px-3 py-3 text-sm text-[#31415e] outline-none transition resize-none overflow-y-auto ${
+            className={`min-h-20 max-h-56 w-full flex-1 rounded-lg bg-white px-3 py-2 text-xs text-[#31415e] outline-none transition resize-none overflow-y-auto ${
               invalid 
                 ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" 
                 : "border border-[#d4ddec] focus:border-[#2b7cf5]"
@@ -661,7 +661,7 @@ function EditableField({
         )
       ) : (
         <input
-          className={`h-11 w-full rounded-xl bg-white px-3 text-sm text-[#31415e] outline-none transition ${
+          className={`h-9 w-full rounded-lg bg-white px-3 text-xs text-[#31415e] outline-none transition ${
             invalid 
               ? "border border-[#ef6b6b] focus:border-[#ef6b6b]" 
               : "border border-[#d4ddec] focus:border-[#2b7cf5]"
@@ -2798,16 +2798,16 @@ export default function AddProductEditor({
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_380px] xl:h-[calc(100vh-168px)] xl:overflow-hidden">
           <div className="space-y-5 xl:h-full xl:overflow-y-auto xl:pr-2">
-            <article className="rounded-2xl border border-[#dbe2ee] bg-white p-6 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
+            <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
               {/* Header block with refined styling */}
-              <div className="flex items-center justify-between gap-4 flex-wrap border-b border-[#eef2f6] pb-4 mb-6">
-                <div className="flex items-center gap-3.5">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#eaf3ff] to-[#d0e3ff] text-[#2b7cf5] shadow-sm">
-                    <Boxes className="h-5.5 w-5.5" />
+              <div className="flex items-center justify-between gap-4 flex-wrap border-b border-[#eef2f6] pb-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#eaf3ff] to-[#d0e3ff] text-[#2b7cf5] shadow-xs">
+                    <Boxes className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-[#1f2c44]">Core Product Data</h2>
-                    <p className="text-xs text-[#7f92b1] mt-0.5">Primary product specifications and source draft parameters.</p>
+                    <h2 className="text-base font-bold text-[#1f2c44]">Core Product Data</h2>
+                    <p className="text-xs text-[#7f92b1]">Primary product specifications and source draft parameters.</p>
                   </div>
                 </div>
 
@@ -2815,68 +2815,52 @@ export default function AddProductEditor({
                   type="button"
                   disabled={isGenerating || !sourceTitle.trim()}
                   onClick={() => void generateWithoutImage()}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#172544] to-[#263c70] px-4 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer hover:shadow-md"
+                  className="inline-flex h-8.5 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-[#172544] to-[#263c70] px-3.5 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                 >
                   {isGenerating ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin text-[#35d3ce]" />
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin text-[#35d3ce]" />
                   ) : (
-                    <Sparkles className="h-4 w-4 text-[#35d3ce]" />
+                    <Sparkles className="h-3.5 w-3.5 text-[#35d3ce]" />
                   )}
                   {isGenerating ? "Generating..." : "Generate Text Only"}
                 </button>
               </div>
 
               {/* Grid content divided into visual subgroups */}
-              <div className="space-y-6">
+              <div className="space-y-4">
                 
-                {/* Subgroup 1: Titles and Source Input */}
-                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc]/50 p-4 shadow-2xs">
-                  <div className="flex items-center gap-2 mb-3.5 border-b border-[#edf2f7] pb-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#2b7cf5]"></span>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#4a5568]">Identity & Context</h3>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <EditableField
-                      label="Source Title"
-                      helperText="The raw text title used as context for the AI draft generation."
-                      onChange={(value) => {
-                        setSourceTitle(value);
-                        setDraft((prev) => ({ ...prev, core: { ...prev.core, source_title: value } }));
-                      }}
-                      value={draft.core.source_title}
-                    />
-                    <EditableField
-                      label="Normalized Title"
-                      helperText="AI-cleaned, standard marketplace-optimized title."
-                      onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, normalized_title: value } }))}
-                      value={draft.core.normalized_title}
-                    />
-                  </div>
+                {/* 4-column layout for main meta fields */}
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <EditableField
+                    label="Source Title"
+                    helperText="Source title context for AI."
+                    onChange={(value) => {
+                      setSourceTitle(value);
+                      setDraft((prev) => ({ ...prev, core: { ...prev.core, source_title: value } }));
+                    }}
+                    value={draft.core.source_title}
+                  />
+                  <EditableField
+                    label="Normalized Title"
+                    helperText="AI marketplace standard title."
+                    onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, normalized_title: value } }))}
+                    value={draft.core.normalized_title}
+                  />
+                  <EditableField
+                    label="Category"
+                    helperText="Catalog category identifier."
+                    onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, category: value } }))}
+                    value={draft.core.category}
+                  />
+                  <EditableField
+                    label="Product Type"
+                    helperText="Template classification spec."
+                    onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, product_type: value } }))}
+                    value={draft.core.product_type}
+                  />
                 </div>
 
-                {/* Subgroup 2: Category & Classification */}
-                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc]/50 p-4 shadow-2xs">
-                  <div className="flex items-center gap-2 mb-3.5 border-b border-[#edf2f7] pb-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#4a5568]">Catalog Taxonomy</h3>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <EditableField
-                      label="Category"
-                      helperText="Broad catalog category identifier for listings."
-                      onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, category: value } }))}
-                      value={draft.core.category}
-                    />
-                    <EditableField
-                      label="Product Type"
-                      helperText="Specific classification template used for attributes."
-                      onChange={(value) => setDraft((prev) => ({ ...prev, core: { ...prev.core, product_type: value } }))}
-                      value={draft.core.product_type}
-                    />
-                  </div>
-                </div>
-
-                {/* Subgroup 3: Narrative Summary */}
+                {/* Narrative Summary */}
                 <div>
                   <EditableField
                     label="Product Summary"
@@ -2887,8 +2871,8 @@ export default function AddProductEditor({
                   />
                 </div>
 
-                {/* Subgroup 4: Specifications & Enrichments */}
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                {/* Specifications & Enrichments */}
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
                   <EditableListField
                     helperText="One core feature highlight per line"
                     label="Generated Features"
@@ -4050,33 +4034,33 @@ export default function AddProductEditor({
             </article>
 
 
-            <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#fff8e6] text-[#d39a0f]">
+            <article className="rounded-2xl border border-[#dbe2ee] bg-white p-4 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
+              <div className="flex items-center gap-2.5 pb-1">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#fff8e6] text-[#d39a0f]">
                   <Tags className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-[#1f2c44]">Actions</h2>
-                  <p className="text-sm text-[#7f92b1]">Save the edited draft back to the backend or return to the product list.</p>
+                  <h2 className="text-base font-bold text-[#1f2c44]">Actions</h2>
+                  <p className="text-xs text-[#7f92b1]">Save the edited draft back to the backend or return to the product list.</p>
                 </div>
               </div>
-              <div className="mt-4 rounded-2xl bg-[#f8fbff] p-4 text-sm text-[#465574]">
+              <div className="mt-3 rounded-xl bg-[#f8fbff] p-3 text-xs leading-relaxed text-[#465574]">
                 {isLoadingProduct
                   ? "Loading product draft from the backend..."
                   : hasPersistedProduct
                     ? "This page is connected to a persisted backend draft."
                     : "Generate a product draft first to unlock saving, regeneration, and variants."}
               </div>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Link
-                  className="inline-flex min-h-11 min-w-[140px] items-center justify-center gap-2 rounded-xl bg-[#172544] px-4 py-3 text-center text-sm font-semibold leading-5 text-white"
+                  className="inline-flex h-10 min-w-[120px] items-center justify-center gap-1.5 rounded-lg bg-[#172544] px-3.5 text-center text-xs font-semibold text-white cursor-pointer"
                   href="/products"
                 >
-                  <BadgeCheck className="h-4 w-4" />
+                  <BadgeCheck className="h-3.5 w-3.5" />
                   Back to Products
                 </Link>
                 <button
-                  className={`inline-flex min-h-11 min-w-[132px] items-center justify-center gap-2 rounded-xl px-4 py-3 text-center text-sm font-semibold leading-5 disabled:cursor-not-allowed disabled:opacity-60 ${
+                  className={`inline-flex h-10 min-w-[110px] items-center justify-center gap-1.5 rounded-lg px-3.5 text-center text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer ${
                     draftSaveState === "saved"
                       ? "border border-[#ccebdc] bg-[#eefbf4] text-[#267a4f]"
                       : "border border-[#d5dcea] bg-white text-[#4a5d7d]"
@@ -4086,19 +4070,19 @@ export default function AddProductEditor({
                   type="button"
                 >
                   {draftSaveState === "saving" ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                   ) : (
-                    <CheckCircle2 className="h-4 w-4" />
+                    <CheckCircle2 className="h-3.5 w-3.5" />
                   )}
                   {draftSaveState === "saving" ? "Saving..." : draftSaveState === "saved" ? "Saved" : "Save Draft"}
                 </button>
                 <button
-                  className="inline-flex min-h-11 min-w-[132px] items-center justify-center gap-2 rounded-xl border border-[#e6cfd4] bg-[#fff7f8] px-4 py-3 text-center text-sm font-semibold leading-5 text-[#8a4b57] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-10 min-w-[110px] items-center justify-center gap-1.5 rounded-lg border border-[#e6cfd4] bg-[#fff7f8] px-3.5 text-center text-xs font-semibold text-[#8a4b57] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                   disabled={isDeletingDraft}
                   onClick={() => void deleteDraft()}
                   type="button"
                 >
-                  {isDeletingDraft ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CircleAlert className="h-4 w-4" />}
+                  {isDeletingDraft ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <CircleAlert className="h-3.5 w-3.5" />}
                   {isDeletingDraft ? "Deleting..." : "Delete Draft"}
                 </button>
               </div>
