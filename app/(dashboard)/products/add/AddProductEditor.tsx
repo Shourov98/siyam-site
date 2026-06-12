@@ -1665,6 +1665,37 @@ export default function AddProductEditor({
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
 
+  // Add stock location custom modal state
+  const [isAddLocationOpen, setIsAddLocationOpen] = useState(false);
+  const [newLocationName, setNewLocationName] = useState("");
+  const [locationError, setLocationError] = useState("");
+
+  const handleAddLocationSubmit = () => {
+    const trimmedName = newLocationName.trim();
+    if (!trimmedName) {
+      setLocationError("Location name cannot be empty.");
+      return;
+    }
+    const currentLocs = draft.shopify.stock_locations ?? [];
+    if (currentLocs.some(l => l.name.toLowerCase() === trimmedName.toLowerCase())) {
+      setLocationError("A location with this name already exists.");
+      return;
+    }
+    setDraft((prev) => {
+      const current = prev.shopify.stock_locations ?? [];
+      return {
+        ...prev,
+        shopify: {
+          ...prev.shopify,
+          stock_locations: [...current, { name: trimmedName, available: 0, on_hand: 0 }]
+        }
+      };
+    });
+    setIsAddLocationOpen(false);
+    setNewLocationName("");
+    setLocationError("");
+  };
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
@@ -1712,6 +1743,7 @@ export default function AddProductEditor({
         setIsGroupByOpen(false);
         setIsStatusOpen(false);
         setIsThemeOpen(false);
+        setIsAddLocationOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -4319,22 +4351,9 @@ export default function AddProductEditor({
                             <button
                               type="button"
                               onClick={() => {
-                                const locName = prompt("Enter new location name:");
-                                if (locName) {
-                                  setDraft((prev) => {
-                                    const currentLocs = prev.shopify.stock_locations ?? [];
-                                    if (currentLocs.some(l => l.name.toLowerCase() === locName.toLowerCase())) {
-                                      return prev;
-                                    }
-                                    return {
-                                      ...prev,
-                                      shopify: {
-                                        ...prev.shopify,
-                                        stock_locations: [...currentLocs, { name: locName, available: 0, on_hand: 0 }]
-                                      }
-                                    };
-                                  });
-                                }
+                                setNewLocationName("");
+                                setLocationError("");
+                                setIsAddLocationOpen(true);
                               }}
                               className="text-xs font-bold text-[#2b7cf5] hover:text-[#1d5fb8] cursor-pointer border-0 bg-transparent"
                             >
@@ -6333,6 +6352,76 @@ export default function AddProductEditor({
           </aside>
         </div>
       </div>
+
+      {isAddLocationOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#081224]/55 px-4 py-6 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="absolute inset-0 cursor-default" onClick={() => setIsAddLocationOpen(false)} />
+          <div className="relative w-full max-w-md rounded-[28px] border border-[#d7dfeb] bg-white p-6 shadow-[0_32px_90px_-48px_rgba(15,29,56,0.95)] animate-in zoom-in-95 duration-200 text-[#1d2a43]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#87a0c2]">Shopify Settings</p>
+                <h2 className="mt-2 text-xl font-bold text-[#1d2a43]">Add Stock Location</h2>
+                <p className="mt-1 text-xs text-[#6c7e9f] leading-relaxed">
+                  Enter the name of a new physical store or warehouse to track inventory quantities.
+                </p>
+              </div>
+              <button
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#d5dcea] text-[#5a6d8d] transition hover:bg-[#f5f8fc] cursor-pointer"
+                onClick={() => setIsAddLocationOpen(false)}
+                type="button"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-5">
+              <label className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4 cursor-pointer">
+                <span className="text-xs font-semibold uppercase tracking-wide text-[#8093b2] select-none">Location Name</span>
+                <input
+                  autoFocus
+                  className="mt-2 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-3 text-sm text-[#31415e] outline-none transition focus:border-[#2b7cf5] focus:ring-1 focus:ring-[#2b7cf5]"
+                  onChange={(e) => {
+                    setNewLocationName(e.target.value);
+                    if (locationError) setLocationError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleAddLocationSubmit();
+                    }
+                  }}
+                  placeholder="e.g. London Retail Store"
+                  type="text"
+                  value={newLocationName}
+                />
+              </label>
+
+              {locationError && (
+                <div className="mt-3 rounded-xl bg-rose-50 border border-rose-100 p-3 text-xs text-rose-700 flex items-start gap-2 animate-in fade-in duration-200">
+                  <CircleAlert className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{locationError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-xs font-semibold text-[#4a5d7d] hover:bg-[#f5f8fc] transition cursor-pointer"
+                onClick={() => setIsAddLocationOpen(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#172544] hover:bg-[#21325c] px-5 text-xs font-semibold text-white transition cursor-pointer"
+                onClick={handleAddLocationSubmit}
+                type="button"
+              >
+                Add Location
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
