@@ -7,6 +7,7 @@ import { startTransition, useEffect, useMemo, useState } from "react";
 import { ApiClientError } from "@/lib/auth";
 import { integrationApi } from "@/lib/integrations";
 import {
+  initialEbayState,
   initialShopifyState,
   useIntegrationPageStore,
   type BannerState,
@@ -38,46 +39,57 @@ export default function IntegrationPage() {
   const [hoveredPlatform, setHoveredPlatform] = useState<string | null>(null);
   const banner = useIntegrationPageStore((state) => state.banner);
   const shopifyState = useIntegrationPageStore((state) => state.shopifyState);
+  const ebayState = useIntegrationPageStore((state) => state.ebayState);
   const isLoadingStatus = useIntegrationPageStore((state) => state.isLoadingStatus);
   const isConnectingShopify = useIntegrationPageStore((state) => state.isConnectingShopify);
+  const isConnectingEbay = useIntegrationPageStore((state) => state.isConnectingEbay);
   const isDisconnectingShopify = useIntegrationPageStore((state) => state.isDisconnectingShopify);
+  const isDisconnectingEbay = useIntegrationPageStore((state) => state.isDisconnectingEbay);
   const isSyncingProducts = useIntegrationPageStore((state) => state.isSyncingProducts);
   const isSyncingOrders = useIntegrationPageStore((state) => state.isSyncingOrders);
   const hasLoadedOnce = useIntegrationPageStore((state) => state.hasLoadedOnce);
   const shouldRefresh = useIntegrationPageStore((state) => state.shouldRefresh);
   const setBanner = useIntegrationPageStore((state) => state.setBanner);
   const setConnectingShopify = useIntegrationPageStore((state) => state.setConnectingShopify);
+  const setConnectingEbay = useIntegrationPageStore((state) => state.setConnectingEbay);
   const loadShopifyStatus = useIntegrationPageStore((state) => state.loadShopifyStatus);
+  const loadEbayStatus = useIntegrationPageStore((state) => state.loadEbayStatus);
   const disconnectShopify = useIntegrationPageStore((state) => state.disconnectShopify);
+  const disconnectEbay = useIntegrationPageStore((state) => state.disconnectEbay);
   const syncProducts = useIntegrationPageStore((state) => state.syncProducts);
   const syncOrders = useIntegrationPageStore((state) => state.syncOrders);
 
-  const expandedPlatform = hoveredPlatform || "shopify";
+  const expandedPlatform = hoveredPlatform || "ebay";
 
   useEffect(() => {
     const isInitialState =
       shopifyState.connected === initialShopifyState.connected &&
       shopifyState.shopDomain === initialShopifyState.shopDomain &&
       shopifyState.status === initialShopifyState.status &&
-      shopifyState.source === initialShopifyState.source;
+      shopifyState.source === initialShopifyState.source &&
+      ebayState.connected === initialEbayState.connected &&
+      ebayState.displayName === initialEbayState.displayName &&
+      ebayState.status === initialEbayState.status &&
+      ebayState.environment === initialEbayState.environment;
 
     if (!hasLoadedOnce || isInitialState) {
       void loadShopifyStatus();
+      void loadEbayStatus();
       return;
     }
 
     if (shouldRefresh()) {
       void loadShopifyStatus();
+      void loadEbayStatus();
     }
-  }, [hasLoadedOnce, loadShopifyStatus, shopifyState, shouldRefresh]);
+  }, [ebayState, hasLoadedOnce, loadEbayStatus, loadShopifyStatus, shopifyState, shouldRefresh]);
 
   useEffect(() => {
     const marketplace = searchParams.get("marketplace");
     const status = searchParams.get("status");
-    const shop = searchParams.get("shop");
     const message = searchParams.get("message");
 
-    if (marketplace !== "shopify" || !status) {
+    if (!marketplace || !status) {
       return;
     }
 
@@ -85,12 +97,19 @@ export default function IntegrationPage() {
       startTransition(() => {
         setBanner({
           type: "success",
-          message: shop ? `Shopify connected successfully: ${shop}` : "Shopify connected successfully.",
+          message:
+            marketplace === "ebay"
+              ? "eBay connected successfully."
+              : "Shopify connected successfully.",
         });
       });
 
       const timer = window.setTimeout(() => {
-        void loadShopifyStatus();
+        if (marketplace === "ebay") {
+          void loadEbayStatus();
+        } else {
+          void loadShopifyStatus();
+        }
       }, 0);
 
       return () => window.clearTimeout(timer);
@@ -100,12 +119,16 @@ export default function IntegrationPage() {
       startTransition(() => {
         setBanner({
           type: "error",
-          message: message ?? "Shopify connection failed.",
+          message: message ?? (marketplace === "ebay" ? "eBay connection failed." : "Shopify connection failed."),
         });
       });
-      setConnectingShopify(false);
+      if (marketplace === "ebay") {
+        setConnectingEbay(false);
+      } else {
+        setConnectingShopify(false);
+      }
     }
-  }, [loadShopifyStatus, searchParams, setBanner, setConnectingShopify]);
+  }, [loadEbayStatus, loadShopifyStatus, searchParams, setBanner, setConnectingEbay, setConnectingShopify]);
 
   const handleConnectShopify = async () => {
     setBanner(null);
@@ -120,6 +143,22 @@ export default function IntegrationPage() {
         message: error instanceof ApiClientError ? error.message : "Failed to start Shopify connection.",
       } satisfies NonNullable<BannerState>);
       setConnectingShopify(false);
+    }
+  };
+
+  const handleConnectEbay = async () => {
+    setBanner(null);
+    setConnectingEbay(true);
+
+    try {
+      const data = await integrationApi.getEbayConnectUrl();
+      window.location.href = data.connectUrl;
+    } catch (error) {
+      setBanner({
+        type: "error",
+        message: error instanceof ApiClientError ? error.message : "Failed to start eBay connection.",
+      } satisfies NonNullable<BannerState>);
+      setConnectingEbay(false);
     }
   };
 
@@ -149,11 +188,11 @@ export default function IntegrationPage() {
         id: "ebay",
         title: "eBay",
         subtitle: "Global Retail",
-        description: "eBay remains disabled for this MVP release.",
+        description: "Connect your eBay seller account to prepare for future marketplace workflows in CommandCtr.",
         icon: <Layers className="h-5 w-5" />,
         themeBg: "bg-[#0064d2]",
-        badgeText: "COMING SOON",
-        interactive: false,
+        badgeText: ebayState.connected ? "CONNECTED" : null,
+        interactive: true,
       },
       {
         id: "shopify",
@@ -166,10 +205,33 @@ export default function IntegrationPage() {
         interactive: true,
       },
     ],
-    [shopifyState.connected],
+    [ebayState.connected, shopifyState.connected],
   );
 
   const renderCollapsedFooter = (platformId: string) => {
+    if (platformId === "ebay") {
+      return (
+        <div className="collapsed-footer-content">
+          <span className="text-xs font-semibold text-[#8ea4cb]">
+            {ebayState.connected ? "Connected" : "Not Connected"}
+          </span>
+          <button
+            className={`btn-premium btn-collapsed-action ${!ebayState.connected ? "active-connect" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (!ebayState.connected) {
+                void handleConnectEbay();
+              }
+            }}
+            type="button"
+            disabled={isConnectingEbay || ebayState.connected}
+          >
+            {isConnectingEbay ? "..." : ebayState.connected ? "Connected" : "Connect"}
+          </button>
+        </div>
+      );
+    }
+
     if (platformId === "shopify") {
       return (
         <div className="collapsed-footer-content">
@@ -215,6 +277,41 @@ export default function IntegrationPage() {
   };
 
   const renderExpandedFooter = (platformId: string) => {
+    if (platformId === "ebay") {
+      if (!ebayState.connected) {
+        return (
+          <button
+            className="btn-premium btn-primary-teal w-full sm:w-auto"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              void handleConnectEbay();
+            }}
+            disabled={isConnectingEbay}
+          >
+            <Layers className="h-4 w-4" />
+            {isConnectingEbay ? "Connecting..." : "Connect eBay"}
+          </button>
+        );
+      }
+
+      return (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            className="btn-premium btn-secondary-outline text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              void disconnectEbay();
+            }}
+            disabled={isDisconnectingEbay}
+          >
+            {isDisconnectingEbay ? "Disconnecting..." : "Disconnect"}
+          </button>
+        </div>
+      );
+    }
+
     if (platformId === "shopify") {
       if (!shopifyState.connected) {
         return (
@@ -378,6 +475,13 @@ export default function IntegrationPage() {
                         <div className="row-description">
                           <div className="overflow-hidden">
                             <p className="description-text">{platform.description}</p>
+                            {platform.id === "ebay" && ebayState.connected ? (
+                              <div className="mt-3">
+                                <span className="connected-store">
+                                  Connected account: {ebayState.displayName || "eBay Seller"}
+                                </span>
+                              </div>
+                            ) : null}
                             {platform.id === "shopify" && shopifyState.connected && shopifyState.shopDomain ? (
                               <div className="mt-3">
                                 <span className="connected-store">

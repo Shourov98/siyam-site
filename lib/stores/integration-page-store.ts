@@ -18,6 +18,16 @@ export type ShopifyState = {
   source: "marketplace_connection" | "env_fallback" | "none";
 };
 
+export type EbayState = {
+  connected: boolean;
+  displayName: string;
+  providerAccountRef: string;
+  environment: "sandbox" | "production";
+  status: "connected" | "disconnected" | "error" | "not_connected";
+  connectedAt: string | null;
+  accessTokenExpiresAt: string | null;
+};
+
 export const initialShopifyState: ShopifyState = {
   connected: false,
   shopDomain: "",
@@ -25,12 +35,25 @@ export const initialShopifyState: ShopifyState = {
   source: "none",
 };
 
+export const initialEbayState: EbayState = {
+  connected: false,
+  displayName: "eBay Seller",
+  providerAccountRef: "",
+  environment: "sandbox",
+  status: "not_connected",
+  connectedAt: null,
+  accessTokenExpiresAt: null,
+};
+
 type IntegrationPageState = {
   banner: BannerState;
   shopifyState: ShopifyState;
+  ebayState: EbayState;
   isLoadingStatus: boolean;
   isConnectingShopify: boolean;
+  isConnectingEbay: boolean;
   isDisconnectingShopify: boolean;
+  isDisconnectingEbay: boolean;
   isSyncingProducts: boolean;
   isSyncingOrders: boolean;
   hasLoadedOnce: boolean;
@@ -38,8 +61,11 @@ type IntegrationPageState = {
   shouldRefresh: () => boolean;
   setBanner: (banner: BannerState) => void;
   setConnectingShopify: (value: boolean) => void;
+  setConnectingEbay: (value: boolean) => void;
   loadShopifyStatus: () => Promise<void>;
+  loadEbayStatus: () => Promise<void>;
   disconnectShopify: () => Promise<void>;
+  disconnectEbay: () => Promise<void>;
   syncProducts: () => Promise<void>;
   syncOrders: () => Promise<void>;
 };
@@ -51,9 +77,12 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
     (set, get) => ({
       banner: null,
       shopifyState: initialShopifyState,
+      ebayState: initialEbayState,
       isLoadingStatus: false,
       isConnectingShopify: false,
+      isConnectingEbay: false,
       isDisconnectingShopify: false,
+      isDisconnectingEbay: false,
       isSyncingProducts: false,
       isSyncingOrders: false,
       hasLoadedOnce: false,
@@ -64,6 +93,7 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
       },
       setBanner: (banner) => set({ banner }),
       setConnectingShopify: (value) => set({ isConnectingShopify: value }),
+      setConnectingEbay: (value) => set({ isConnectingEbay: value }),
       async loadShopifyStatus() {
         const state = get();
         if (state.isLoadingStatus && state.hasLoadedOnce) {
@@ -95,6 +125,31 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
           set({ isLoadingStatus: false });
         }
       },
+      async loadEbayStatus() {
+        try {
+          const status = await integrationApi.getEbayStatus();
+          set({
+            ebayState: {
+              connected: status.connected,
+              displayName: status.displayName || "eBay Seller",
+              providerAccountRef: status.providerAccountRef || "",
+              environment: status.environment,
+              status: status.status,
+              connectedAt: status.connectedAt,
+              accessTokenExpiresAt: status.accessTokenExpiresAt,
+            },
+            hasLoadedOnce: true,
+            lastLoadedAt: Date.now(),
+          });
+        } catch (error) {
+          set({
+            banner: {
+              type: "error",
+              message: error instanceof ApiClientError ? error.message : "Failed to load eBay status.",
+            },
+          });
+        }
+      },
       async disconnectShopify() {
         set({ banner: null, isDisconnectingShopify: true });
         try {
@@ -115,6 +170,28 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
           });
         } finally {
           set({ isDisconnectingShopify: false });
+        }
+      },
+      async disconnectEbay() {
+        set({ banner: null, isDisconnectingEbay: true });
+        try {
+          await integrationApi.disconnectEbay();
+          set({
+            banner: {
+              type: "success",
+              message: "eBay disconnected successfully.",
+            },
+          });
+          await get().loadEbayStatus();
+        } catch (error) {
+          set({
+            banner: {
+              type: "error",
+              message: error instanceof ApiClientError ? error.message : "Failed to disconnect eBay.",
+            },
+          });
+        } finally {
+          set({ isDisconnectingEbay: false });
         }
       },
       async syncProducts() {
@@ -167,6 +244,7 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
       partialize: (state) => ({
         banner: state.banner,
         shopifyState: state.shopifyState,
+        ebayState: state.ebayState,
         hasLoadedOnce: state.hasLoadedOnce,
         lastLoadedAt: state.lastLoadedAt,
       }),

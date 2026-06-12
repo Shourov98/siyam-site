@@ -3,10 +3,16 @@ import { requestWithAuth } from "@/lib/auth";
 type MarketplaceConnection = {
   id: string;
   userId: string;
-  marketplace: "shopify";
-  shopDomain: string;
+  marketplace: "shopify" | "ebay";
+  providerAccountRef?: string;
+  displayName?: string;
+  shopDomain?: string;
   scopes: string[];
   status: "connected" | "disconnected" | "error";
+  accessTokenExpiresAt?: string;
+  refreshTokenExpiresAt?: string;
+  environment?: "sandbox" | "production";
+  metadata?: Record<string, unknown>;
   connectedAt?: string;
   disconnectedAt?: string;
   lastCheckedAt?: string;
@@ -26,6 +32,18 @@ type ShopifyStatus = {
   connection: MarketplaceConnection | null;
 };
 
+type EbayStatus = {
+  connected: boolean;
+  marketplace: "ebay";
+  environment: "sandbox" | "production";
+  displayName: string;
+  providerAccountRef: string;
+  scopes: string[];
+  connectedAt: string | null;
+  accessTokenExpiresAt: string | null;
+  status: "connected" | "disconnected" | "error" | "not_connected";
+};
+
 export const integrationApi = {
   getShopifyStatus() {
     return requestWithAuth<ShopifyStatus>("/shopify/status");
@@ -37,6 +55,20 @@ export const integrationApi = {
 
   disconnectShopify() {
     return requestWithAuth<MarketplaceConnection>("/shopify/disconnect", {
+      method: "POST",
+    });
+  },
+
+  getEbayStatus() {
+    return requestWithAuth<EbayStatus>("/ebay/status");
+  },
+
+  getEbayConnectUrl() {
+    return requestWithAuth<{ connectUrl: string }>("/ebay/connect-url");
+  },
+
+  disconnectEbay() {
+    return requestWithAuth<MarketplaceConnection>("/ebay/disconnect", {
       method: "POST",
     });
   },
