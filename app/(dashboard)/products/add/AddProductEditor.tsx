@@ -1443,6 +1443,122 @@ function EditableAttributesField({
   );
 }
 
+function CustomDropdownSelector({
+  label,
+  value,
+  options,
+  onChange,
+  placeholder = "Select...",
+  colorDot = false,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (val: string) => void;
+  placeholder?: string;
+  colorDot?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className={`relative flex flex-col rounded-xl border p-3 transition-all duration-200 ${
+        isOpen
+          ? "border-[#2b7cf5] bg-white shadow-[0_8px_20px_-6px_rgba(43,124,245,0.08)]"
+          : "border-[#dbe2ee] bg-[#f8fbff] hover:border-slate-300"
+      }`}
+    >
+      <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1 select-none">
+        {label}
+      </span>
+      
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center justify-between cursor-pointer py-0.5 select-none"
+      >
+        <div className="flex items-center gap-2">
+          {colorDot && value && (
+            <span
+              className="h-3.5 w-3.5 rounded-full border border-slate-200 shadow-2xs shrink-0"
+              style={{ backgroundColor: value.toLowerCase() }}
+            />
+          )}
+          <span className={`text-xs font-semibold ${value ? "text-[#31415e]" : "text-slate-400"}`}>
+            {value || placeholder}
+          </span>
+        </div>
+        <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${isOpen ? "rotate-180" : ""}`} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 max-h-56 overflow-y-auto">
+          {value && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange("");
+                setIsOpen(false);
+              }}
+              className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-rose-500 hover:bg-rose-50 font-semibold cursor-pointer border-0 bg-transparent flex items-center justify-between"
+            >
+              <span>Clear selection</span>
+            </button>
+          )}
+          <div className="space-y-0.5">
+            {options.map((opt) => {
+              const isSelected = opt === value;
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border-0 flex items-center justify-between transition-all ${
+                    isSelected
+                      ? "bg-[#edf5ff] text-[#2b7cf5]"
+                      : "text-slate-700 hover:bg-slate-50 bg-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {colorDot && (
+                      <span
+                        className="h-3 w-3 rounded-full border border-slate-200 shrink-0"
+                        style={{ backgroundColor: opt.toLowerCase() }}
+                      />
+                    )}
+                    <span>{opt}</span>
+                  </div>
+                  {isSelected && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-3.5 w-3.5 text-[#2b7cf5]">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function getStoredDraftKey() {
   const session = authStorage.load();
   return session?.user?.id ? `${draftStorageKey}:${session.user.id}` : draftStorageKey;
@@ -1542,6 +1658,13 @@ export default function AddProductEditor({
   const [optionNameSearch, setOptionNameSearch] = useState("");
   const [optionValueSearch, setOptionValueSearch] = useState("");
 
+  const [isWeightUnitOpen, setIsWeightUnitOpen] = useState(false);
+  const [isCountryOpen, setIsCountryOpen] = useState(false);
+  const [groupByValue, setGroupByValue] = useState("all");
+  const [isGroupByOpen, setIsGroupByOpen] = useState(false);
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isThemeOpen, setIsThemeOpen] = useState(false);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
@@ -1564,11 +1687,31 @@ export default function AddProductEditor({
       if (!target.closest(".option-values-container")) {
         setActiveOptionValuesDropdownIndex(null);
       }
+      if (!target.closest(".inline-weight-unit-container")) {
+        setIsWeightUnitOpen(false);
+      }
+      if (!target.closest(".country-select-container")) {
+        setIsCountryOpen(false);
+      }
+      if (!target.closest(".shopify-groupby-container")) {
+        setIsGroupByOpen(false);
+      }
+      if (!target.closest(".status-select-container")) {
+        setIsStatusOpen(false);
+      }
+      if (!target.closest(".theme-select-container")) {
+        setIsThemeOpen(false);
+      }
     }
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setActiveOptionNameDropdownIndex(null);
         setActiveOptionValuesDropdownIndex(null);
+        setIsWeightUnitOpen(false);
+        setIsCountryOpen(false);
+        setIsGroupByOpen(false);
+        setIsStatusOpen(false);
+        setIsThemeOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -3921,156 +4064,104 @@ export default function AddProductEditor({
                         </span>
                       </div>
                       <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Color</span>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="h-4 w-4 rounded-full border border-slate-300" style={{ backgroundColor: draft.shopify.metafields?.color?.toLowerCase() || 'transparent' }} />
-                            <select
-                              value={draft.shopify.metafields?.color ?? ""}
-                              onChange={(e) => setDraft((prev) => ({
-                                ...prev,
-                                shopify: {
-                                  ...prev.shopify,
-                                  metafields: { ...prev.shopify.metafields, color: e.target.value }
-                                }
-                              }))}
-                              className="flex-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
-                            >
-                              <option value="">Select Color</option>
-                              <option value="Red">Red</option>
-                              <option value="Blue">Blue</option>
-                              <option value="Black">Black</option>
-                              <option value="White">White</option>
-                              <option value="Burgundy">Burgundy</option>
-                              <option value="Grey">Grey</option>
-                            </select>
-                          </div>
-                        </div>
+                        <CustomDropdownSelector
+                          label="Color"
+                          value={draft.shopify.metafields?.color ?? ""}
+                          options={["Red", "Blue", "Black", "White", "Burgundy", "Grey"]}
+                          onChange={(val) => setDraft((prev) => ({
+                            ...prev,
+                            shopify: {
+                              ...prev.shopify,
+                              metafields: { ...prev.shopify.metafields, color: val }
+                            }
+                          }))}
+                          placeholder="Select Color"
+                          colorDot={true}
+                        />
 
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Age Group</span>
-                          <select
-                            value={draft.shopify.metafields?.age_group ?? ""}
-                            onChange={(e) => setDraft((prev) => ({
-                              ...prev,
-                              shopify: {
-                                ...prev.shopify,
-                                metafields: { ...prev.shopify.metafields, age_group: e.target.value }
-                              }
-                            }))}
-                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
-                          >
-                            <option value="">Select Age Group</option>
-                            <option value="Adults">Adults</option>
-                            <option value="Kids">Kids</option>
-                            <option value="Toddler">Toddler</option>
-                            <option value="Infant">Infant</option>
-                          </select>
-                        </div>
+                        <CustomDropdownSelector
+                          label="Age Group"
+                          value={draft.shopify.metafields?.age_group ?? ""}
+                          options={["Adults", "Kids", "Toddler", "Infant"]}
+                          onChange={(val) => setDraft((prev) => ({
+                            ...prev,
+                            shopify: {
+                              ...prev.shopify,
+                              metafields: { ...prev.shopify.metafields, age_group: val }
+                            }
+                          }))}
+                          placeholder="Select Age Group"
+                        />
 
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Closure Type</span>
-                          <select
-                            value={draft.shopify.metafields?.closure_type ?? ""}
-                            onChange={(e) => setDraft((prev) => ({
-                              ...prev,
-                              shopify: {
-                                ...prev.shopify,
-                                metafields: { ...prev.shopify.metafields, closure_type: e.target.value }
-                              }
-                            }))}
-                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
-                          >
-                            <option value="">Select Closure Type</option>
-                            <option value="Lace-up">Lace-up</option>
-                            <option value="Slip-on">Slip-on</option>
-                            <option value="Velcro">Velcro</option>
-                            <option value="Zipper">Zipper</option>
-                            <option value="Buckle">Buckle</option>
-                          </select>
-                        </div>
+                        <CustomDropdownSelector
+                          label="Closure Type"
+                          value={draft.shopify.metafields?.closure_type ?? ""}
+                          options={["Lace-up", "Slip-on", "Velcro", "Zipper", "Buckle"]}
+                          onChange={(val) => setDraft((prev) => ({
+                            ...prev,
+                            shopify: {
+                              ...prev.shopify,
+                              metafields: { ...prev.shopify.metafields, closure_type: val }
+                            }
+                          }))}
+                          placeholder="Select Closure Type"
+                        />
 
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Heel Height Type</span>
-                          <select
-                            value={draft.shopify.metafields?.heel_height_type ?? ""}
-                            onChange={(e) => setDraft((prev) => ({
-                              ...prev,
-                              shopify: {
-                                ...prev.shopify,
-                                metafields: { ...prev.shopify.metafields, heel_height_type: e.target.value }
-                              }
-                            }))}
-                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
-                          >
-                            <option value="">Select Heel Height</option>
-                            <option value="Flat">Flat</option>
-                            <option value="Low heel">Low heel</option>
-                            <option value="Mid heel">Mid heel</option>
-                            <option value="High heel">High heel</option>
-                          </select>
-                        </div>
+                        <CustomDropdownSelector
+                          label="Heel Height Type"
+                          value={draft.shopify.metafields?.heel_height_type ?? ""}
+                          options={["Flat", "Low heel", "Mid heel", "High heel"]}
+                          onChange={(val) => setDraft((prev) => ({
+                            ...prev,
+                            shopify: {
+                              ...prev.shopify,
+                              metafields: { ...prev.shopify.metafields, heel_height_type: val }
+                            }
+                          }))}
+                          placeholder="Select Heel Height"
+                        />
 
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Occasion Style</span>
-                          <select
-                            value={draft.shopify.metafields?.occasion_style ?? ""}
-                            onChange={(e) => setDraft((prev) => ({
-                              ...prev,
-                              shopify: {
-                                ...prev.shopify,
-                                metafields: { ...prev.shopify.metafields, occasion_style: e.target.value }
-                              }
-                            }))}
-                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
-                          >
-                            <option value="">Select Occasion</option>
-                            <option value="Casual">Casual</option>
-                            <option value="Dress">Dress</option>
-                            <option value="Athletic">Athletic</option>
-                            <option value="Formal">Formal</option>
-                          </select>
-                        </div>
+                        <CustomDropdownSelector
+                          label="Occasion Style"
+                          value={draft.shopify.metafields?.occasion_style ?? ""}
+                          options={["Casual", "Dress", "Athletic", "Formal"]}
+                          onChange={(val) => setDraft((prev) => ({
+                            ...prev,
+                            shopify: {
+                              ...prev.shopify,
+                              metafields: { ...prev.shopify.metafields, occasion_style: val }
+                            }
+                          }))}
+                          placeholder="Select Occasion"
+                        />
 
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Target Gender</span>
-                          <select
-                            value={draft.shopify.metafields?.target_gender ?? ""}
-                            onChange={(e) => setDraft((prev) => ({
-                              ...prev,
-                              shopify: {
-                                ...prev.shopify,
-                                metafields: { ...prev.shopify.metafields, target_gender: e.target.value }
-                              }
-                            }))}
-                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
-                          >
-                            <option value="">Select Gender</option>
-                            <option value="Unisex">Unisex</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                          </select>
-                        </div>
+                        <CustomDropdownSelector
+                          label="Target Gender"
+                          value={draft.shopify.metafields?.target_gender ?? ""}
+                          options={["Unisex", "Male", "Female"]}
+                          onChange={(val) => setDraft((prev) => ({
+                            ...prev,
+                            shopify: {
+                              ...prev.shopify,
+                              metafields: { ...prev.shopify.metafields, target_gender: val }
+                            }
+                          }))}
+                          placeholder="Select Gender"
+                        />
 
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Toe Style</span>
-                          <select
-                            value={draft.shopify.metafields?.toe_style ?? ""}
-                            onChange={(e) => setDraft((prev) => ({
-                              ...prev,
-                              shopify: {
-                                ...prev.shopify,
-                                metafields: { ...prev.shopify.metafields, toe_style: e.target.value }
-                              }
-                            }))}
-                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
-                          >
-                            <option value="">Select Toe Style</option>
-                            <option value="Round">Round</option>
-                            <option value="Pointed">Pointed</option>
-                            <option value="Square">Square</option>
-                          </select>
-                        </div>
+                        <CustomDropdownSelector
+                          label="Toe Style"
+                          value={draft.shopify.metafields?.toe_style ?? ""}
+                          options={["Round", "Pointed", "Square"]}
+                          onChange={(val) => setDraft((prev) => ({
+                            ...prev,
+                            shopify: {
+                              ...prev.shopify,
+                              metafields: { ...prev.shopify.metafields, toe_style: val }
+                            }
+                          }))}
+                          placeholder="Select Toe Style"
+                        />
                       </div>
 
                       <div className="mt-4 border-t border-[#eef2f6] pt-3.5">
@@ -4368,35 +4459,99 @@ export default function AddProductEditor({
                                   className="flex-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
                                   placeholder="0.0"
                                 />
-                                <select
-                                  value={draft.shopify.weight_unit ?? "lb"}
-                                  onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, weight_unit: e.target.value } }))}
-                                  className="bg-transparent text-xs text-[#31415e] font-semibold outline-none border-l border-slate-200 pl-2 ml-2 cursor-pointer border-0"
-                                >
-                                  <option value="lb">lb</option>
-                                  <option value="oz">oz</option>
-                                  <option value="kg">kg</option>
-                                  <option value="g">g</option>
-                                </select>
+                                <div className="relative inline-weight-unit-container">
+                                  <div
+                                    onClick={() => setIsWeightUnitOpen(!isWeightUnitOpen)}
+                                    className="flex items-center gap-1 text-xs text-[#31415e] font-semibold cursor-pointer border-l border-slate-200 pl-2.5 ml-2 select-none"
+                                  >
+                                    <span>{draft.shopify.weight_unit ?? "lb"}</span>
+                                    <ChevronDown className="h-3 w-3 text-slate-400" />
+                                  </div>
+                                  {isWeightUnitOpen && (
+                                    <div className="absolute right-0 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-lg shadow-lg py-1 w-16">
+                                      {["lb", "oz", "kg", "g"].map((unit) => (
+                                        <button
+                                          key={unit}
+                                          type="button"
+                                          onClick={() => {
+                                            setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, weight_unit: unit } }));
+                                            setIsWeightUnitOpen(false);
+                                          }}
+                                          className={`w-full text-center py-1 text-xs font-semibold hover:bg-slate-50 cursor-pointer border-0 bg-transparent ${
+                                            draft.shopify.weight_unit === unit ? "text-[#2b7cf5] bg-blue-50/50" : "text-slate-700"
+                                          }`}
+                                        >
+                                          {unit}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
 
                           <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                            <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 relative country-select-container focus-within:border-[#2b7cf5] focus-within:bg-white">
                               <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Country/Region of Origin</span>
-                              <select
-                                value={draft.shopify.country_of_origin ?? ""}
-                                onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, country_of_origin: e.target.value } }))}
-                                className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none cursor-pointer border-0"
+                              <div
+                                onClick={() => setIsCountryOpen(!isCountryOpen)}
+                                className="flex items-center justify-between cursor-pointer py-0.5 mt-1 select-none"
                               >
-                                <option value="">Select Country</option>
-                                <option value="US">United States</option>
-                                <option value="GB">United Kingdom</option>
-                                <option value="BD">Bangladesh</option>
-                                <option value="VN">Vietnam</option>
-                                <option value="CN">China</option>
-                              </select>
+                                <span className={`text-xs font-semibold ${draft.shopify.country_of_origin ? "text-[#31415e]" : "text-slate-400"}`}>
+                                  {draft.shopify.country_of_origin
+                                    ? { US: "United States", GB: "United Kingdom", BD: "Bangladesh", VN: "Vietnam", CN: "China" }[draft.shopify.country_of_origin] || draft.shopify.country_of_origin
+                                    : "Select Country"}
+                                </span>
+                                <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${isCountryOpen ? "rotate-180" : ""}`} />
+                              </div>
+                              {isCountryOpen && (
+                                <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 max-h-56 overflow-y-auto">
+                                  {draft.shopify.country_of_origin && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, country_of_origin: "" } }));
+                                        setIsCountryOpen(false);
+                                      }}
+                                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-rose-500 hover:bg-rose-50 font-semibold cursor-pointer border-0 bg-transparent flex items-center justify-between"
+                                    >
+                                      <span>Clear selection</span>
+                                    </button>
+                                  )}
+                                  <div className="space-y-0.5">
+                                    {[
+                                      { value: "US", label: "United States" },
+                                      { value: "GB", label: "United Kingdom" },
+                                      { value: "BD", label: "Bangladesh" },
+                                      { value: "VN", label: "Vietnam" },
+                                      { value: "CN", label: "China" },
+                                    ].map((c) => {
+                                      const isSelected = c.value === draft.shopify.country_of_origin;
+                                      return (
+                                        <button
+                                          key={c.value}
+                                          type="button"
+                                          onClick={() => {
+                                            setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, country_of_origin: c.value } }));
+                                            setIsCountryOpen(false);
+                                          }}
+                                          className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border-0 flex items-center justify-between transition-all ${
+                                            isSelected ? "bg-[#edf5ff] text-[#2b7cf5]" : "text-slate-700 hover:bg-slate-50 bg-transparent"
+                                          }`}
+                                        >
+                                          <span>{c.label}</span>
+                                          {isSelected && (
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-3.5 w-3.5 text-[#2b7cf5]">
+                                              <polyline points="20 6 9 17 4 12" />
+                                            </svg>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </div>
 
                             <EditableField
@@ -4852,12 +5007,49 @@ export default function AddProductEditor({
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2 select-none">
                                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Group by</span>
-                                  <select className="h-8 border border-slate-200 rounded-lg px-2.5 text-xs bg-white text-slate-800 outline-none focus:border-slate-400 cursor-pointer">
-                                    <option value="all">text</option>
-                                    {(draft.shopify.options ?? []).map((o, idx) => (
-                                      <option key={idx} value={o.name}>{o.name || `Option ${idx + 1}`}</option>
-                                    ))}
-                                  </select>
+                                  <div className="relative shopify-groupby-container">
+                                    <div
+                                      onClick={() => setIsGroupByOpen(!isGroupByOpen)}
+                                      className="flex items-center gap-1.5 h-8 border border-slate-200 rounded-lg px-2.5 text-xs bg-white text-slate-800 cursor-pointer select-none font-semibold hover:border-slate-300 transition-colors"
+                                    >
+                                      <span>{groupByValue === "all" ? "text" : groupByValue}</span>
+                                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                                    </div>
+                                    {isGroupByOpen && (
+                                      <div className="absolute left-0 top-full mt-1 z-40 bg-white border border-slate-200 rounded-lg shadow-lg py-1 w-32">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setGroupByValue("all");
+                                            setIsGroupByOpen(false);
+                                          }}
+                                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 cursor-pointer border-0 bg-transparent ${
+                                            groupByValue === "all" ? "text-[#2b7cf5] bg-blue-50/50" : "text-slate-700"
+                                          }`}
+                                        >
+                                          text
+                                        </button>
+                                        {(draft.shopify.options ?? []).map((o, idx) => {
+                                          const optVal = o.name || `Option ${idx + 1}`;
+                                          return (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => {
+                                                setGroupByValue(optVal);
+                                                setIsGroupByOpen(false);
+                                              }}
+                                              className={`w-full text-left px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 cursor-pointer border-0 bg-transparent ${
+                                                groupByValue === optVal ? "text-[#2b7cf5] bg-blue-50/50" : "text-slate-700"
+                                              }`}
+                                            >
+                                              {optVal}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
 
                                 <div className="flex items-center gap-1">
@@ -5051,16 +5243,49 @@ export default function AddProductEditor({
                     <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
                       <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Product Organization & Sidebar</h3>
                       <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 relative status-select-container focus-within:border-[#2b7cf5] focus-within:bg-white">
                           <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Product Status</span>
-                          <select
-                            value={publishStatus}
-                            onChange={(e) => setPublishStatus(e.target.value as PublishStatus)}
-                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none cursor-pointer border-0"
+                          <div
+                            onClick={() => setIsStatusOpen(!isStatusOpen)}
+                            className="flex items-center justify-between cursor-pointer py-0.5 mt-1 select-none"
                           >
-                            <option value="ACTIVE">Active</option>
-                            <option value="DRAFT">Draft</option>
-                          </select>
+                            <span className="text-xs font-semibold text-[#31415e]">
+                              {publishStatus === "ACTIVE" ? "Active" : "Draft"}
+                            </span>
+                            <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${isStatusOpen ? "rotate-180" : ""}`} />
+                          </div>
+                          {isStatusOpen && (
+                            <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 max-h-56 overflow-y-auto">
+                              <div className="space-y-0.5">
+                                {[
+                                  { value: "ACTIVE", label: "Active" },
+                                  { value: "DRAFT", label: "Draft" },
+                                ].map((s) => {
+                                  const isSelected = s.value === publishStatus;
+                                  return (
+                                    <button
+                                      key={s.value}
+                                      type="button"
+                                      onClick={() => {
+                                        setPublishStatus(s.value as PublishStatus);
+                                        setIsStatusOpen(false);
+                                      }}
+                                      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border-0 flex items-center justify-between transition-all ${
+                                        isSelected ? "bg-[#edf5ff] text-[#2b7cf5]" : "text-slate-700 hover:bg-slate-50 bg-transparent"
+                                      }`}
+                                    >
+                                      <span>{s.label}</span>
+                                      {isSelected && (
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-3.5 w-3.5 text-[#2b7cf5]">
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2 px-1">
@@ -5109,16 +5334,46 @@ export default function AddProductEditor({
                           />
                         </div>
 
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 transition focus-within:border-[#2b7cf5] focus-within:bg-white">
+                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 relative theme-select-container focus-within:border-[#2b7cf5] focus-within:bg-white">
                           <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Theme Template</span>
-                          <select
-                            value={draft.shopify.theme_template ?? "Default product"}
-                            onChange={(e) => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, theme_template: e.target.value } }))}
-                            className="mt-1 bg-transparent text-xs text-[#31415e] font-semibold outline-none cursor-pointer border-0"
+                          <div
+                            onClick={() => setIsThemeOpen(!isThemeOpen)}
+                            className="flex items-center justify-between cursor-pointer py-0.5 mt-1 select-none"
                           >
-                            <option value="Default product">Default product</option>
-                            <option value="Custom template">Custom template</option>
-                          </select>
+                            <span className="text-xs font-semibold text-[#31415e]">
+                              {draft.shopify.theme_template ?? "Default product"}
+                            </span>
+                            <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${isThemeOpen ? "rotate-180" : ""}`} />
+                          </div>
+                          {isThemeOpen && (
+                            <div className="absolute left-0 right-0 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 max-h-56 overflow-y-auto">
+                              <div className="space-y-0.5">
+                                {["Default product", "Custom template"].map((t) => {
+                                  const isSelected = t === draft.shopify.theme_template;
+                                  return (
+                                    <button
+                                      key={t}
+                                      type="button"
+                                      onClick={() => {
+                                        setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, theme_template: t } }));
+                                        setIsThemeOpen(false);
+                                      }}
+                                      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border-0 flex items-center justify-between transition-all ${
+                                        isSelected ? "bg-[#edf5ff] text-[#2b7cf5]" : "text-slate-700 hover:bg-slate-50 bg-transparent"
+                                      }`}
+                                    >
+                                      <span>{t}</span>
+                                      {isSelected && (
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-3.5 w-3.5 text-[#2b7cf5]">
+                                          <polyline points="20 6 9 17 4 12" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
