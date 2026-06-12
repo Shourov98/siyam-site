@@ -428,6 +428,40 @@ const dropdownTriggerStyles: Record<string, string> = {
 };
 
 
+const DatabaseIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <ellipse cx="12" cy="5" rx="9" ry="3" />
+    <path d="M3 5V19a9 3 0 0 0 18 0V5" />
+    <path d="M3 12a9 3 0 0 0 18 0" />
+  </svg>
+);
+
+const DragHandleIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={className}>
+    <circle cx="9" cy="5" r="1" fill="currentColor" />
+    <circle cx="9" cy="12" r="1" fill="currentColor" />
+    <circle cx="9" cy="19" r="1" fill="currentColor" />
+    <circle cx="15" cy="5" r="1" fill="currentColor" />
+    <circle cx="15" cy="12" r="1" fill="currentColor" />
+    <circle cx="15" cy="19" r="1" fill="currentColor" />
+  </svg>
+);
+
+const RECOMMENDED_OPTIONS = [
+  { name: "Color", defaults: ["Black", "White", "Red", "Blue", "Green", "Yellow", "Grey", "Brown", "Pink", "Purple"] },
+  { name: "Size", defaults: ["XS", "S", "M", "L", "XL", "2XL", "3XL", "0", "0.5", "1"] },
+  { name: "Footwear material", defaults: ["Leather", "Suede", "Canvas", "Mesh", "Synthetic", "Rubber"] },
+  { name: "Age group", defaults: ["0-6 months", "6-12 months", "1-2 years", "Adults", "All ages", "Babies", "Kids", "Newborn", "Teens", "Toddlers"] },
+  { name: "Care instructions", defaults: ["Machine wash", "Hand wash", "Dry clean only", "Tumble dry low", "Do not iron"] },
+  { name: "Closure type", defaults: ["Lace-up", "Slip-on", "Velcro", "Zipper", "Buckle"] },
+  { name: "Heel height type", defaults: ["Flat", "Low heel", "Mid heel", "High heel"] },
+  { name: "Occasion style", defaults: ["Casual", "Formal", "Sports", "Party", "Workwear"] },
+  { name: "Shoe features", defaults: ["Lightweight", "Waterproof", "Cushioned", "Breathable", "Slip-resistant"] },
+  { name: "Shoe fit", defaults: ["Regular fit", "Wide fit", "Narrow fit"] },
+  { name: "Target gender", defaults: ["Unisex", "Male", "Female", "Kids unisex"] },
+  { name: "Toe style", defaults: ["Round toe", "Pointed toe", "Square toe", "Open toe"] },
+];
+
 const emptyActionState: MarketActionState = {
   amazon: false,
   ebay: false,
@@ -1501,6 +1535,13 @@ export default function AddProductEditor({
   const [selectedFilterKey, setSelectedFilterKey] = useState<string>("all");
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
 
+  // Shopify Options & Variants UX Replication states
+  const [editingOptionIndices, setEditingOptionIndices] = useState<Record<number, boolean>>({});
+  const [activeOptionNameDropdownIndex, setActiveOptionNameDropdownIndex] = useState<number | null>(null);
+  const [activeOptionValuesDropdownIndex, setActiveOptionValuesDropdownIndex] = useState<number | null>(null);
+  const [optionNameSearch, setOptionNameSearch] = useState("");
+  const [optionValueSearch, setOptionValueSearch] = useState("");
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
@@ -1515,10 +1556,26 @@ export default function AddProductEditor({
       if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
         setIsFilterDropdownOpen(false);
       }
+      
+      const target = event.target as HTMLElement;
+      if (!target.closest(".option-name-container")) {
+        setActiveOptionNameDropdownIndex(null);
+      }
+      if (!target.closest(".option-values-container")) {
+        setActiveOptionValuesDropdownIndex(null);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setActiveOptionNameDropdownIndex(null);
+        setActiveOptionValuesDropdownIndex(null);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
@@ -4377,6 +4434,9 @@ export default function AddProductEditor({
                                 variants: nextVariants,
                               },
                             }));
+                            if (hasVars) {
+                              setEditingOptionIndices({ 0: true });
+                            }
                           }}
                           className="h-4 w-4 rounded border-[#d4ddec] text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer"
                         />
@@ -4388,117 +4448,377 @@ export default function AddProductEditor({
                       {(draft.shopify.has_variants ?? false) && (
                         <div className="space-y-4 border-t border-[#eef2f6] pt-4">
                           {/* Options List */}
-                          {(draft.shopify.options ?? []).map((opt, optIdx) => (
-                            <div key={optIdx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 relative">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const nextOptions = (draft.shopify.options ?? []).filter((_, i) => i !== optIdx);
-                                  const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
-                                  setDraft((prev) => ({
-                                    ...prev,
-                                    shopify: {
-                                      ...prev.shopify,
-                                      options: nextOptions,
-                                      variants: nextVariants,
-                                    },
-                                  }));
-                                }}
-                                className="absolute top-3 right-3 text-xs font-semibold text-rose-500 hover:text-rose-700 cursor-pointer border-0 bg-transparent"
-                              >
-                                Delete
-                              </button>
+                          <div className="space-y-3">
+                            {(draft.shopify.options ?? []).map((opt, optIdx) => {
+                              const isEditing = editingOptionIndices[optIdx] ?? false;
+                              const isRecommended = RECOMMENDED_OPTIONS.some(
+                                (r) => r.name.toLowerCase() === opt.name.toLowerCase()
+                              );
 
-                              <div className="flex flex-col gap-2">
-                                <div className="flex flex-col max-w-xs">
-                                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Option Name</span>
-                                  <input
-                                    type="text"
-                                    value={opt.name}
-                                    placeholder="e.g. Size or Color"
-                                    onChange={(e) => {
-                                      const nextOptions = [...(draft.shopify.options ?? [])];
-                                      nextOptions[optIdx] = {
-                                        ...opt,
-                                        name: e.target.value,
-                                      };
-                                      const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
-                                      setDraft((prev) => ({
-                                        ...prev,
-                                        shopify: {
-                                          ...prev.shopify,
-                                          options: nextOptions,
-                                          variants: nextVariants,
-                                        },
-                                      }));
+                              if (!isEditing) {
+                                // Collapsed Shopify Card View
+                                return (
+                                  <div
+                                    key={optIdx}
+                                    onClick={() => {
+                                      setEditingOptionIndices((prev) => ({ ...prev, [optIdx]: true }));
                                     }}
-                                    className="h-8 border border-[#d4ddec] rounded-lg px-2 text-xs outline-none bg-white focus:border-[#2b7cf5]"
-                                  />
-                                </div>
+                                    className="p-4 bg-[#f8fbff] hover:bg-[#f3f7fe] rounded-xl border border-[#dbe2ee] hover:border-[#2b7cf5]/50 transition-all cursor-pointer flex items-center gap-3 select-none"
+                                  >
+                                    <div className="text-slate-400 shrink-0">
+                                      <DragHandleIcon className="h-4 w-4" />
+                                    </div>
+                                    <div className="flex-1 space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold text-[#8093b2] uppercase tracking-wider">Option {optIdx + 1}</span>
+                                        <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold border border-blue-200">
+                                          <DatabaseIcon className="h-3 w-3 text-blue-500" />
+                                          <span>{opt.name || `Option ${optIdx + 1}`}</span>
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {opt.values.length === 0 ? (
+                                          <span className="text-xs italic text-slate-400">No values added yet</span>
+                                        ) : (
+                                          opt.values.map((v, idx) => (
+                                            <span key={idx} className="bg-white text-slate-700 border border-slate-200 px-2 py-0.5 rounded-lg text-xs font-semibold shadow-2xs">
+                                              {v}
+                                            </span>
+                                          ))
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="text-[#2b7cf5] text-xs font-bold hover:underline shrink-0">Edit</div>
+                                  </div>
+                                );
+                              }
 
-                                <div className="flex flex-col">
-                                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Option Values</span>
-                                  <div className="flex flex-wrap gap-1.5 items-center p-2 border border-[#d4ddec] rounded-lg bg-white min-h-[36px] focus-within:border-[#2b7cf5]">
-                                    {opt.values.map((val, valIdx) => (
-                                      <span key={valIdx} className="bg-[#edf5ff] text-[#1b2748] px-2 py-0.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-[#d2e5ff] hover:bg-[#e0eeff]">
-                                        <span>{val}</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const nextOptions = [...(draft.shopify.options ?? [])];
-                                            nextOptions[optIdx] = {
-                                              ...opt,
-                                              values: opt.values.filter((_, i) => i !== valIdx),
-                                            };
-                                            const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
-                                            setDraft((prev) => ({
-                                              ...prev,
-                                              shopify: {
-                                                ...prev.shopify,
-                                                options: nextOptions,
-                                                variants: nextVariants,
-                                              },
-                                            }));
-                                          }}
-                                          className="w-4.5 h-4.5 flex items-center justify-center text-[#5e718e] hover:text-[#ef6b6b] hover:bg-[#fff0f0] rounded-md transition-colors cursor-pointer border-0 bg-transparent font-bold"
-                                        >
-                                          <X className="h-2.5 w-2.5" />
-                                        </button>
-                                      </span>
-                                    ))}
-                                    <input
-                                      type="text"
-                                      placeholder="Add value..."
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter" || e.key === ",") {
-                                          e.preventDefault();
-                                          const val = e.currentTarget.value.trim();
-                                          if (val && !opt.values.includes(val)) {
-                                            const nextOptions = [...(draft.shopify.options ?? [])];
-                                            nextOptions[optIdx] = {
-                                              ...opt,
-                                              values: [...opt.values, val],
-                                            };
-                                            const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
-                                            setDraft((prev) => ({
-                                              ...prev,
-                                              shopify: {
-                                                ...prev.shopify,
-                                                options: nextOptions,
-                                                variants: nextVariants,
-                                              },
-                                            }));
-                                          }
-                                          e.currentTarget.value = "";
-                                        }
+                              // Expanded/Editing Card View
+                              return (
+                                <div key={optIdx} className="p-5 bg-white rounded-xl border border-[#2b7cf5] shadow-xs relative space-y-4">
+                                  <div className="flex items-start gap-4">
+                                    <div className="text-slate-400 mt-2 shrink-0">
+                                      <DragHandleIcon className="h-4 w-4" />
+                                    </div>
+                                    <div className="flex-1 space-y-4">
+                                      {/* Option Name container */}
+                                      <div className="relative option-name-container">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2]">Option Name</span>
+                                          {isRecommended && (
+                                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                                              <DatabaseIcon className="h-2.5 w-2.5" />
+                                              <span>{opt.name}</span>
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center border border-slate-200 rounded-lg px-3 bg-white focus-within:border-[#2b7cf5] focus-within:ring-1 focus-within:ring-[#2b7cf5] transition-all h-9">
+                                          <input
+                                            type="text"
+                                            value={opt.name}
+                                            placeholder="e.g. Size or Color"
+                                            onChange={(e) => {
+                                              const nextOptions = [...(draft.shopify.options ?? [])];
+                                              nextOptions[optIdx] = {
+                                                ...opt,
+                                                name: e.target.value,
+                                              };
+                                              const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
+                                              setDraft((prev) => ({
+                                                ...prev,
+                                                shopify: {
+                                                  ...prev.shopify,
+                                                  options: nextOptions,
+                                                  variants: nextVariants,
+                                                },
+                                              }));
+                                            }}
+                                            onFocus={() => {
+                                              setActiveOptionNameDropdownIndex(optIdx);
+                                              setOptionNameSearch("");
+                                            }}
+                                            className="w-full bg-transparent text-xs text-slate-800 outline-none border-0 p-0 font-medium"
+                                          />
+                                        </div>
+
+                                        {/* Option Name Dropdown */}
+                                        {activeOptionNameDropdownIndex === optIdx && (
+                                          <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-60 overflow-y-auto">
+                                            {/* Search input inside name dropdown */}
+                                            <div className="flex items-center gap-2 px-2.5 py-1.5 border border-slate-200 rounded-lg mb-2 focus-within:border-[#2b7cf5] transition-all bg-slate-50/50">
+                                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-3.5 w-3.5 text-slate-400 shrink-0">
+                                                <circle cx="11" cy="11" r="8" />
+                                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                              </svg>
+                                              <input
+                                                type="text"
+                                                placeholder="Search"
+                                                value={optionNameSearch}
+                                                onChange={(e) => setOptionNameSearch(e.target.value)}
+                                                className="w-full bg-transparent text-xs outline-none border-0 p-0 text-slate-800"
+                                              />
+                                            </div>
+
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 select-none">Recommended</div>
+                                            <div className="space-y-0.5">
+                                              {RECOMMENDED_OPTIONS.filter((o) =>
+                                                o.name.toLowerCase().includes(optionNameSearch.toLowerCase())
+                                              ).map((item) => (
+                                                <button
+                                                  key={item.name}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const nextOptions = [...(draft.shopify.options ?? [])];
+                                                    nextOptions[optIdx] = {
+                                                      ...opt,
+                                                      name: item.name,
+                                                    };
+                                                    const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
+                                                    setDraft((prev) => ({
+                                                      ...prev,
+                                                      shopify: {
+                                                        ...prev.shopify,
+                                                        options: nextOptions,
+                                                        variants: nextVariants,
+                                                      },
+                                                    }));
+                                                    setActiveOptionNameDropdownIndex(null);
+                                                  }}
+                                                  className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-700 hover:bg-slate-50 font-medium cursor-pointer border-0 bg-transparent transition-all"
+                                                >
+                                                  {item.name}
+                                                </button>
+                                              ))}
+                                            </div>
+
+                                            <div className="border-t border-slate-100 my-1 pt-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setActiveOptionNameDropdownIndex(null);
+                                                }}
+                                                className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-blue-600 hover:bg-blue-50 font-bold flex items-center gap-1.5 cursor-pointer border-0 bg-transparent"
+                                              >
+                                                <Plus className="h-3.5 w-3.5" />
+                                                <span>Create custom option</span>
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Option Values container */}
+                                      <div className="relative option-values-container">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2]">Option Values</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5 items-center p-2 border border-slate-200 rounded-lg bg-white min-h-[40px] focus-within:border-[#2b7cf5] focus-within:ring-1 focus-within:ring-[#2b7cf5] transition-all">
+                                          {opt.values.map((val, valIdx) => (
+                                            <span key={valIdx} className="bg-slate-100 text-slate-800 pl-1.5 pr-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 border border-slate-200">
+                                              <DragHandleIcon className="h-3.5 w-3.5 text-slate-400 cursor-grab active:cursor-grabbing shrink-0" />
+                                              <span>{val}</span>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const nextOptions = [...(draft.shopify.options ?? [])];
+                                                  nextOptions[optIdx] = {
+                                                    ...opt,
+                                                    values: opt.values.filter((_, i) => i !== valIdx),
+                                                  };
+                                                  const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
+                                                  setDraft((prev) => ({
+                                                    ...prev,
+                                                    shopify: {
+                                                      ...prev.shopify,
+                                                      options: nextOptions,
+                                                      variants: nextVariants,
+                                                    },
+                                                  }));
+                                                }}
+                                                className="w-4 h-4 flex items-center justify-center text-slate-500 hover:text-[#ef6b6b] hover:bg-rose-50 rounded-full transition-colors cursor-pointer border-0 bg-transparent font-bold"
+                                              >
+                                                <X className="h-2.5 w-2.5" />
+                                              </button>
+                                            </span>
+                                          ))}
+                                          <input
+                                            type="text"
+                                            placeholder={opt.values.length === 0 ? `Add option value...` : ""}
+                                            value={optionValueSearch}
+                                            onChange={(e) => setOptionValueSearch(e.target.value)}
+                                            onFocus={() => {
+                                              setActiveOptionValuesDropdownIndex(optIdx);
+                                              setOptionValueSearch("");
+                                            }}
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter" || e.key === ",") {
+                                                e.preventDefault();
+                                                const val = optionValueSearch.trim();
+                                                if (val && !opt.values.includes(val)) {
+                                                  const nextOptions = [...(draft.shopify.options ?? [])];
+                                                  nextOptions[optIdx] = {
+                                                    ...opt,
+                                                    values: [...opt.values, val],
+                                                  };
+                                                  const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
+                                                  setDraft((prev) => ({
+                                                    ...prev,
+                                                    shopify: {
+                                                      ...prev.shopify,
+                                                      options: nextOptions,
+                                                      variants: nextVariants,
+                                                    },
+                                                  }));
+                                                  setOptionValueSearch("");
+                                                }
+                                              }
+                                            }}
+                                            className="h-7 flex-1 min-w-[120px] bg-transparent text-xs text-slate-800 outline-none"
+                                          />
+                                        </div>
+
+                                        {/* Option Values Dropdown */}
+                                        {activeOptionValuesDropdownIndex === optIdx && (
+                                          <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-2 max-h-60 overflow-y-auto">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 select-none">Default entries</div>
+                                            <div className="space-y-0.5 max-h-40 overflow-y-auto">
+                                              {(() => {
+                                                const recommendation = RECOMMENDED_OPTIONS.find(
+                                                  (r) => r.name.toLowerCase() === opt.name.toLowerCase()
+                                                );
+                                                const defaults = recommendation ? recommendation.defaults : [];
+                                                const filtered = defaults.filter((d) =>
+                                                  d.toLowerCase().includes(optionValueSearch.toLowerCase())
+                                                );
+                                                if (filtered.length === 0) {
+                                                  return <div className="text-xs text-slate-400 p-2 italic select-none">No matching default entries</div>;
+                                                }
+                                                return filtered.map((item) => {
+                                                  const isChecked = opt.values.includes(item);
+                                                  return (
+                                                    <label
+                                                      key={item}
+                                                      className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer select-none"
+                                                    >
+                                                      <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={() => {
+                                                          let nextValues;
+                                                          if (isChecked) {
+                                                            nextValues = opt.values.filter((v) => v !== item);
+                                                          } else {
+                                                            nextValues = [...opt.values, item];
+                                                          }
+                                                          const nextOptions = [...(draft.shopify.options ?? [])];
+                                                          nextOptions[optIdx] = {
+                                                            ...opt,
+                                                            values: nextValues,
+                                                          };
+                                                          const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
+                                                          setDraft((prev) => ({
+                                                            ...prev,
+                                                            shopify: {
+                                                              ...prev.shopify,
+                                                              options: nextOptions,
+                                                              variants: nextVariants,
+                                                            },
+                                                          }));
+                                                        }}
+                                                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                      />
+                                                      <span>{item}</span>
+                                                    </label>
+                                                  );
+                                                });
+                                              })()}
+                                            </div>
+
+                                            <div className="border-t border-slate-100 my-1 pt-1.5 flex items-center justify-between gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const val = optionValueSearch.trim();
+                                                  if (val && !opt.values.includes(val)) {
+                                                    const nextOptions = [...(draft.shopify.options ?? [])];
+                                                    nextOptions[optIdx] = {
+                                                      ...opt,
+                                                      values: [...opt.values, val],
+                                                    };
+                                                    const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
+                                                    setDraft((prev) => ({
+                                                      ...prev,
+                                                      shopify: {
+                                                        ...prev.shopify,
+                                                        options: nextOptions,
+                                                        variants: nextVariants,
+                                                      },
+                                                    }));
+                                                    setOptionValueSearch("");
+                                                  }
+                                                }}
+                                                className="px-2 py-1.5 rounded-lg text-xs text-blue-600 hover:bg-blue-50 font-bold flex items-center gap-1.5 cursor-pointer border-0 bg-transparent"
+                                              >
+                                                <Plus className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                                                <span>Add entry {optionValueSearch.trim() ? `"${optionValueSearch.trim()}"` : ""}</span>
+                                              </button>
+
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setActiveOptionValuesDropdownIndex(null);
+                                                }}
+                                                className="px-3 py-1 rounded-lg text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 cursor-pointer border-0 shrink-0"
+                                              >
+                                                Done
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Actions inside card */}
+                                  <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const nextOptions = (draft.shopify.options ?? []).filter((_, i) => i !== optIdx);
+                                        const nextVariants = handleUpdateShopifyVariants(nextOptions, draft.shopify.variants ?? []);
+                                        setDraft((prev) => ({
+                                          ...prev,
+                                          shopify: {
+                                            ...prev.shopify,
+                                            options: nextOptions,
+                                            variants: nextVariants,
+                                          },
+                                        }));
+                                        setEditingOptionIndices((prev) => {
+                                          const updated = { ...prev };
+                                          delete updated[optIdx];
+                                          return updated;
+                                        });
                                       }}
-                                      className="h-6 flex-1 min-w-[80px] bg-transparent text-xs text-[#31415e] outline-none"
-                                    />
+                                      className="text-xs font-bold text-[#ef6b6b] hover:text-[#cf4b4b] hover:bg-rose-50 px-3 py-1.5 rounded-lg transition-all cursor-pointer border-0 bg-transparent"
+                                    >
+                                      Delete
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingOptionIndices((prev) => ({ ...prev, [optIdx]: false }));
+                                      }}
+                                      className="text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 px-4 py-1.5 rounded-lg transition-all cursor-pointer border-0"
+                                    >
+                                      Done
+                                    </button>
                                   </div>
                                 </div>
-                              </div>
-                            </div>
-                          ))}
+                              );
+                            })}
+                          </div>
 
                           {/* Add Option button */}
                           {(draft.shopify.options ?? []).length < 3 && (
@@ -4506,6 +4826,7 @@ export default function AddProductEditor({
                               type="button"
                               onClick={() => {
                                 const nextOptions = [...(draft.shopify.options ?? []), { name: "", values: [] }];
+                                const newIdx = nextOptions.length - 1;
                                 setDraft((prev) => ({
                                   ...prev,
                                   shopify: {
@@ -4513,50 +4834,122 @@ export default function AddProductEditor({
                                     options: nextOptions,
                                   },
                                 }));
+                                setEditingOptionIndices((prev) => ({
+                                  ...prev,
+                                  [newIdx]: true,
+                                }));
                               }}
-                              className="text-xs font-bold text-[#2b7cf5] hover:text-[#1d5fb8] cursor-pointer bg-transparent border-0"
+                              className="text-xs font-bold text-[#2b7cf5] hover:text-[#1d5fb8] cursor-pointer bg-transparent border-0 flex items-center gap-1"
                             >
-                              + Add another option
+                              <Plus className="h-3.5 w-3.5" />
+                              <span>Add another option</span>
                             </button>
                           )}
 
-                          {/* Variants Table */}
+                          {/* Variants Table controls */}
                           {(draft.shopify.variants ?? []).length > 0 && (
-                            <div className="mt-4">
-                              <p className="text-xs font-bold uppercase tracking-wider text-[#8093b2] mb-2">Variants list</p>
-                              <div className="overflow-x-auto rounded-xl border border-[#dbe2ee] bg-white">
+                            <div className="border-t border-slate-100 pt-4 mt-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 select-none">
+                                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Group by</span>
+                                  <select className="h-8 border border-slate-200 rounded-lg px-2.5 text-xs bg-white text-slate-800 outline-none focus:border-slate-400 cursor-pointer">
+                                    <option value="all">text</option>
+                                    {(draft.shopify.options ?? []).map((o, idx) => (
+                                      <option key={idx} value={o.name}>{o.name || `Option ${idx + 1}`}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  <button type="button" className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer border-0 bg-transparent">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                                      <circle cx="11" cy="11" r="8" />
+                                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                    </svg>
+                                  </button>
+                                  <button type="button" className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer border-0 bg-transparent">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                                      <line x1="4" y1="21" x2="4" y2="14" />
+                                      <line x1="4" y1="10" x2="4" y2="3" />
+                                      <line x1="12" y1="21" x2="12" y2="12" />
+                                      <line x1="12" y1="8" x2="12" y2="3" />
+                                      <line x1="20" y1="21" x2="20" y2="16" />
+                                      <line x1="20" y1="12" x2="20" y2="3" />
+                                      <line x1="1" y1="14" x2="7" y2="14" />
+                                      <line x1="9" y1="8" x2="15" y2="8" />
+                                      <line x1="17" y1="16" x2="23" y2="16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
                                 <table className="w-full text-left text-xs border-collapse">
                                   <thead>
-                                    <tr className="bg-slate-50 border-b border-[#dbe2ee] text-[#8093b2] font-semibold">
-                                      <th className="p-2.5">Variant</th>
-                                      <th className="p-2.5 w-24">Price</th>
-                                      <th className="p-2.5 w-24">Available</th>
-                                      <th className="p-2.5 w-32">SKU</th>
-                                      <th className="p-2.5 w-32">Barcode</th>
-                                      <th className="p-2.5 w-12 text-center">Action</th>
+                                    <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold select-none">
+                                      <th className="p-3 w-10 text-center">
+                                        <input type="checkbox" className="rounded border-slate-300 text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer" />
+                                      </th>
+                                      <th className="p-3">Variant</th>
+                                      <th className="p-3 w-28">Price</th>
+                                      <th className="p-3 w-24">Available</th>
+                                      <th className="p-3 w-28">Publishing</th>
+                                      <th className="p-3 w-8"></th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {(draft.shopify.variants ?? []).map((variant, varIdx) => (
-                                      <tr key={varIdx} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                                        <td className="p-2.5 font-semibold text-[#31415e]">{variant.title}</td>
-                                        <td className="p-2.5">
-                                          <input
-                                            type="text"
-                                            value={variant.price}
-                                            onChange={(e) => {
-                                              const val = e.target.value.replace(/[^0-9.]/g, "");
-                                              const nextVariants = [...(draft.shopify.variants ?? [])];
-                                              nextVariants[varIdx] = { ...variant, price: val };
-                                              setDraft((prev) => ({
-                                                ...prev,
-                                                shopify: { ...prev.shopify, variants: nextVariants },
-                                              }));
-                                            }}
-                                            className="w-full h-8 px-2 border border-[#d4ddec] rounded-lg text-xs outline-none focus:border-[#2b7cf5]"
-                                          />
+                                      <tr key={varIdx} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                                        <td className="p-3 text-center">
+                                          <input type="checkbox" className="rounded border-slate-300 text-[#2b7cf5] focus:ring-[#2b7cf5] cursor-pointer" />
                                         </td>
-                                        <td className="p-2.5">
+                                        <td className="p-3">
+                                          <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden relative shrink-0">
+                                              {draft.images.shopify?.absolute_path ? (
+                                                /* eslint-disable-next-line @next/next/no-img-element */
+                                                <img
+                                                  src={imageUrlFor(draft.images.shopify.absolute_path) ?? undefined}
+                                                  alt={variant.title}
+                                                  className="h-full w-full object-cover"
+                                                />
+                                              ) : (
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="#2b7cf5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                                                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                                  <circle cx="8.5" cy="8.5" r="1.5" />
+                                                  <polyline points="21 15 16 10 5 21" />
+                                                </svg>
+                                              )}
+                                            </div>
+                                            <div className="flex flex-col">
+                                              <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                                                <span>{variant.title}</span>
+                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                                              </div>
+                                              <span className="text-[10px] text-slate-400">1 variant</span>
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td className="p-3">
+                                          <div className="flex items-center border border-slate-200 rounded-lg px-2.5 bg-white focus-within:border-[#2b7cf5] focus-within:ring-1 focus-within:ring-[#2b7cf5] transition-all h-8">
+                                            <span className="text-slate-400 mr-1 select-none">£</span>
+                                            <input
+                                              type="text"
+                                              value={variant.price}
+                                              onChange={(e) => {
+                                                const val = e.target.value.replace(/[^0-9.]/g, "");
+                                                const nextVariants = [...(draft.shopify.variants ?? [])];
+                                                nextVariants[varIdx] = { ...variant, price: val };
+                                                setDraft((prev) => ({
+                                                  ...prev,
+                                                  shopify: { ...prev.shopify, variants: nextVariants },
+                                                }));
+                                              }}
+                                              className="w-full bg-transparent text-xs text-slate-800 outline-none border-0 p-0"
+                                            />
+                                          </div>
+                                        </td>
+                                        <td className="p-3">
                                           <input
                                             type="number"
                                             value={variant.inventoryQuantity}
@@ -4569,60 +4962,46 @@ export default function AddProductEditor({
                                                 shopify: { ...prev.shopify, variants: nextVariants },
                                               }));
                                             }}
-                                            className="w-full h-8 px-2 border border-[#d4ddec] rounded-lg text-xs outline-none focus:border-[#2b7cf5]"
+                                            className="w-full h-8 px-2 border border-slate-200 rounded-lg text-xs outline-none bg-white text-slate-800 focus:border-[#2b7cf5] transition-all"
                                           />
                                         </td>
-                                        <td className="p-2.5">
-                                          <input
-                                            type="text"
-                                            value={variant.sku}
-                                            onChange={(e) => {
-                                              const nextVariants = [...(draft.shopify.variants ?? [])];
-                                              nextVariants[varIdx] = { ...variant, sku: e.target.value };
-                                              setDraft((prev) => ({
-                                                ...prev,
-                                                shopify: { ...prev.shopify, variants: nextVariants },
-                                              }));
-                                            }}
-                                            className="w-full h-8 px-2 border border-[#d4ddec] rounded-lg text-xs outline-none focus:border-[#2b7cf5]"
-                                            placeholder="SKU"
-                                          />
+                                        <td className="p-3 text-slate-500">
+                                          <div className="flex items-center gap-3 select-none">
+                                            <span className="flex items-center gap-1.5">
+                                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                                <circle cx="9" cy="7" r="4" />
+                                                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                                                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                                              </svg>
+                                              <span>3</span>
+                                            </span>
+                                            <span className="flex items-center gap-1.5">
+                                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                                <polyline points="14 2 14 8 20 8" />
+                                                <line x1="16" y1="13" x2="8" y2="13" />
+                                                <line x1="16" y1="17" x2="8" y2="17" />
+                                                <polyline points="10 9 9 9 8 9" />
+                                              </svg>
+                                              <span>0</span>
+                                            </span>
+                                          </div>
                                         </td>
-                                        <td className="p-2.5">
-                                          <input
-                                            type="text"
-                                            value={variant.barcode}
-                                            onChange={(e) => {
-                                              const nextVariants = [...(draft.shopify.variants ?? [])];
-                                              nextVariants[varIdx] = { ...variant, barcode: e.target.value };
-                                              setDraft((prev) => ({
-                                                ...prev,
-                                                shopify: { ...prev.shopify, variants: nextVariants },
-                                              }));
-                                            }}
-                                            className="w-full h-8 px-2 border border-[#d4ddec] rounded-lg text-xs outline-none focus:border-[#2b7cf5]"
-                                            placeholder="Barcode"
-                                          />
-                                        </td>
-                                        <td className="p-2.5 text-center">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const nextVariants = (draft.shopify.variants ?? []).filter((_, i) => i !== varIdx);
-                                              setDraft((prev) => ({
-                                                ...prev,
-                                                shopify: { ...prev.shopify, variants: nextVariants },
-                                              }));
-                                            }}
-                                            className="text-[#ef6b6b] hover:text-[#cf4b4b] cursor-pointer bg-transparent border-0"
-                                          >
-                                            Delete
+                                        <td className="p-3 text-right">
+                                          <button type="button" className="text-slate-400 hover:text-slate-600 cursor-pointer border-0 bg-transparent">
+                                            <ChevronDown className="h-4 w-4" />
                                           </button>
                                         </td>
                                       </tr>
                                     ))}
                                   </tbody>
                                 </table>
+                                <div className="p-3 border-t border-slate-100 bg-slate-50/50 rounded-b-xl text-xs text-slate-500 font-semibold select-none">
+                                  Total inventory at {draft.shopify.stock_locations?.[0]?.name ?? "5 Kingston Grove"}: {
+                                    (draft.shopify.variants ?? []).reduce((acc, v) => acc + (v.inventoryQuantity ?? 0), 0)
+                                  } available
+                                </div>
                               </div>
                             </div>
                           )}
