@@ -1628,6 +1628,7 @@ export default function AddProductEditor({
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [publishFieldErrors, setPublishFieldErrors] = useState<PublishFieldErrors>(emptyPublishFieldErrors);
+  const [isUploadingToAll, setIsUploadingToAll] = useState(false);
   const [restoredLocalDraftProductId, setRestoredLocalDraftProductId] = useState<string | null | undefined>(undefined);
   const [hasInitializedDraftStorage, setHasInitializedDraftStorage] = useState(false);
   const [variantInputs, setVariantInputs] = useState<Record<MarketKey, { size: string; color: string }>>({
@@ -2693,6 +2694,7 @@ export default function AddProductEditor({
     }
 
     setShopifySubmitMode("active");
+    setIsUploadingToAll(true);
     setPublishSubmitting({
       shopify: true,
       commandctr: true,
@@ -2800,6 +2802,7 @@ export default function AddProductEditor({
       setStatusMessage("An unexpected error occurred during bulk upload.");
     } finally {
       setShopifySubmitMode(null);
+      setIsUploadingToAll(false);
       setPublishSubmitting({
         shopify: false,
         commandctr: false,
@@ -6175,7 +6178,7 @@ export default function AddProductEditor({
                     onClick={() => void uploadToAllShops()}
                     type="button"
                   >
-                    {Object.values(publishSubmitting).some(Boolean) ? (
+                    {isUploadingToAll ? (
                       <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <Sparkles className="h-3.5 w-3.5 text-[#35d3ce]" />
