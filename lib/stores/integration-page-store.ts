@@ -16,6 +16,7 @@ export type ShopifyState = {
   shopDomain: string;
   status: "connected" | "disconnected" | "error" | "not_connected";
   source: "marketplace_connection" | "env_fallback" | "none";
+  scopes: string[];
 };
 
 export type EbayState = {
@@ -43,6 +44,7 @@ export const initialShopifyState: ShopifyState = {
   shopDomain: "",
   status: "not_connected",
   source: "none",
+  scopes: [],
 };
 
 export const initialEbayState: EbayState = {
@@ -140,6 +142,7 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
               shopDomain: status.shop?.myshopifyDomain ?? status.connection?.shopDomain ?? "",
               status: status.connection?.status ?? (status.connected ? "connected" : "not_connected"),
               source: status.source,
+              scopes: status.connection?.scopes ?? [],
             },
             hasLoadedOnce: true,
             lastLoadedAt: Date.now(),

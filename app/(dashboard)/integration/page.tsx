@@ -117,6 +117,7 @@ export default function IntegrationPage() {
       shopifyState.shopDomain === initialShopifyState.shopDomain &&
       shopifyState.status === initialShopifyState.status &&
       shopifyState.source === initialShopifyState.source &&
+      shopifyState.scopes.join("|") === initialShopifyState.scopes.join("|") &&
       ebayState.connected === initialEbayState.connected &&
       ebayState.displayName === initialEbayState.displayName &&
       ebayState.status === initialEbayState.status &&
@@ -294,6 +295,11 @@ export default function IntegrationPage() {
       },
     ],
     [ebayState.connected, etsyState.connected, shopifyState.connected],
+  );
+
+  const shopifyMissingScopes = useMemo(
+    () => ["read_publications", "write_publications"].filter((scope) => !shopifyState.scopes.includes(scope)),
+    [shopifyState.scopes],
   );
 
   const renderCollapsedFooter = (platformId: string) => {
@@ -639,10 +645,36 @@ export default function IntegrationPage() {
                               </div>
                             ) : null}
                             {platform.id === "shopify" && shopifyState.connected && shopifyState.shopDomain ? (
-                              <div className="mt-3">
+                              <div className="mt-3 space-y-2">
                                 <span className="connected-store">
                                   Connected store: {shopifyState.shopDomain}
                                 </span>
+                                <div className="rounded-xl border border-[#dbe2ee] bg-[#f8fbff] px-3 py-2">
+                                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8093b2]">Granted Shopify scopes</div>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {shopifyState.scopes.length > 0 ? (
+                                      shopifyState.scopes.map((scope) => (
+                                        <span
+                                          key={scope}
+                                          className="inline-flex items-center rounded-full border border-[#dbe2ee] bg-white px-2.5 py-1 text-[11px] font-medium text-[#4a5d7d]"
+                                        >
+                                          {scope}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span className="text-xs text-[#8ea0bf]">No granted scopes recorded yet.</span>
+                                    )}
+                                  </div>
+                                  {shopifyMissingScopes.length > 0 ? (
+                                    <div className="mt-2 text-xs font-medium text-amber-700">
+                                      Missing for Online Store publishing: {shopifyMissingScopes.join(", ")}. Reconnect Shopify after enabling these scopes in the Shopify app config.
+                                    </div>
+                                  ) : (
+                                    <div className="mt-2 text-xs font-medium text-emerald-700">
+                                      Publication scopes are present.
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             ) : null}
                           </div>

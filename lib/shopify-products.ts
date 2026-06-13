@@ -83,7 +83,7 @@ export const shopifyProductsApi = {
   },
 
   updateShopifyProduct(shopifyProductId: string, payload: ShopifyProductPayload) {
-    return requestWithAuth<ShopifyMutationResult>(`/shopify/products/${encodeURIComponent(shopifyProductId)}`, {
+    return requestWithAuth<ShopifyMutationResult>(`/shopify/products?shopifyProductId=${encodeURIComponent(shopifyProductId)}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     });
