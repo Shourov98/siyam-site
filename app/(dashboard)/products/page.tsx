@@ -84,15 +84,8 @@ export default function ProductsPage() {
       return;
     }
 
-    if (!hasLoadedOnce) {
-      void loadPage();
-      return;
-    }
-
-    if (shouldRefresh()) {
-      void loadPage();
-    }
-  }, [hasHydrated, hasLoadedOnce, loadPage, shouldRefresh]);
+    void loadPage(undefined, { refreshShopify: true });
+  }, [hasHydrated, loadPage]);
 
   const showInitialLoading = !hasHydrated || (isLoading && products.length === 0);
   const showRefreshing = isLoading && products.length > 0;
