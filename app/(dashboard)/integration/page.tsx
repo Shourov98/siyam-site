@@ -1,6 +1,6 @@
 "use client";
 
-import { Gift, Layers, Moon, Music, ShoppingBag, Store, University, X } from "lucide-react";
+import { Check, Gift, Layers, Moon, ShoppingBag, Store, University, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { startTransition, useEffect, useMemo, useState } from "react";
 
@@ -14,6 +14,49 @@ import {
   type BannerState,
 } from "@/lib/stores/integration-page-store";
 import "./integration.css";
+
+const AmazonIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12.1 3.5c-3.2 0-5.8 2-5.8 5.2c0 2.7 1.9 4.3 4.3 4.3c2.2 0 3.7-1.3 4.1-2.3v2.1h3.1V6.1c0-4-2.7-5.5-6-5.5c-3.2 0-5.8 1.4-6.4 3.7-.1.5.1.7.5.8l2.2.4c.4.1.7-.1.8-.4.3-1.1 1.4-1.9 2.9-1.9c1.6 0 2.7.9 2.7 2.6v.9c-.8-.7-2.1-1.3-3.7-1.3zm.5 6.6c-1.5 0-2.4-1-2.4-2.5c0-1.6.9-2.5 2.4-2.5c1.5 0 2.3 1 2.3 2.5c0 1.5-.8 2.5-2.3 2.5z" fill="currentColor"/>
+    <path d="M1.5 18c6 4 14.5 4.8 21.5 2c1-.4 1.9-.9 2.7-1.5c.4-.3.6-.1.3.3c-1.3 1.7-3.4 3.2-5.8 4.1c-6.4 2.5-15.1 1.8-21.3-2.1c-.5-.3-.9-.9-.2-.9c.7 0 1.9.4 2.8.8z" fill="#f8a100"/>
+    <path d="M23.5 17c-.4-.5-1.4-.3-2.1-.1c-.8.2-1.8.6-2.6.9c-.3.1-.3.3-.1.4c1 1 2.6 1.8 3.5.6c.3-.3.4-1.1.2-1.6c-.2-.2-.5 0-.9-.2z" fill="#f8a100"/>
+  </svg>
+);
+
+const TikTokIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12.5 2v12.5c0 1.93-1.57 3.5-3.5 3.5S5.5 16.43 5.5 14.5s1.57-3.5 3.5-3.5c.35 0 .68.05 1 .15V7.12C9.67 7.04 9.34 7 9 7c-4.14 0-7.5 3.36-7.5 7.5S4.86 22 9 22c4.14 0 7.5-3.36 7.5-7.5V7.25c1.45.97 3.16 1.55 5 1.63V4.85c-1.92-.08-3.68-.84-5-2.05L12.5 2z" fill="currentColor" />
+  </svg>
+);
+
+const EbayIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg">
+    <text x="50" y="29" textAnchor="middle" fontSize="30" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="bold" letterSpacing="-2.5">
+      <tspan fill="#e53238">e</tspan>
+      <tspan fill="#0064d2" dy="-2">b</tspan>
+      <tspan fill="#f5af02" dy="2">a</tspan>
+      <tspan fill="#86b817" dy="-1">y</tspan>
+    </text>
+  </svg>
+);
+
+const EtsyIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg">
+    <text x="50" y="29" textAnchor="middle" fontSize="28" fontFamily="Georgia, serif" fontStyle="italic" fontWeight="bold" fill="#F1641E" letterSpacing="-1.5">
+      Etsy
+    </text>
+  </svg>
+);
+
+const ShopifyIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 108.44 122.88" xmlns="http://www.w3.org/2000/svg">
+    <g>
+      <path d="M94.98,23.66c-0.09-0.62-0.63-0.96-1.08-1c-0.45-0.04-9.19-0.17-9.19-0.17s-7.32-7.1-8.04-7.83 c-0.72-0.72-2.13-0.5-2.68-0.34c-0.01,0-1.37,0.43-3.68,1.14c-0.38-1.25-0.95-2.78-1.76-4.32c-2.6-4.97-6.42-7.6-11.03-7.61 c-0.01,0-0.01,0-0.02,0c-0.32,0-0.64,0.03-0.96,0.06c-0.14-0.16-0.27-0.32-0.42-0.48c-2.01-2.15-4.58-3.19-7.67-3.1 c-5.95,0.17-11.88,4.47-16.69,12.11c-3.38,5.37-5.96,12.12-6.69,17.35c-6.83,2.12-11.61,3.6-11.72,3.63 c-3.45,1.08-3.56,1.19-4.01,4.44C9.03,39.99,0,109.8,0,109.8l75.65,13.08l32.79-8.15C108.44,114.73,95.06,24.28,94.98,23.66 L94.98,23.66z M66.52,16.63c-1.74,0.54-3.72,1.15-5.87,1.82c-0.04-3.01-0.4-7.21-1.81-10.83C63.36,8.47,65.58,13.58,66.52,16.63 L66.52,16.63z M56.69,19.68c-3.96,1.23-8.29,2.57-12.63,3.91c1.22-4.67,3.54-9.33,6.38-12.38c1.06-1.14,2.54-2.4,4.29-3.12 C56.38,11.52,56.73,16.39,56.69,19.68L56.69,19.68z M48.58,3.97c1.4-0.03,2.57,0.28,3.58,0.94C50.55,5.74,49,6.94,47.54,8.5 c-3.78,4.06-6.68,10.35-7.83,16.43c-3.6,1.11-7.13,2.21-10.37,3.21C31.38,18.58,39.4,4.23,48.58,3.97L48.58,3.97z" fill="#95BF47" />
+      <path d="M93.9,22.66c-0.45-0.04-9.19-0.17-9.19-0.17s-7.32-7.1-8.04-7.83c-0.27-0.27-0.63-0.41-1.02-0.47l0,108.68 l32.78-8.15c0,0-13.38-90.44-13.46-91.06C94.9,23.04,94.35,22.7,93.9,22.66L93.9,22.66z" fill="#5E8E3E" />
+      <path d="M57.48,39.52l-3.81,14.25c0,0-4.25-1.93-9.28-1.62c-7.38,0.47-7.46,5.12-7.39,6.29 c0.4,6.37,17.16,7.76,18.11,22.69c0.74,11.74-6.23,19.77-16.27,20.41c-12.05,0.76-18.69-6.35-18.69-6.35l2.55-10.86 c0,0,6.68,5.04,12.02,4.7c3.49-0.22,4.74-3.06,4.61-5.07c-0.52-8.31-14.18-7.82-15.04-21.48c-0.73-11.49,6.82-23.14,23.48-24.19 C54.2,37.88,57.48,39.52,57.48,39.52L57.48,39.52z" fill="white" />
+    </g>
+  </svg>
+);
 
 function Step({
   icon,
@@ -204,7 +247,7 @@ export default function IntegrationPage() {
         title: "Amazon",
         subtitle: "Seller Central",
         description: "The world's largest marketplace. Amazon remains disabled for this MVP release.",
-        icon: <ShoppingBag className="h-5 w-5" />,
+        icon: <AmazonIcon className="h-6 w-6" />,
         themeBg: "bg-[#f8a100]",
         badgeText: "COMING SOON",
         interactive: false,
@@ -214,7 +257,7 @@ export default function IntegrationPage() {
         title: "TikTok Shop",
         subtitle: "Social Commerce",
         description: "TikTok Shop remains disabled for this MVP release.",
-        icon: <Music className="h-5 w-5" />,
+        icon: <TikTokIcon className="h-6 w-6" />,
         themeBg: "bg-[#ff0050]",
         badgeText: "COMING SOON",
         interactive: false,
@@ -224,7 +267,7 @@ export default function IntegrationPage() {
         title: "eBay",
         subtitle: "Global Retail",
         description: "Connect your eBay seller account to prepare for future marketplace workflows in CommandCtr.",
-        icon: <Layers className="h-5 w-5" />,
+        icon: <EbayIcon className="h-6 w-16" />,
         themeBg: "bg-[#0064d2]",
         badgeText: ebayState.connected ? "CONNECTED" : null,
         interactive: true,
@@ -234,7 +277,7 @@ export default function IntegrationPage() {
         title: "Etsy",
         subtitle: "Handmade & Vintage",
         description: "Connect your Etsy shop to sync and manage your listings and handmade inventory in CommandCtr.",
-        icon: <Gift className="h-5 w-5" />,
+        icon: <EtsyIcon className="h-6 w-16" />,
         themeBg: "bg-[#F1641E]",
         badgeText: etsyState.connected ? "CONNECTED" : null,
         interactive: true,
@@ -244,7 +287,7 @@ export default function IntegrationPage() {
         title: "Shopify",
         subtitle: "Web Storefront",
         description: "Sync products, customers, and orders seamlessly with your custom Shopify storefront using our API.",
-        icon: <Store className="h-5 w-5" />,
+        icon: <ShopifyIcon className="h-6 w-6" />,
         themeBg: "bg-[#95bf47]",
         badgeText: shopifyState.connected ? "CONNECTED" : null,
         interactive: true,
@@ -257,22 +300,27 @@ export default function IntegrationPage() {
     if (platformId === "ebay") {
       return (
         <div className="collapsed-footer-content">
-          <span className="text-xs font-semibold text-[#8ea4cb]">
-            {ebayState.connected ? "Connected" : "Not Connected"}
-          </span>
-          <button
-            className={`btn-premium btn-collapsed-action ${!ebayState.connected ? "active-connect" : ""}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (!ebayState.connected) {
-                void handleConnectEbay();
-              }
-            }}
-            type="button"
-            disabled={isConnectingEbay || ebayState.connected}
-          >
-            {isConnectingEbay ? "..." : ebayState.connected ? "Connected" : "Connect"}
-          </button>
+          {ebayState.connected ? (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+              <Check className="h-3.5 w-3.5" />
+              Connected
+            </span>
+          ) : (
+            <>
+              <span className="text-xs font-semibold text-[#8ea4cb]">Not Connected</span>
+              <button
+                className="btn-premium btn-collapsed-action active-connect"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleConnectEbay();
+                }}
+                type="button"
+                disabled={isConnectingEbay}
+              >
+                {isConnectingEbay ? "..." : "Connect"}
+              </button>
+            </>
+          )}
         </div>
       );
     }
@@ -280,22 +328,27 @@ export default function IntegrationPage() {
     if (platformId === "etsy") {
       return (
         <div className="collapsed-footer-content">
-          <span className="text-xs font-semibold text-[#8ea4cb]">
-            {etsyState.connected ? "Connected" : "Not Connected"}
-          </span>
-          <button
-            className={`btn-premium btn-collapsed-action ${!etsyState.connected ? "active-connect" : ""}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (!etsyState.connected) {
-                void handleConnectEtsy();
-              }
-            }}
-            type="button"
-            disabled={isConnectingEtsy || etsyState.connected}
-          >
-            {isConnectingEtsy ? "..." : etsyState.connected ? "Connected" : "Connect"}
-          </button>
+          {etsyState.connected ? (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+              <Check className="h-3.5 w-3.5" />
+              Connected
+            </span>
+          ) : (
+            <>
+              <span className="text-xs font-semibold text-[#8ea4cb]">Not Connected</span>
+              <button
+                className="btn-premium btn-collapsed-action active-connect"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleConnectEtsy();
+                }}
+                type="button"
+                disabled={isConnectingEtsy}
+              >
+                {isConnectingEtsy ? "..." : "Connect"}
+              </button>
+            </>
+          )}
         </div>
       );
     }
@@ -303,26 +356,29 @@ export default function IntegrationPage() {
     if (platformId === "shopify") {
       return (
         <div className="collapsed-footer-content">
-          <span className="text-xs font-semibold text-[#8ea4cb]">
-            {isLoadingStatus
-              ? "Checking status..."
-              : shopifyState.connected
-                ? "Connected"
-                : "Not Connected"}
-          </span>
-          <button
-            className={`btn-premium btn-collapsed-action ${!shopifyState.connected ? "active-connect" : ""}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (!shopifyState.connected) {
-                void handleConnectShopify();
-              }
-            }}
-            type="button"
-            disabled={isConnectingShopify || isLoadingStatus || shopifyState.connected}
-          >
-            {isConnectingShopify ? "..." : shopifyState.connected ? "Connected" : "Connect"}
-          </button>
+          {isLoadingStatus ? (
+            <span className="text-xs font-semibold text-[#8ea4cb]">Checking status...</span>
+          ) : shopifyState.connected ? (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+              <Check className="h-3.5 w-3.5" />
+              Connected
+            </span>
+          ) : (
+            <>
+              <span className="text-xs font-semibold text-[#8ea4cb]">Not Connected</span>
+              <button
+                className="btn-premium btn-collapsed-action active-connect"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleConnectShopify();
+                }}
+                type="button"
+                disabled={isConnectingShopify}
+              >
+                {isConnectingShopify ? "..." : "Connect"}
+              </button>
+            </>
+          )}
         </div>
       );
     }
@@ -330,16 +386,6 @@ export default function IntegrationPage() {
     return (
       <div className="collapsed-footer-content">
         <span className="text-xs font-semibold text-[#8ea4cb]">Coming Soon</span>
-        <button
-          className="btn-premium btn-collapsed-action cursor-not-allowed opacity-60"
-          onClick={(event) => {
-            event.stopPropagation();
-            setOpenPlatform(platformId);
-          }}
-          type="button"
-        >
-          Soon
-        </button>
       </div>
     );
   };
@@ -520,10 +566,10 @@ export default function IntegrationPage() {
           <div className="mx-auto mt-12 max-w-3xl px-4">
             <div className="stepper-progress-bar">
               <div className="stepper-line" />
-              <div className="stepper-line-active" style={{ width: "0%" }} />
-              <Step active icon={<ShoppingBag className="h-4 w-4" />} label="Identity" />
-              <Step icon={<University className="h-4 w-4" />} label="Banking" />
-              <Step icon={<Store className="h-4 w-4" />} label="Marketplace" />
+              <div className="stepper-line-active" style={{ width: "100%" }} />
+              <Step completed icon={<ShoppingBag className="h-4 w-4" />} label="Identity" />
+              <Step completed icon={<University className="h-4 w-4" />} label="Banking" />
+              <Step active icon={<Store className="h-4 w-4" />} label="Marketplace" />
             </div>
           </div>
 
@@ -582,6 +628,13 @@ export default function IntegrationPage() {
                               <div className="mt-3">
                                 <span className="connected-store">
                                   Connected account: {ebayState.displayName || "eBay Seller"}
+                                </span>
+                              </div>
+                            ) : null}
+                            {platform.id === "etsy" && etsyState.connected ? (
+                              <div className="mt-3">
+                                <span className="connected-store">
+                                  Connected account: {etsyState.displayName || "Etsy Shop"}
                                 </span>
                               </div>
                             ) : null}
