@@ -2943,7 +2943,7 @@ export default function AddProductEditor({
 
     setIsGenerating(true);
     try {
-      const response = await fetch("/api/product-ai/products/generate", {
+      const response = await fetch("/api/product-ai/products/generate/text", {
         method: "POST",
         body: formData,
       });
@@ -2954,10 +2954,13 @@ export default function AddProductEditor({
       }
 
       const record = (await response.json()) as ApiRecord;
+      const generatedProductId = record.id;
       setShopifyProductId(null);
       clearPublishTargetAnalysis();
-      applyRecord(record, successMessage);
-      router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
+      applyRecord(record, "AI text draft generated. Marketplace sections are now generating in parallel.");
+      router.replace(`/products/add?market=${activeMarket}&productId=${generatedProductId}`, { scroll: false });
+      clearSelectedImageSelection();
+      await generateMarketplaceSectionsInParallel(generatedProductId, ["amazon", "ebay", "etsy", "tiktok", "shopify"], successMessage);
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Product generation failed.";
@@ -3005,29 +3008,49 @@ export default function AddProductEditor({
     }
   }
 
-  async function generateWithoutImage() {
+  async function generateTextOnly() {
     if (!sourceTitle.trim()) {
       setStatusMessage("Add a source title before generating.");
       return;
     }
-    setStatusMessage("Creating context for title-only generation...");
-    try {
-      const base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-      const res = await fetch(base64);
-      const blob = await res.blob();
-      const forcedFile = new File([blob], "placeholder_source.png", { type: "image/png" });
 
-      setStatusMessage("Generating draft content from title...");
-      await generateProduct("AI draft generated from title successfully.", forcedFile);
-    } catch (err) {
-      console.error(err);
-      setStatusMessage("Failed to generate dummy image context.");
+    if (!selectedImage) {
+      setStatusMessage("Upload a product image before generating text-only content.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("title", sourceTitle.trim());
+    formData.append("image", selectedImage);
+
+    setIsGenerating(true);
+    try {
+      const response = await fetch("/api/product-ai/products/generate/text", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Text-only generation failed.");
+      }
+
+      const record = (await response.json()) as ApiRecord;
+      setShopifyProductId(null);
+      clearPublishTargetAnalysis();
+      applyRecord(record, "AI text draft generated and ready for marketplace images.");
+      clearSelectedImageSelection();
+      router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Text-only generation failed.");
+    } finally {
+      setIsGenerating(false);
     }
   }
 
   async function generateMarketplaceDraft(
     market: MarketKey,
-    successMessage = `${marketLabels[market]} image generated and the new product draft is ready.`,
+    successMessage = `${marketLabels[market]} content and image generated and the new product draft is ready.`,
   ) {
     if (!selectedImage) {
       setStatusMessage("Upload a product image before generating.");
@@ -3052,7 +3075,7 @@ export default function AddProductEditor({
 
       if (!response.ok) {
         const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} image.`);
+        throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} content and image.`);
       }
 
       const record = (await response.json()) as ApiRecord;
@@ -3063,11 +3086,66 @@ export default function AddProductEditor({
       router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
       return true;
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} image.`);
+      setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} content and image.`);
       return false;
     } finally {
       setMarketImageGenerating((prev) => ({ ...prev, [market]: false }));
     }
+  }
+
+  async function generateMarketplaceSectionsInParallel(
+    requestedProductId: string,
+    markets: MarketKey[],
+    successMessage = "All marketplace content and image generations complete.",
+  ) {
+    const uniqueMarkets = Array.from(new Set(markets));
+    if (uniqueMarkets.length === 0) {
+      return true;
+    }
+
+    setStatusMessage("Generating marketplace sections in parallel...");
+    setMarketImageGenerating((prev) => {
+      const next = { ...prev };
+      for (const market of uniqueMarkets) {
+        next[market] = true;
+      }
+      return next;
+    });
+
+    const results = await Promise.allSettled(
+      uniqueMarkets.map(async (market) => {
+        const response = await fetch(`/api/product-ai/products/${requestedProductId}/marketplaces/${market}/generate`, {
+          method: "POST",
+        });
+
+        if (!response.ok) {
+          const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} content and image.`);
+        }
+
+        const record = (await response.json()) as ApiRecord;
+        applyRecord(record, `${marketLabels[market]} content and image generated.`);
+        return market;
+      }),
+    );
+
+    setMarketImageGenerating((prev) => {
+      const next = { ...prev };
+      for (const market of uniqueMarkets) {
+        next[market] = false;
+      }
+      return next;
+    });
+
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failures.length > 0) {
+      const failure = failures[0]?.reason;
+      setStatusMessage(failure instanceof Error ? failure.message : "Some marketplace images could not be generated.");
+      return false;
+    }
+
+    setStatusMessage(successMessage);
+    return true;
   }
 
   async function saveDraft(updatedImages?: ApiGeneratedImages) {
@@ -3531,10 +3609,26 @@ export default function AddProductEditor({
       setStatusMessage("Please generate the product draft with AI first.");
       return;
     }
-    const marketsToGen: MarketKey[] = ["amazon", "ebay", "etsy", "tiktok", "shopify"];
-    setStatusMessage("Generating images for all marketplaces in parallel...");
-    await Promise.all(marketsToGen.map((m) => regenerateMarketplaceImage(m)));
-    setStatusMessage("All marketplace image generations complete.");
+    if (!hasSourceImage) {
+      if (!selectedImage) {
+        setStatusMessage("Upload a source image first, then generate marketplace images.");
+        return;
+      }
+
+      const uploadSucceeded = await uploadSelectedSourceImage(
+        selectedImage,
+        "Source image uploaded. Marketplace sections are now generating in parallel...",
+      );
+      if (!uploadSucceeded) {
+        return;
+      }
+    }
+
+    await generateMarketplaceSectionsInParallel(
+      productId,
+      ["amazon", "ebay", "etsy", "tiktok", "shopify"],
+      "All marketplace content and image generations complete.",
+    );
   }
 
   async function clearMarketplaceImage(key: ImageCardKey) {
@@ -3680,13 +3774,13 @@ export default function AddProductEditor({
 
     if (!hasSourceImage) {
       if (!selectedImage) {
-        setStatusMessage("Upload a source image first, then generate the marketplace image you want.");
+        setStatusMessage("Upload a source image first, then generate the marketplace content and image you want.");
         return;
       }
 
       const uploadSucceeded = await uploadSelectedSourceImage(
         selectedImage,
-        `Source image uploaded. Generating the ${marketLabels[market]} image now...`,
+        `Source image uploaded. Generating the ${marketLabels[market]} content and image now...`,
       );
 
       if (!uploadSucceeded) {
@@ -3696,22 +3790,22 @@ export default function AddProductEditor({
 
     setMarketImageGenerating((prev) => ({ ...prev, [market]: true }));
     try {
-      const response = await fetch(`/api/product-ai/products/${productId}/marketplaces/${market}/regenerate`, {
+      const response = await fetch(`/api/product-ai/products/${productId}/marketplaces/${market}/generate`, {
         method: "POST",
       });
 
       if (!response.ok) {
         const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} image.`);
+        throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} content and image.`);
       }
 
       const record = (await response.json()) as ApiRecord;
       applyRecord(
         record,
-        `${marketLabels[market]} image generated for the selected marketplace.`,
+        `${marketLabels[market]} content and image generated for the selected marketplace.`,
       );
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} image.`);
+      setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} content and image.`);
     } finally {
       setMarketImageGenerating((prev) => ({ ...prev, [market]: false }));
     }
@@ -3898,7 +3992,7 @@ export default function AddProductEditor({
                 <button
                   type="button"
                   disabled={isGenerating || !sourceTitle.trim()}
-                  onClick={() => void generateWithoutImage()}
+                  onClick={() => void generateTextOnly()}
                   className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-[#172544] to-[#263c70] px-3.5 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                 >
                   {isGenerating ? (
@@ -6626,7 +6720,7 @@ export default function AddProductEditor({
                                 type="button"
                               >
                                 <RefreshCcw className={`h-3.5 w-3.5 ${(isGeneratingThis || (key === "transparent_cutout" && isUploadingSourceImage)) ? "animate-spin" : ""}`} />
-                                {hasPath ? "Regenerate" : "Generate"}
+                                {hasPath ? "Regenerate Image" : "Generate Image"}
                               </button>
                             ) : selectedImage ? (
                               <button

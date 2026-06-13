@@ -93,7 +93,7 @@ export default function ProductGenerationModal({
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/product-ai/products/generate", {
+      const response = await fetch("/api/product-ai/products/generate/text", {
         method: "POST",
         body: formData,
       });
