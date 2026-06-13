@@ -3606,7 +3606,7 @@ export default function AddProductEditor({
 
   async function generateAllMarketplaceImages() {
     if (!productId) {
-      setStatusMessage("Please generate the product draft with AI first.");
+      await generateProduct("All marketplace content and image generations complete.");
       return;
     }
     if (!hasSourceImage) {
@@ -3812,6 +3812,7 @@ export default function AddProductEditor({
   }
 
   const currentVariants = variantsByMarket[activeMarket] ?? [];
+  const canGenerateAll = Boolean(productId || (selectedImage && sourceTitle.trim()));
 
   const isStatusError =
     publishFieldErrors.title ||
@@ -6517,7 +6518,7 @@ export default function AddProductEditor({
               <div className="flex gap-2.5 mt-3 border-b border-[#eef2f6] pb-3.5">
                 <button
                   className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-[#172544] to-[#263c70] px-4 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
-                  disabled={!productId || Object.values(marketImageGenerating).some(Boolean) || isGenerating}
+                  disabled={!canGenerateAll || Object.values(marketImageGenerating).some(Boolean) || isGenerating}
                   onClick={() => void generateAllMarketplaceImages()}
                   type="button"
                 >
