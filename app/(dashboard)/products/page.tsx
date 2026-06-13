@@ -382,14 +382,12 @@ export default function ProductsPage() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Link>
-                              {product.source === "product_ai" ? (
-                                <Link
-                                  className="text-[#223763] transition hover:text-[#121f39]"
-                                  href={`/products/add?productId=${product.id}`}
-                                >
-                                  <Edit3 className="h-4 w-4" />
-                                </Link>
-                              ) : null}
+                              <Link
+                                className="text-[#223763] transition hover:text-[#121f39]"
+                                href={`/products/add?id=${product.id}&source=${product.source}`}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </Link>
                             </div>
                             <p
                               className={`text-center text-xs ${

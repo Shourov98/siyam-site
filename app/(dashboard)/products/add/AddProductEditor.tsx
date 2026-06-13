@@ -41,6 +41,7 @@ import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "
 import JSZip from "jszip";
 
 import { ApiClientError, authStorage } from "@/lib/auth";
+import { productsApi, type ProductListItem } from "@/lib/products";
 import { shopifyProductsApi } from "@/lib/shopify-products";
 
 type MarketKey = "amazon" | "ebay" | "etsy" | "tiktok" | "shopify";
@@ -1581,10 +1582,12 @@ function generateMockASIN() {
 export default function AddProductEditor({
   activeMarket,
   initialProductId,
+  initialSourceHint,
   localDraftSeed,
 }: {
   activeMarket: MarketKey;
   initialProductId: string | null;
+  initialSourceHint: "shopify" | "product_ai" | null;
   localDraftSeed: LocalDraftSeed | null;
 }) {
   const router = useRouter();
@@ -2153,18 +2156,32 @@ export default function AddProductEditor({
     async function loadProduct() {
       setIsLoadingProduct(true);
       try {
-        const response = await fetch(`/api/product-ai/products/${initialProductId}`, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("Could not load the saved product draft.");
+        if (initialSourceHint !== "shopify") {
+          const response = await fetch(`/api/product-ai/products/${initialProductId}`, { cache: "no-store" });
+          if (response.ok) {
+            const record = (await response.json()) as ApiRecord;
+            if (!active) {
+              return;
+            }
+
+            setShopifyProductId(null);
+            applyRecord(record, `Loaded draft ${record.id.slice(0, 8)} for editing.`);
+            return;
+          }
         }
 
-        const record = (await response.json()) as ApiRecord;
-        if (!active) {
+        const products = await productsApi.getProducts();
+        const product = products.find((item) => item._id === initialProductId || item.id === initialProductId || item.shopifyProductId === initialProductId);
+        if (product) {
+          if (!active) {
+            return;
+          }
+
+          applyShopifyProduct(product, `Loaded Shopify product for editing.`);
           return;
         }
 
-        setShopifyProductId(null);
-        applyRecord(record, `Loaded draft ${record.id.slice(0, 8)} for editing.`);
+        throw new Error("Could not load the saved product draft.");
       } catch (error) {
         if (!active) {
           return;
@@ -2183,7 +2200,7 @@ export default function AddProductEditor({
     return () => {
       active = false;
     };
-  }, [initialProductId, restoredLocalDraftProductId]);
+  }, [initialProductId, initialSourceHint, restoredLocalDraftProductId]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -2352,6 +2369,97 @@ export default function AddProductEditor({
     };
     lastSavedDraftRef.current = buildComparableDraftSignature(savedSnapshot);
     setDraftSaveState("saved");
+    setStatusMessage(message);
+  }
+
+  function applyShopifyProduct(product: ProductListItem, message: string) {
+    const primaryVariant = product.variants[0];
+    const stock = Math.max(0, primaryVariant?.inventoryQuantity ?? product.totalInventory ?? 0);
+    const price = primaryVariant?.price?.trim() ?? "";
+    const sku = primaryVariant?.sku?.trim() ?? "";
+    const featuredImage = product.featuredImage ?? "";
+
+    const shopifyVariants: ApiShopifyVariant[] = product.variants.map((variant) => ({
+      title: variant.title || "Default Title",
+      price: variant.price?.trim() || price || "0.00",
+      sku: variant.sku?.trim() || "",
+      inventoryQuantity: Math.max(0, variant.inventoryQuantity ?? 0),
+      trackInventory: true,
+      barcode: "",
+      compareAtPrice: variant.compareAtPrice?.trim() || "",
+      weight: draft.shopify.weight || "0.0",
+      weightUnit: draft.shopify.weight_unit || "lb",
+    }));
+
+    const nextDraft: ApiProduct = {
+      ...emptyProduct,
+      core: {
+        ...emptyProduct.core,
+        normalized_title: product.title,
+        category: "",
+        product_type: product.productType ?? "",
+        product_summary: product.description ?? "",
+        features: [],
+        attributes: {
+          ...(product.vendor ? { brand: product.vendor } : {}),
+          ...(price ? { price } : {}),
+        },
+        source_title: product.title,
+        vision_confidence: 0,
+      },
+      shopify: {
+        ...emptyProduct.shopify,
+        title: product.title,
+        body_html: product.description ?? "",
+        product_type: product.productType ?? "",
+        seo_title: product.title,
+        seo_description: product.description ?? "",
+        tags: product.tags ?? [],
+        variants: shopifyVariants,
+        has_variants: shopifyVariants.length > 1,
+      },
+      images: {
+        ...emptyProduct.images,
+        source: {
+          ...emptyProduct.images.source,
+          relative_path: featuredImage,
+          absolute_path: featuredImage,
+          validation: {
+            ...emptyProduct.images.source.validation,
+            passed: Boolean(featuredImage),
+            errors: featuredImage ? [] : emptyProduct.images.source.validation.errors,
+          },
+        },
+        shopify: {
+          ...emptyProduct.images.shopify,
+          relative_path: featuredImage,
+          absolute_path: featuredImage,
+          validation: {
+            ...emptyProduct.images.shopify.validation,
+            passed: Boolean(featuredImage),
+            errors: featuredImage ? [] : emptyProduct.images.shopify.validation.errors,
+          },
+        },
+      },
+    };
+
+    setDraft(nextDraft);
+    setVariantsByMarket(sampleVariants);
+    setProductId(null);
+    setShopifyProductId(product.shopifyProductId);
+    setSourceTitle(product.title);
+    setPublishVendor(product.vendor ?? "");
+    setPublishDescription(product.description ?? "");
+    setPublishPrice(price);
+    setPublishSku(sku);
+    setPublishStatus((product.status?.toUpperCase() as PublishStatus) === "DRAFT" ? "DRAFT" : "ACTIVE");
+    setPublishStock(String(stock));
+    setPublishOnOnlineStore((product.status?.toUpperCase() ?? "DRAFT") === "ACTIVE");
+    setPublishTrackInventory(true);
+    setShopifyPublishMessage("");
+    clearPublishTargetAnalysis();
+    setPublishFieldErrors(emptyPublishFieldErrors);
+    setHasSavedDraft(true);
     setStatusMessage(message);
   }
 
