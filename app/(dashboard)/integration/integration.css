@@ -42,7 +42,7 @@
   .channel-deck {
     flex-direction: row;
     align-items: stretch;
-    min-height: 470px; /* Use min-height so cards can expand to fit their full content */
+    height: 490px; /* Locked height on desktop to prevent vertical layout shifts and jumping */
   }
 }
 
@@ -142,6 +142,14 @@
   justify-content: space-between;
   margin-bottom: 1.25rem; /* More compact header spacing */
   width: 100%;
+  transition: justify-content 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (min-width: 1280px) {
+  .channel-card:not([data-expanded="true"]) .channel-card-header {
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
 }
 
 .channel-card .icon-box {
@@ -151,18 +159,29 @@
   justify-content: center;
   width: 3.5rem;
   height: 3.5rem;
+  min-width: 3.5rem;
+  min-height: 3.5rem;
+  flex: 0 0 3.5rem;
   border-radius: 1.15rem;
   background-color: #ffffff;
   color: #475569;
   border: 1px solid #e2e8f0;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  margin: 0;
   
   transition: 
     background-color 600ms cubic-bezier(0.16, 1, 0.3, 1), 
     color 600ms cubic-bezier(0.16, 1, 0.3, 1),
     border-color 600ms cubic-bezier(0.16, 1, 0.3, 1),
     transform 600ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 600ms cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow 600ms cubic-bezier(0.16, 1, 0.3, 1),
+    margin 600ms ease;
+}
+
+@media (min-width: 1280px) {
+  .channel-card:not([data-expanded="true"]) .icon-box {
+    margin: 0 auto;
+  }
 }
 
 /* Expanded icon box default (Shopify) */
@@ -209,12 +228,14 @@
   
   opacity: 0;
   transform: translateY(-8px);
+  display: none !important;
   transition: 
     opacity 600ms cubic-bezier(0.16, 1, 0.3, 1), 
     transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .channel-card[data-expanded="true"] .badge-label {
+  display: inline-block !important;
   opacity: 1;
   transform: translateY(0);
   transition-delay: 150ms;
@@ -227,25 +248,79 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  transition: align-items 600ms ease, justify-content 600ms ease;
 }
 
-.channel-card .channel-card-title {
+@media (min-width: 1280px) {
+  .channel-card:not([data-expanded="true"]) .channel-card-body {
+    justify-content: flex-start;
+    align-items: center;
+  }
+}
+
+/* Collapsed state defaults (hidden when expanded) */
+.channel-card[data-expanded="true"] .title-collapsed-wrapper {
+  display: none;
+}
+
+.channel-card:not([data-expanded="true"]) .title-collapsed-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 1.5rem;
+}
+
+.channel-card-title-collapsed {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+/* Expanded state defaults (hidden when collapsed) */
+.channel-card:not([data-expanded="true"]) .channel-card-expanded-content {
+  display: none;
+}
+
+.channel-card[data-expanded="true"] .channel-card-expanded-content {
+  display: block;
+  animation: fadeInSlideIn 600ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.channel-card-title-expanded {
   font-size: 2rem;
   font-weight: 800;
-  color: #334155; /* Slate-700 for collapsed cards */
+  color: #1e293b;
   margin: 0;
   white-space: nowrap;
-  
-  transform: scale(0.675);
-  transform-origin: left center;
-  transition: 
-    transform 800ms cubic-bezier(0.16, 1, 0.3, 1), 
-    color 600ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.channel-card[data-expanded="true"] .channel-card-title {
-  color: #1e293b;
-  transform: scale(1);
+@keyframes fadeInSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile responsive rules for title visibility */
+@media (max-width: 1279px) {
+  .title-collapsed-wrapper {
+    display: none !important;
+  }
+  .channel-card-expanded-content {
+    display: block !important;
+  }
 }
 
 /* Subtitle (Animated Height) */
@@ -356,20 +431,59 @@
   padding-top: 1rem;
 }
 
-.channel-card .collapsed-footer-content {
+.collapsed-status-indicator {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  border-top: 1px solid #e2e8f0;
+  justify-content: center;
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
   padding-top: 1rem;
+  width: 100%;
 }
 
-.collapsed-footer-content span {
-  color: #64748b !important;
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  position: relative;
 }
 
-.collapsed-footer-content span.text-emerald-400 {
-  color: #10b981 !important;
+.status-dot-connected {
+  background-color: #10b981;
+}
+
+.status-dot-connected::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: #10b981;
+  opacity: 0.8;
+  animation: statusPulseConnectedRing 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  z-index: -1;
+}
+
+.status-dot-disconnected {
+  background-color: #94a3b8;
+  box-shadow: 0 0 6px rgba(148, 163, 184, 0.5);
+}
+
+.status-dot-coming-soon {
+  background-color: #cbd5e1;
+}
+
+@keyframes statusPulseConnectedRing {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
 }
 
 /* ── Premium Buttons ── */

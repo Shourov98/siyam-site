@@ -103,7 +103,7 @@ export const productsApi = {
   },
 
   updateShopifyInventory(inventoryItemId: string, payload: { locationId: string; quantity: number }) {
-    return requestWithAuth<{ createdAt: string } | null>(`/shopify/inventory/${encodeURIComponent(inventoryItemId)}`, {
+    return requestWithAuth<{ createdAt: string } | null>(`/shopify/inventory?inventoryItemId=${encodeURIComponent(inventoryItemId)}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     });

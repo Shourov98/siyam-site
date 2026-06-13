@@ -1,7 +1,6 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 import { ApiClientError } from "@/lib/auth";
 import { integrationApi } from "@/lib/integrations";
@@ -100,263 +99,220 @@ type IntegrationPageState = {
 
 const INTEGRATION_PAGE_REFRESH_INTERVAL_MS = 60_000;
 
-export const useIntegrationPageStore = create<IntegrationPageState>()(
-  persist(
-    (set, get) => ({
-      banner: null,
-      shopifyState: initialShopifyState,
-      ebayState: initialEbayState,
-      etsyState: initialEtsyState,
-      isLoadingStatus: false,
-      isConnectingShopify: false,
-      isConnectingEbay: false,
-      isConnectingEtsy: false,
-      isDisconnectingShopify: false,
-      isDisconnectingEbay: false,
-      isDisconnectingEtsy: false,
-      isSyncingProducts: false,
-      isSyncingOrders: false,
-      hasLoadedOnce: false,
-      lastLoadedAt: null,
-      shouldRefresh: () => {
-        const { lastLoadedAt } = get();
-        return !lastLoadedAt || Date.now() - lastLoadedAt > INTEGRATION_PAGE_REFRESH_INTERVAL_MS;
-      },
-      setBanner: (banner) => set({ banner }),
-      setConnectingShopify: (value) => set({ isConnectingShopify: value }),
-      setConnectingEbay: (value) => set({ isConnectingEbay: value }),
-      setConnectingEtsy: (value) => set({ isConnectingEtsy: value }),
-      async loadShopifyStatus() {
-        const state = get();
-        if (state.isLoadingStatus && state.hasLoadedOnce) {
-          return;
-        }
+export const useIntegrationPageStore = create<IntegrationPageState>()((set, get) => ({
+  banner: null,
+  shopifyState: initialShopifyState,
+  ebayState: initialEbayState,
+  etsyState: initialEtsyState,
+  isLoadingStatus: false,
+  isConnectingShopify: false,
+  isConnectingEbay: false,
+  isConnectingEtsy: false,
+  isDisconnectingShopify: false,
+  isDisconnectingEbay: false,
+  isDisconnectingEtsy: false,
+  isSyncingProducts: false,
+  isSyncingOrders: false,
+  hasLoadedOnce: false,
+  lastLoadedAt: null,
+  shouldRefresh: () => {
+    const { lastLoadedAt } = get();
+    return !lastLoadedAt || Date.now() - lastLoadedAt > INTEGRATION_PAGE_REFRESH_INTERVAL_MS;
+  },
+  setBanner: (banner) => set({ banner }),
+  setConnectingShopify: (value) => set({ isConnectingShopify: value }),
+  setConnectingEbay: (value) => set({ isConnectingEbay: value }),
+  setConnectingEtsy: (value) => set({ isConnectingEtsy: value }),
+  async loadShopifyStatus() {
+    const state = get();
+    if (state.isLoadingStatus && state.hasLoadedOnce) {
+      return;
+    }
 
-        set({ isLoadingStatus: true });
+    set({ isLoadingStatus: true });
 
-        try {
-          const status = await integrationApi.getShopifyStatus();
-          set({
-            shopifyState: {
-              connected: status.connected,
-              shopDomain: status.shop?.myshopifyDomain ?? status.connection?.shopDomain ?? "",
-              status: status.connection?.status ?? (status.connected ? "connected" : "not_connected"),
-              source: status.source,
-              scopes: status.connection?.scopes ?? [],
-            },
-            hasLoadedOnce: true,
-            lastLoadedAt: Date.now(),
-          });
-        } catch (error) {
-          set({
-            banner: {
-              type: "error",
-              message: error instanceof ApiClientError ? error.message : "Failed to load Shopify status.",
-            },
-          });
-        } finally {
-          set({ isLoadingStatus: false });
-        }
-      },
-      async loadEbayStatus() {
-        try {
-          const status = await integrationApi.getEbayStatus();
-          set({
-            ebayState: {
-              connected: status.connected,
-              displayName: status.displayName || "eBay Seller",
-              providerAccountRef: status.providerAccountRef || "",
-              environment: status.environment,
-              status: status.status,
-              connectedAt: status.connectedAt,
-              accessTokenExpiresAt: status.accessTokenExpiresAt,
-            },
-            hasLoadedOnce: true,
-            lastLoadedAt: Date.now(),
-          });
-        } catch (error) {
-          set({
-            banner: {
-              type: "error",
-              message: error instanceof ApiClientError ? error.message : "Failed to load eBay status.",
-            },
-          });
-        }
-      },
-      async loadEtsyStatus() {
-        try {
-          const status = await integrationApi.getEtsyStatus();
-          set({
-            etsyState: {
-              connected: status.connected,
-              displayName: status.displayName || "Etsy Shop",
-              providerAccountRef: status.providerAccountRef || "",
-              environment: status.environment,
-              status: status.status,
-              connectedAt: status.connectedAt,
-              accessTokenExpiresAt: status.accessTokenExpiresAt,
-            },
-            hasLoadedOnce: true,
-            lastLoadedAt: Date.now(),
-          });
-        } catch (error) {
-          set({
-            banner: {
-              type: "error",
-              message: error instanceof ApiClientError ? error.message : "Failed to load Etsy status.",
-            },
-          });
-        }
-      },
-      async disconnectShopify() {
-        set({ banner: null, isDisconnectingShopify: true });
-        try {
-          await integrationApi.disconnectShopify();
-          set({
-            banner: {
-              type: "success",
-              message: "Shopify disconnected successfully.",
-            },
-          });
-          await get().loadShopifyStatus();
-        } catch (error) {
-          set({
-            banner: {
-              type: "error",
-              message: error instanceof ApiClientError ? error.message : "Failed to disconnect Shopify.",
-            },
-          });
-        } finally {
-          set({ isDisconnectingShopify: false });
-        }
-      },
-      async disconnectEbay() {
-        set({ banner: null, isDisconnectingEbay: true });
-        try {
-          await integrationApi.disconnectEbay();
-          set({
-            banner: {
-              type: "success",
-              message: "eBay disconnected successfully.",
-            },
-          });
-          await get().loadEbayStatus();
-        } catch (error) {
-          set({
-            banner: {
-              type: "error",
-              message: error instanceof ApiClientError ? error.message : "Failed to disconnect eBay.",
-            },
-          });
-        } finally {
-          set({ isDisconnectingEbay: false });
-        }
-      },
-      async disconnectEtsy() {
-        set({ banner: null, isDisconnectingEtsy: true });
-        try {
-          await integrationApi.disconnectEtsy();
-          set({
-            banner: {
-              type: "success",
-              message: "Etsy disconnected successfully.",
-            },
-          });
-          await get().loadEtsyStatus();
-        } catch (error) {
-          set({
-            banner: {
-              type: "error",
-              message: error instanceof ApiClientError ? error.message : "Failed to disconnect Etsy.",
-            },
-          });
-        } finally {
-          set({ isDisconnectingEtsy: false });
-        }
-      },
-      async syncProducts() {
-        set({ banner: null, isSyncingProducts: true });
-        try {
-          await integrationApi.importShopifyProducts();
-          set({
-            banner: {
-              type: "success",
-              message: "Shopify products imported successfully",
-            },
-          });
-          await get().loadShopifyStatus();
-        } catch (error) {
-          set({
-            banner: {
-              type: "error",
-              message: error instanceof ApiClientError ? error.message : "Failed to import Shopify products.",
-            },
-          });
-        } finally {
-          set({ isSyncingProducts: false });
-        }
-      },
-      async syncOrders() {
-        set({ banner: null, isSyncingOrders: true });
-        try {
-          await integrationApi.importShopifyOrders();
-          set({
-            banner: {
-              type: "success",
-              message: "Shopify orders imported successfully",
-            },
-          });
-          await get().loadShopifyStatus();
-        } catch (error) {
-          set({
-            banner: {
-              type: "error",
-              message: error instanceof ApiClientError ? error.message : "Failed to import Shopify orders.",
-            },
-          });
-        } finally {
-          set({ isSyncingOrders: false });
-        }
-      },
-    }),
-    {
-      name: "commandctr-integration-page",
-      version: 2,
-      migrate: (persistedState) => {
-        const state = persistedState as Partial<IntegrationPageState> | undefined;
-        const persistedShopifyState = state?.shopifyState as Partial<ShopifyState> | undefined;
-
-        return {
-          ...state,
-          shopifyState: {
-            ...initialShopifyState,
-            ...persistedShopifyState,
-            scopes: Array.isArray(persistedShopifyState?.scopes) ? persistedShopifyState.scopes : [],
-          },
-        } as IntegrationPageState;
-      },
-      merge: (persistedState, currentState) => {
-        const state = persistedState as Partial<IntegrationPageState> | undefined;
-        const persistedShopifyState = state?.shopifyState as Partial<ShopifyState> | undefined;
-
-        return {
-          ...currentState,
-          ...state,
-          shopifyState: {
-            ...currentState.shopifyState,
-            ...persistedShopifyState,
-            scopes: Array.isArray(persistedShopifyState?.scopes) ? persistedShopifyState.scopes : currentState.shopifyState.scopes,
-          },
-        };
-      },
-      partialize: (state) => ({
-        banner: state.banner,
-        shopifyState: state.shopifyState,
-        ebayState: state.ebayState,
-        etsyState: state.etsyState,
-        hasLoadedOnce: state.hasLoadedOnce,
-        lastLoadedAt: state.lastLoadedAt,
-      }),
-    },
-  ),
-);
+    try {
+      const status = await integrationApi.getShopifyStatus();
+      set({
+        shopifyState: {
+          connected: status.connected,
+          shopDomain: status.shop?.myshopifyDomain ?? status.connection?.shopDomain ?? "",
+          status: status.connection?.status ?? (status.connected ? "connected" : "not_connected"),
+          source: status.source,
+          scopes: status.connection?.scopes ?? [],
+        },
+        hasLoadedOnce: true,
+        lastLoadedAt: Date.now(),
+      });
+    } catch (error) {
+      set({
+        banner: {
+          type: "error",
+          message: error instanceof ApiClientError ? error.message : "Failed to load Shopify status.",
+        },
+      });
+    } finally {
+      set({ isLoadingStatus: false });
+    }
+  },
+  async loadEbayStatus() {
+    try {
+      const status = await integrationApi.getEbayStatus();
+      set({
+        ebayState: {
+          connected: status.connected,
+          displayName: status.displayName || "eBay Seller",
+          providerAccountRef: status.providerAccountRef || "",
+          environment: status.environment,
+          status: status.status,
+          connectedAt: status.connectedAt,
+          accessTokenExpiresAt: status.accessTokenExpiresAt,
+        },
+        hasLoadedOnce: true,
+        lastLoadedAt: Date.now(),
+      });
+    } catch (error) {
+      set({
+        banner: {
+          type: "error",
+          message: error instanceof ApiClientError ? error.message : "Failed to load eBay status.",
+        },
+      });
+    }
+  },
+  async loadEtsyStatus() {
+    try {
+      const status = await integrationApi.getEtsyStatus();
+      set({
+        etsyState: {
+          connected: status.connected,
+          displayName: status.displayName || "Etsy Shop",
+          providerAccountRef: status.providerAccountRef || "",
+          environment: status.environment,
+          status: status.status,
+          connectedAt: status.connectedAt,
+          accessTokenExpiresAt: status.accessTokenExpiresAt,
+        },
+        hasLoadedOnce: true,
+        lastLoadedAt: Date.now(),
+      });
+    } catch (error) {
+      set({
+        banner: {
+          type: "error",
+          message: error instanceof ApiClientError ? error.message : "Failed to load Etsy status.",
+        },
+      });
+    }
+  },
+  async disconnectShopify() {
+    set({ banner: null, isDisconnectingShopify: true });
+    try {
+      await integrationApi.disconnectShopify();
+      set({
+        banner: {
+          type: "success",
+          message: "Shopify disconnected successfully.",
+        },
+      });
+      await get().loadShopifyStatus();
+    } catch (error) {
+      set({
+        banner: {
+          type: "error",
+          message: error instanceof ApiClientError ? error.message : "Failed to disconnect Shopify.",
+        },
+      });
+    } finally {
+      set({ isDisconnectingShopify: false });
+    }
+  },
+  async disconnectEbay() {
+    set({ banner: null, isDisconnectingEbay: true });
+    try {
+      await integrationApi.disconnectEbay();
+      set({
+        banner: {
+          type: "success",
+          message: "eBay disconnected successfully.",
+        },
+      });
+      await get().loadEbayStatus();
+    } catch (error) {
+      set({
+        banner: {
+          type: "error",
+          message: error instanceof ApiClientError ? error.message : "Failed to disconnect eBay.",
+        },
+      });
+    } finally {
+      set({ isDisconnectingEbay: false });
+    }
+  },
+  async disconnectEtsy() {
+    set({ banner: null, isDisconnectingEtsy: true });
+    try {
+      await integrationApi.disconnectEtsy();
+      set({
+        banner: {
+          type: "success",
+          message: "Etsy disconnected successfully.",
+        },
+      });
+      await get().loadEtsyStatus();
+    } catch (error) {
+      set({
+        banner: {
+          type: "error",
+          message: error instanceof ApiClientError ? error.message : "Failed to disconnect Etsy.",
+        },
+      });
+    } finally {
+      set({ isDisconnectingEtsy: false });
+    }
+  },
+  async syncProducts() {
+    set({ banner: null, isSyncingProducts: true });
+    try {
+      await integrationApi.importShopifyProducts();
+      set({
+        banner: {
+          type: "success",
+          message: "Shopify products imported successfully",
+        },
+      });
+      await get().loadShopifyStatus();
+    } catch (error) {
+      set({
+        banner: {
+          type: "error",
+          message: error instanceof ApiClientError ? error.message : "Failed to import Shopify products.",
+        },
+      });
+    } finally {
+      set({ isSyncingProducts: false });
+    }
+  },
+  async syncOrders() {
+    set({ banner: null, isSyncingOrders: true });
+    try {
+      await integrationApi.importShopifyOrders();
+      set({
+        banner: {
+          type: "success",
+          message: "Shopify orders imported successfully",
+        },
+      });
+      await get().loadShopifyStatus();
+    } catch (error) {
+      set({
+        banner: {
+          type: "error",
+          message: error instanceof ApiClientError ? error.message : "Failed to import Shopify orders.",
+        },
+      });
+    } finally {
+      set({ isSyncingOrders: false });
+    }
+  },
+}));

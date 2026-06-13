@@ -16,42 +16,34 @@ import {
 import "./integration.css";
 
 const AmazonIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M12.1 3.5c-3.2 0-5.8 2-5.8 5.2c0 2.7 1.9 4.3 4.3 4.3c2.2 0 3.7-1.3 4.1-2.3v2.1h3.1V6.1c0-4-2.7-5.5-6-5.5c-3.2 0-5.8 1.4-6.4 3.7-.1.5.1.7.5.8l2.2.4c.4.1.7-.1.8-.4.3-1.1 1.4-1.9 2.9-1.9c1.6 0 2.7.9 2.7 2.6v.9c-.8-.7-2.1-1.3-3.7-1.3zm.5 6.6c-1.5 0-2.4-1-2.4-2.5c0-1.6.9-2.5 2.4-2.5c1.5 0 2.3 1 2.3 2.5c0 1.5-.8 2.5-2.3 2.5z" fill="currentColor"/>
-    <path d="M1.5 18c6 4 14.5 4.8 21.5 2c1-.4 1.9-.9 2.7-1.5c.4-.3.6-.1.3.3c-1.3 1.7-3.4 3.2-5.8 4.1c-6.4 2.5-15.1 1.8-21.3-2.1c-.5-.3-.9-.9-.2-.9c.7 0 1.9.4 2.8.8z" fill="#f8a100"/>
-    <path d="M23.5 17c-.4-.5-1.4-.3-2.1-.1c-.8.2-1.8.6-2.6.9c-.3.1-.3.3-.1.4c1 1 2.6 1.8 3.5.6c.3-.3.4-1.1.2-1.6c-.2-.2-.5 0-.9-.2z" fill="#f8a100"/>
+  <svg className={className} viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path d="M10.813 11.968c.157.083.36.074.5-.05l.005.005a90 90 0 0 1 1.623-1.405c.173-.143.143-.372.006-.563l-.125-.17c-.345-.465-.673-.906-.673-1.791v-3.3l.001-.335c.008-1.265.014-2.421-.933-3.305C10.404.274 9.06 0 8.03 0 6.017 0 3.77.75 3.296 3.24c-.047.264.143.404.316.443l2.054.22c.19-.009.33-.196.366-.387.176-.857.896-1.271 1.703-1.271.435 0 .929.16 1.188.55.264.39.26.91.257 1.376v.432q-.3.033-.621.065c-1.113.114-2.397.246-3.36.67C3.873 5.91 2.94 7.08 2.94 8.798c0 2.2 1.387 3.298 3.168 3.298 1.506 0 2.328-.354 3.489-1.54l.167.246c.274.405.456.675 1.047 1.166ZM6.03 8.431C6.03 6.627 7.647 6.3 9.177 6.3v.57c.001.776.002 1.434-.396 2.133-.336.595-.87.961-1.465.961-.812 0-1.286-.619-1.286-1.533" fill="currentColor"/>
+    <path d="M.435 12.174c2.629 1.603 6.698 4.084 13.183.997.28-.116.475.078.199.431C13.538 13.96 11.312 16 7.57 16 3.832 16 .968 13.446.094 12.386c-.24-.275.036-.4.199-.299z" fill="#f8a100"/>
+    <path d="M13.828 11.943c.567-.07 1.468-.027 1.645.204.135.176-.004.966-.233 1.533-.23.563-.572.961-.762 1.115s-.333.094-.23-.137c.105-.23.684-1.663.455-1.963-.213-.278-1.177-.177-1.625-.13l-.09.009q-.142.013-.233.024c-.193.021-.245.027-.274-.032-.074-.209.779-.556 1.347-.623" fill="#f8a100"/>
   </svg>
 );
 
 const TikTokIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M12.5 2v12.5c0 1.93-1.57 3.5-3.5 3.5S5.5 16.43 5.5 14.5s1.57-3.5 3.5-3.5c.35 0 .68.05 1 .15V7.12C9.67 7.04 9.34 7 9 7c-4.14 0-7.5 3.36-7.5 7.5S4.86 22 9 22c4.14 0 7.5-3.36 7.5-7.5V7.25c1.45.97 3.16 1.55 5 1.63V4.85c-1.92-.08-3.68-.84-5-2.05L12.5 2z" fill="currentColor" />
+    <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" fill="currentColor"/>
   </svg>
 );
 
 const EbayIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="2.5 9 21.5 9" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M6 14.5c0 1.2.8 1.8 1.8 1.8.6 0 1.2-.2 1.6-.5l.4.8c-.6.4-1.4.7-2.2.7-1.8 0-3-1-3-3 0-2 1.2-3 2.8-3 1.8 0 2.4 1.3 2.4 2.7v.5H6zm2.2-.8c0-.9-.4-1.4-1.2-1.4-.8 0-1.3.5-1.4 1.4h2.6z" fill="#e53238" />
-    <path d="M12 9.5v2.8c-.4-.5-1-.8-1.7-.8-1.5 0-2.5 1.1-2.5 2.8s1 2.8 2.5 2.8c.7 0 1.3-.3 1.7-.8v.7h1.2V9.5H12zm-.2 4.7c0 1-.6 1.6-1.3 1.6-.8 0-1.3-.6-1.3-1.6s.5-1.6 1.3-1.6c.7 0 1.3.6 1.3 1.6z" fill="#0064d2" />
-    <path d="M18 12.8c-.4-.7-1.1-1-1.9-1-1.4 0-2.4 1-2.4 2.5s1 2.5 2.4 2.5c.8 0 1.5-.3 1.9-1v1h1.2v-4.5h-1.2v.5zm-.2 1.8c0 .8-.5 1.3-1.2 1.3-.7 0-1.2-.5-1.2-1.3s.5-1.3 1.2-1.3c.7 0 1.2.5 1.2 1.3z" fill="#f5af02" />
-    <path d="M22 11.5l-1.6 4-1.2-4h-1.3l2 5.5-1.5 3.5h1.3L23.3 11.5H22z" fill="#86b817" />
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6.056 12.132v-4.92h1.2v3.026c.59-.703 1.402-.906 2.202-.906 1.34 0 2.828.904 2.828 2.855 0 .233-.015.457-.06.668.24-.953 1.274-1.305 2.896-1.344.51-.018 1.095-.018 1.56-.018v-.135c0-.885-.556-1.244-1.53-1.244-.72 0-1.245.3-1.305.81h-1.275c.136-1.29 1.5-1.62 2.686-1.62 1.064 0 1.995.27 2.415 1.02l-.436-.84h1.41l2.055 4.125 2.055-4.126H24l-3.72 7.305h-1.346l1.07-2.04-2.33-4.38c.13.255.2.555.2.93v2.46c0 .346.01.69.04 1.005H16.8a6.543 6.543 0 01-.046-.765c-.603.734-1.32.96-2.32.96-1.48 0-2.272-.78-2.272-1.695 0-.15.015-.284.037-.405-.3 1.246-1.36 2.086-2.767 2.086-.87 0-1.694-.315-2.2-.93 0 .24-.015.494-.04.734h-1.18c.02-.39.04-.855.04-1.245v-1.05h-4.83c.065 1.095.818 1.74 1.853 1.74.718 0 1.355-.3 1.568-.93h1.24c-.24 1.29-1.61 1.725-2.79 1.725C.95 15.009 0 13.822 0 12.232c0-1.754.982-2.91 3.116-2.91 1.688 0 2.93.886 2.94 2.806v.005zm9.137.183c-1.095.034-1.77.233-1.77.95 0 .465.36.97 1.305.97 1.26 0 1.935-.69 1.935-1.814v-.13c-.45 0-.99.006-1.484.022h.012zm-6.06 1.875c1.11 0 1.876-.806 1.876-2.02s-.768-2.02-1.893-2.02c-1.11 0-1.89.806-1.89 2.02s.765 2.02 1.875 2.02h.03zm-4.35-2.514c-.044-1.125-.854-1.546-1.725-1.546-.944 0-1.694.474-1.815 1.546z"/>
   </svg>
 );
 
 const EtsyIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="24" height="24" rx="6" fill="#F1641E" />
-    <path d="M7 6h10v3h-2.5v-1H10.5v3.5h4v2h-4v4h4.5v-1H17v3.5H7V6z" fill="#FFFFFF" />
+  <svg className={className} viewBox="0 0 384 512" xmlns="http://www.w3.org/2000/svg">
+    <path d="M384 348c-1.8 10.8-13.8 110-15.5 132-117.9-4.3-219.9-4.7-368.5 0v-25.5c45.5-8.9 60.6-8 61-35.3 1.8-72.3 3.5-244.1 0-322-1-28.5-12.1-26.8-61-36v-25.5c73.9 2.4 255.9 8.6 363-3.8-3.5 38.3-7.8 126.5-7.8 126.5H332C320.9 115.7 313.2 68 277.3 68h-137c-10.3 0-10.8 3.5-10.8 9.8V241.5c58 .5 88.5-2.5 88.5-2.5 29.8-1 27.6-8.5 40.8-65.3h25.8c-4.4 101.4-3.9 61.8-1.8 160.3H257c-9.2-40.1-9.1-61-39.5-61.5 0 0-21.5-2-88-2v139c0 26 14.3 38.3 44.3 38.3H263c63.6 0 66.6-25 98.8-99.8H384z" fill="#F1641E"/>
   </svg>
 );
 
 const ShopifyIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 108.44 122.88" xmlns="http://www.w3.org/2000/svg">
-    <g>
-      <path d="M94.98,23.66c-0.09-0.62-0.63-0.96-1.08-1c-0.45-0.04-9.19-0.17-9.19-0.17s-7.32-7.1-8.04-7.83 c-0.72-0.72-2.13-0.5-2.68-0.34c-0.01,0-1.37,0.43-3.68,1.14c-0.38-1.25-0.95-2.78-1.76-4.32c-2.6-4.97-6.42-7.6-11.03-7.61 c-0.01,0-0.01,0-0.02,0c-0.32,0-0.64,0.03-0.96,0.06c-0.14-0.16-0.27-0.32-0.42-0.48c-2.01-2.15-4.58-3.19-7.67-3.1 c-5.95,0.17-11.88,4.47-16.69,12.11c-3.38,5.37-5.96,12.12-6.69,17.35c-6.83,2.12-11.61,3.6-11.72,3.63 c-3.45,1.08-3.56,1.19-4.01,4.44C9.03,39.99,0,109.8,0,109.8l75.65,13.08l32.79-8.15C108.44,114.73,95.06,24.28,94.98,23.66 L94.98,23.66z M66.52,16.63c-1.74,0.54-3.72,1.15-5.87,1.82c-0.04-3.01-0.4-7.21-1.81-10.83C63.36,8.47,65.58,13.58,66.52,16.63 L66.52,16.63z M56.69,19.68c-3.96,1.23-8.29,2.57-12.63,3.91c1.22-4.67,3.54-9.33,6.38-12.38c1.06-1.14,2.54-2.4,4.29-3.12 C56.38,11.52,56.73,16.39,56.69,19.68L56.69,19.68z M48.58,3.97c1.4-0.03,2.57,0.28,3.58,0.94C50.55,5.74,49,6.94,47.54,8.5 c-3.78,4.06-6.68,10.35-7.83,16.43c-3.6,1.11-7.13,2.21-10.37,3.21C31.38,18.58,39.4,4.23,48.58,3.97L48.58,3.97z" fill="#95BF47" />
-      <path d="M93.9,22.66c-0.45-0.04-9.19-0.17-9.19-0.17s-7.32-7.1-8.04-7.83c-0.27-0.27-0.63-0.41-1.02-0.47l0,108.68 l32.78-8.15c0,0-13.38-90.44-13.46-91.06C94.9,23.04,94.35,22.7,93.9,22.66L93.9,22.66z" fill="#5E8E3E" />
-      <path d="M57.48,39.52l-3.81,14.25c0,0-4.25-1.93-9.28-1.62c-7.38,0.47-7.46,5.12-7.39,6.29 c0.4,6.37,17.16,7.76,18.11,22.69c0.74,11.74-6.23,19.77-16.27,20.41c-12.05,0.76-18.69-6.35-18.69-6.35l2.55-10.86 c0,0,6.68,5.04,12.02,4.7c3.49-0.22,4.74-3.06,4.61-5.07c-0.52-8.31-14.18-7.82-15.04-21.48c-0.73-11.49,6.82-23.14,23.48-24.19 C54.2,37.88,57.48,39.52,57.48,39.52L57.48,39.52z" fill="white" />
-    </g>
+  <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z" fill="#96BF48"/>
   </svg>
 );
 
@@ -77,7 +69,7 @@ function Step({
 export default function IntegrationPage() {
   const searchParams = useSearchParams();
   const [openPlatform, setOpenPlatform] = useState<string | null>(null);
-  const [hoveredPlatform, setHoveredPlatform] = useState<string | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<string>("shopify");
   const banner = useIntegrationPageStore((state) => state.banner);
   const shopifyState = useIntegrationPageStore((state) => state.shopifyState);
   const ebayState = useIntegrationPageStore((state) => state.ebayState);
@@ -106,7 +98,7 @@ export default function IntegrationPage() {
   const syncProducts = useIntegrationPageStore((state) => state.syncProducts);
   const syncOrders = useIntegrationPageStore((state) => state.syncOrders);
 
-  const expandedPlatform = hoveredPlatform || "ebay";
+  const expandedPlatform = selectedPlatform;
 
   useEffect(() => {
     const isInitialState =
@@ -294,114 +286,28 @@ export default function IntegrationPage() {
     [ebayState.connected, etsyState.connected, shopifyState.connected],
   );
 
-  const shopifyScopes = Array.isArray(shopifyState.scopes) ? shopifyState.scopes : [];
-  const hasEffectiveShopifyScope = (scope: string) => {
-    if (shopifyScopes.includes(scope)) {
-      return true;
-    }
-
-    if (scope.startsWith("read_")) {
-      return shopifyScopes.includes(`write_${scope.slice("read_".length)}`);
-    }
-
-    return false;
-  };
-
-  const shopifyMissingScopes = useMemo(
-    () => ["read_publications", "write_publications"].filter((scope) => !hasEffectiveShopifyScope(scope)),
-    [shopifyScopes],
-  );
 
   const renderCollapsedFooter = (platformId: string) => {
-    if (platformId === "ebay") {
-      return (
-        <div className="collapsed-footer-content">
-          {ebayState.connected ? (
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-              <Check className="h-3.5 w-3.5" />
-              Connected
-            </span>
-          ) : (
-            <>
-              <span className="text-xs font-semibold text-[#8ea4cb]">Not Connected</span>
-              <button
-                className="btn-premium btn-collapsed-action active-connect"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void handleConnectEbay();
-                }}
-                type="button"
-                disabled={isConnectingEbay}
-              >
-                {isConnectingEbay ? "..." : "Connect"}
-              </button>
-            </>
-          )}
-        </div>
-      );
-    }
+    let statusClass = "status-dot-disconnected";
+    let tooltip = "Not Connected";
 
-    if (platformId === "etsy") {
-      return (
-        <div className="collapsed-footer-content">
-          {etsyState.connected ? (
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-              <Check className="h-3.5 w-3.5" />
-              Connected
-            </span>
-          ) : (
-            <>
-              <span className="text-xs font-semibold text-[#8ea4cb]">Not Connected</span>
-              <button
-                className="btn-premium btn-collapsed-action active-connect"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void handleConnectEtsy();
-                }}
-                type="button"
-                disabled={isConnectingEtsy}
-              >
-                {isConnectingEtsy ? "..." : "Connect"}
-              </button>
-            </>
-          )}
-        </div>
-      );
-    }
-
-    if (platformId === "shopify") {
-      return (
-        <div className="collapsed-footer-content">
-          {isLoadingStatus ? (
-            <span className="text-xs font-semibold text-[#8ea4cb]">Checking status...</span>
-          ) : shopifyState.connected ? (
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-              <Check className="h-3.5 w-3.5" />
-              Connected
-            </span>
-          ) : (
-            <>
-              <span className="text-xs font-semibold text-[#8ea4cb]">Not Connected</span>
-              <button
-                className="btn-premium btn-collapsed-action active-connect"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void handleConnectShopify();
-                }}
-                type="button"
-                disabled={isConnectingShopify}
-              >
-                {isConnectingShopify ? "..." : "Connect"}
-              </button>
-            </>
-          )}
-        </div>
-      );
+    if (platformId === "amazon" || platformId === "tiktok") {
+      statusClass = "status-dot-coming-soon";
+      tooltip = "Coming Soon";
+    } else if (platformId === "ebay" && ebayState.connected) {
+      statusClass = "status-dot-connected";
+      tooltip = "Connected";
+    } else if (platformId === "etsy" && etsyState.connected) {
+      statusClass = "status-dot-connected";
+      tooltip = "Connected";
+    } else if (platformId === "shopify" && shopifyState.connected) {
+      statusClass = "status-dot-connected";
+      tooltip = "Connected";
     }
 
     return (
-      <div className="collapsed-footer-content">
-        <span className="text-xs font-semibold text-[#8ea4cb]">Coming Soon</span>
+      <div className="collapsed-status-indicator" title={tooltip}>
+        <span className={`status-dot ${statusClass}`} />
       </div>
     );
   };
@@ -567,27 +473,29 @@ export default function IntegrationPage() {
           </div>
 
           {banner ? (
-            <div className={`premium-alert-banner mx-auto mt-8 max-w-4xl ${banner.type}`}>
-              <div className="flex-1 font-semibold">{banner.message}</div>
-              <button
-                type="button"
-                className="cursor-pointer text-current opacity-70 transition-opacity hover:opacity-100"
-                onClick={() => setBanner(null)}
-              >
-                <X className="h-4 w-4" />
-              </button>
+            <div className="mx-auto mt-12 max-w-3xl px-4">
+              <div className={`premium-alert-banner w-full ${banner.type}`} style={{ marginTop: 0 }}>
+                <div className="flex-1 font-semibold">{banner.message}</div>
+                <button
+                  type="button"
+                  className="cursor-pointer text-current opacity-70 transition-opacity hover:opacity-100"
+                  onClick={() => setBanner(null)}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-          ) : null}
-
-          <div className="mx-auto mt-12 max-w-3xl px-4">
-            <div className="stepper-progress-bar">
-              <div className="stepper-line" />
-              <div className="stepper-line-active" style={{ width: "100%" }} />
-              <Step completed icon={<ShoppingBag className="h-4 w-4" />} label="Identity" />
-              <Step completed icon={<University className="h-4 w-4" />} label="Banking" />
-              <Step active icon={<Store className="h-4 w-4" />} label="Marketplace" />
+          ) : (
+            <div className="mx-auto mt-12 max-w-3xl px-4">
+              <div className="stepper-progress-bar">
+                <div className="stepper-line" />
+                <div className="stepper-line-active" style={{ width: "100%" }} />
+                <Step completed icon={<ShoppingBag className="h-4 w-4" />} label="Identity" />
+                <Step completed icon={<University className="h-4 w-4" />} label="Banking" />
+                <Step active icon={<Store className="h-4 w-4" />} label="Marketplace" />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-12 w-full">
             <div className="channel-deck">
@@ -597,10 +505,10 @@ export default function IntegrationPage() {
                 return (
                   <article
                     key={platform.id}
-                    onMouseEnter={() => setHoveredPlatform(platform.id)}
-                    onMouseLeave={() => setHoveredPlatform(null)}
                     onClick={() => {
-                      if (!platform.interactive) {
+                      if (platform.interactive) {
+                        setSelectedPlatform(platform.id);
+                      } else {
                         setOpenPlatform(platform.title);
                       }
                     }}
@@ -618,7 +526,7 @@ export default function IntegrationPage() {
                         {platform.badgeText ? (
                           <span
                             className={`badge-label ${
-                              platform.id === "shopify"
+                              platform.badgeText === "CONNECTED"
                                 ? "border border-[#ccfbf1] bg-[#e6fcf5] text-[#0d9488]"
                                 : "border border-[#e2e8f0] bg-[#f1f5f9] text-[#475569]"
                             }`}
@@ -629,64 +537,46 @@ export default function IntegrationPage() {
                       </header>
 
                       <main className="channel-card-body">
-                        <h2 className="channel-card-title">{platform.title}</h2>
-
-                        <div className="row-subtitle">
-                          <div className="overflow-hidden">
-                            <span className="subtitle-text">{platform.subtitle}</span>
-                          </div>
+                        {/* Collapsed Vertical Title */}
+                        <div className="title-collapsed-wrapper">
+                          <h2 className="channel-card-title-collapsed">{platform.title}</h2>
                         </div>
 
-                        <div className="row-description">
-                          <div className="overflow-hidden">
-                            <p className="description-text">{platform.description}</p>
-                            {platform.id === "ebay" && ebayState.connected ? (
-                              <div className="mt-3">
-                                <span className="connected-store">
-                                  Connected account: {ebayState.displayName || "eBay Seller"}
-                                </span>
-                              </div>
-                            ) : null}
-                            {platform.id === "etsy" && etsyState.connected ? (
-                              <div className="mt-3">
-                                <span className="connected-store">
-                                  Connected account: {etsyState.displayName || "Etsy Shop"}
-                                </span>
-                              </div>
-                            ) : null}
-                            {platform.id === "shopify" && shopifyState.connected && shopifyState.shopDomain ? (
-                              <div className="mt-3 space-y-2">
-                                <span className="connected-store">
-                                  Connected store: {shopifyState.shopDomain}
-                                </span>
-                                <div className="rounded-xl border border-[#dbe2ee] bg-[#f8fbff] px-3 py-2">
-                                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8093b2]">Granted Shopify scopes</div>
-                                  <div className="mt-2 flex flex-wrap gap-2">
-                                    {shopifyState.scopes.length > 0 ? (
-                                      shopifyState.scopes.map((scope) => (
-                                        <span
-                                          key={scope}
-                                          className="inline-flex items-center rounded-full border border-[#dbe2ee] bg-white px-2.5 py-1 text-[11px] font-medium text-[#4a5d7d]"
-                                        >
-                                          {scope}
-                                        </span>
-                                      ))
-                                    ) : (
-                                      <span className="text-xs text-[#8ea0bf]">No granted scopes recorded yet.</span>
-                                    )}
-                                  </div>
-                                  {shopifyMissingScopes.length > 0 ? (
-                                    <div className="mt-2 text-xs font-medium text-amber-700">
-                                      Missing for Online Store publishing: {shopifyMissingScopes.join(", ")}. Reconnect Shopify after enabling these scopes in the Shopify app config.
-                                    </div>
-                                  ) : (
-                                    <div className="mt-2 text-xs font-medium text-emerald-700">
-                                      Publication scopes are present.
-                                    </div>
-                                  )}
+                        {/* Expanded Horizontal Content */}
+                        <div className="channel-card-expanded-content">
+                          <h2 className="channel-card-title-expanded">{platform.title}</h2>
+
+                          <div className="row-subtitle">
+                            <div className="overflow-hidden">
+                              <span className="subtitle-text">{platform.subtitle}</span>
+                            </div>
+                          </div>
+
+                          <div className="row-description">
+                            <div className="overflow-hidden">
+                              <p className="description-text">{platform.description}</p>
+                              {platform.id === "ebay" && ebayState.connected ? (
+                                <div className="mt-3">
+                                  <span className="connected-store">
+                                    Connected account: {ebayState.displayName || "eBay Seller"}
+                                  </span>
                                 </div>
-                              </div>
-                            ) : null}
+                              ) : null}
+                              {platform.id === "etsy" && etsyState.connected ? (
+                                <div className="mt-3">
+                                  <span className="connected-store">
+                                    Connected account: {etsyState.displayName || "Etsy Shop"}
+                                  </span>
+                                </div>
+                              ) : null}
+                              {platform.id === "shopify" && shopifyState.connected && shopifyState.shopDomain ? (
+                                <div className="mt-3 space-y-2">
+                                  <span className="connected-store">
+                                    Connected store: {shopifyState.shopDomain}
+                                  </span>
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                       </main>
