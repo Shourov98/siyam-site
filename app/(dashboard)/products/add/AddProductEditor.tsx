@@ -3608,6 +3608,16 @@ export default function AddProductEditor({
 
   const currentVariants = variantsByMarket[activeMarket] ?? [];
 
+  const isStatusError =
+    publishFieldErrors.title ||
+    publishFieldErrors.price ||
+    statusMessage.toLowerCase().includes("please fill") ||
+    statusMessage.toLowerCase().includes("required before") ||
+    statusMessage.toLowerCase().includes("must be") ||
+    statusMessage.toLowerCase().includes("missing") ||
+    statusMessage.toLowerCase().includes("failed") ||
+    statusMessage.toLowerCase().includes("could not");
+
   return (
     <section className="px-4 pt-1 pb-5 md:px-8 md:pt-4 md:pb-8">
       <input
@@ -3649,8 +3659,13 @@ export default function AddProductEditor({
               </div>
 
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-[#1b325f]/50 px-3 py-1 text-xs font-medium text-[#7adfff] border border-[#3059a4]/50">
-                  {statusMessage}
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-all duration-300 ${
+                  isStatusError 
+                    ? "bg-[#ef4444]/10 text-[#fca5a5] border-[#ef4444]/40 shadow-[0_0_12px_rgba(239,68,68,0.2)] animate-pulse" 
+                    : "bg-[#1b325f]/50 text-[#7adfff] border-[#3059a4]/50"
+                }`}>
+                  {isStatusError && <CircleAlert className="h-3.5 w-3.5 text-[#ef4444] shrink-0" />}
+                  <span>{statusMessage}</span>
                 </span>
               </div>
             </div>
@@ -4274,15 +4289,27 @@ export default function AddProductEditor({
                     </div>
 
                     {/* Card 5: Pricing */}
-                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                    <div className={`rounded-2xl border p-5 shadow-xs transition-colors duration-300 ${
+                      publishFieldErrors.price 
+                        ? "border-[#ef6b6b] bg-[#fff5f5]" 
+                        : "border-[#dbe2ee] bg-white"
+                    }`}>
                       <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Pricing</h3>
                       
                       <div className="space-y-4">
                         {/* Primary Price Field */}
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 max-w-xs transition focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Price</span>
+                        <div className={`flex flex-col rounded-xl border p-3 max-w-xs transition-all focus-within:bg-white ${
+                          publishFieldErrors.price 
+                            ? "border-[#ef6b6b] bg-[#fffcfc] focus-within:border-[#ef6b6b]" 
+                            : "border-[#dbe2ee] bg-[#f8fbff] focus-within:border-[#2b7cf5]"
+                        }`}>
+                          <span className={`text-[11px] font-bold uppercase tracking-wider mb-1 transition-colors ${
+                            publishFieldErrors.price ? "text-[#cf4b4b]" : "text-[#8093b2]"
+                          }`}>Price</span>
                           <div className="flex items-center">
-                            <span className="text-xs font-semibold text-[#8ea0bf] select-none mr-1.5">£</span>
+                            <span className={`text-xs font-semibold select-none mr-1.5 transition-colors ${
+                              publishFieldErrors.price ? "text-[#cf4b4b]" : "text-[#8ea0bf]"
+                            }`}>£</span>
                             <input
                               type="text"
                               value={publishPrice}
@@ -4290,11 +4317,19 @@ export default function AddProductEditor({
                                 const val = e.target.value.replace(/[^0-9.]/g, "");
                                 updatePublishPrice(val);
                               }}
-                              className="w-full bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                              className={`w-full bg-transparent text-xs font-semibold outline-none border-0 transition-colors ${
+                                publishFieldErrors.price ? "text-[#cf4b4b] placeholder-[#fca5a5]" : "text-[#31415e] placeholder:text-[#aab8d6]"
+                              }`}
                               placeholder="0.00"
                             />
                           </div>
                         </div>
+                        {publishFieldErrors.price ? (
+                          <p className="text-xs text-[#cf4b4b] font-semibold flex items-center gap-1 animate-pulse">
+                            <CircleAlert className="h-3.5 w-3.5 text-[#cf4b4b] shrink-0" />
+                            Please fill the required publish fields: Default price.
+                          </p>
+                        ) : null}
 
                         {/* Interactive Pill Buttons */}
                         <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -5678,10 +5713,15 @@ export default function AddProductEditor({
                       }}
                       value={publishSku}
                     />
-                    <div className={`block rounded-2xl border bg-[#f8fbff] p-3 ${publishFieldErrors.price ? "border-[#ef6b6b] bg-[#fff7f7]" : "border-[#dbe2ee]"}`}>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Default Price</p>
-                      {publishFieldErrors.price ? <p className="mt-1 text-xs text-[#cf4b4b]">Required for Shopify publish.</p> : null}
-                      <div className={`mt-2 flex h-9 w-full items-center rounded-lg border bg-white overflow-hidden transition-all focus-within:border-[#97abd0] ${publishFieldErrors.price ? "border-[#ef6b6b]" : "border-[#d4ddec]"}`}>
+                    <div className={`block rounded-2xl border p-3 transition-colors duration-300 ${publishFieldErrors.price ? "border-[#ef6b6b] bg-[#fff5f5]" : "border-[#dbe2ee] bg-[#f8fbff]"}`}>
+                      <p className={`text-xs font-semibold uppercase tracking-wide transition-colors ${publishFieldErrors.price ? "text-[#cf4b4b]" : "text-[#8093b2]"}`}>Default Price</p>
+                      {publishFieldErrors.price ? (
+                        <p className="mt-1 text-xs font-semibold text-[#cf4b4b] flex items-center gap-1 animate-pulse">
+                          <CircleAlert className="h-3.5 w-3.5 text-[#cf4b4b] shrink-0" />
+                          Please fill the required publish fields: Default price.
+                        </p>
+                      ) : null}
+                      <div className={`mt-2 flex h-9 w-full items-center rounded-lg border bg-white overflow-hidden transition-all ${publishFieldErrors.price ? "border-[#ef6b6b] focus-within:border-[#ef6b6b]" : "border-[#d4ddec] focus-within:border-[#97abd0]"}`}>
                         {/* Decrement Button */}
                         <button
                           type="button"
