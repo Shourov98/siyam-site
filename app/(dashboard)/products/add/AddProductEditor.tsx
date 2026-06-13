@@ -41,6 +41,7 @@ import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "
 import JSZip from "jszip";
 
 import { ApiClientError, authStorage } from "@/lib/auth";
+import { productsApi, type ProductListItem } from "@/lib/products";
 import { shopifyProductsApi } from "@/lib/shopify-products";
 
 type MarketKey = "amazon" | "ebay" | "etsy" | "tiktok" | "shopify";
@@ -1581,10 +1582,12 @@ function generateMockASIN() {
 export default function AddProductEditor({
   activeMarket,
   initialProductId,
+  initialSourceHint,
   localDraftSeed,
 }: {
   activeMarket: MarketKey;
   initialProductId: string | null;
+  initialSourceHint: "shopify" | "product_ai" | null;
   localDraftSeed: LocalDraftSeed | null;
 }) {
   const router = useRouter();
@@ -1628,6 +1631,7 @@ export default function AddProductEditor({
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [publishFieldErrors, setPublishFieldErrors] = useState<PublishFieldErrors>(emptyPublishFieldErrors);
+  const [isUploadingToAll, setIsUploadingToAll] = useState(false);
   const [restoredLocalDraftProductId, setRestoredLocalDraftProductId] = useState<string | null | undefined>(undefined);
   const [hasInitializedDraftStorage, setHasInitializedDraftStorage] = useState(false);
   const [variantInputs, setVariantInputs] = useState<Record<MarketKey, { size: string; color: string }>>({
@@ -2152,18 +2156,32 @@ export default function AddProductEditor({
     async function loadProduct() {
       setIsLoadingProduct(true);
       try {
-        const response = await fetch(`/api/product-ai/products/${initialProductId}`, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error("Could not load the saved product draft.");
+        if (initialSourceHint !== "shopify") {
+          const response = await fetch(`/api/product-ai/products/${initialProductId}`, { cache: "no-store" });
+          if (response.ok) {
+            const record = (await response.json()) as ApiRecord;
+            if (!active) {
+              return;
+            }
+
+            setShopifyProductId(null);
+            applyRecord(record, `Loaded draft ${record.id.slice(0, 8)} for editing.`);
+            return;
+          }
         }
 
-        const record = (await response.json()) as ApiRecord;
-        if (!active) {
+        const products = await productsApi.getProducts();
+        const product = products.find((item) => item._id === initialProductId || item.id === initialProductId || item.shopifyProductId === initialProductId);
+        if (product) {
+          if (!active) {
+            return;
+          }
+
+          applyShopifyProduct(product, `Loaded Shopify product for editing.`);
           return;
         }
 
-        setShopifyProductId(null);
-        applyRecord(record, `Loaded draft ${record.id.slice(0, 8)} for editing.`);
+        throw new Error("Could not load the saved product draft.");
       } catch (error) {
         if (!active) {
           return;
@@ -2182,7 +2200,7 @@ export default function AddProductEditor({
     return () => {
       active = false;
     };
-  }, [initialProductId, restoredLocalDraftProductId]);
+  }, [initialProductId, initialSourceHint, restoredLocalDraftProductId]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -2351,6 +2369,97 @@ export default function AddProductEditor({
     };
     lastSavedDraftRef.current = buildComparableDraftSignature(savedSnapshot);
     setDraftSaveState("saved");
+    setStatusMessage(message);
+  }
+
+  function applyShopifyProduct(product: ProductListItem, message: string) {
+    const primaryVariant = product.variants[0];
+    const stock = Math.max(0, primaryVariant?.inventoryQuantity ?? product.totalInventory ?? 0);
+    const price = primaryVariant?.price?.trim() ?? "";
+    const sku = primaryVariant?.sku?.trim() ?? "";
+    const featuredImage = product.featuredImage ?? "";
+
+    const shopifyVariants: ApiShopifyVariant[] = product.variants.map((variant) => ({
+      title: variant.title || "Default Title",
+      price: variant.price?.trim() || price || "0.00",
+      sku: variant.sku?.trim() || "",
+      inventoryQuantity: Math.max(0, variant.inventoryQuantity ?? 0),
+      trackInventory: true,
+      barcode: "",
+      compareAtPrice: variant.compareAtPrice?.trim() || "",
+      weight: draft.shopify.weight || "0.0",
+      weightUnit: draft.shopify.weight_unit || "lb",
+    }));
+
+    const nextDraft: ApiProduct = {
+      ...emptyProduct,
+      core: {
+        ...emptyProduct.core,
+        normalized_title: product.title,
+        category: "",
+        product_type: product.productType ?? "",
+        product_summary: product.description ?? "",
+        features: [],
+        attributes: {
+          ...(product.vendor ? { brand: product.vendor } : {}),
+          ...(price ? { price } : {}),
+        },
+        source_title: product.title,
+        vision_confidence: 0,
+      },
+      shopify: {
+        ...emptyProduct.shopify,
+        title: product.title,
+        body_html: product.description ?? "",
+        product_type: product.productType ?? "",
+        seo_title: product.title,
+        seo_description: product.description ?? "",
+        tags: product.tags ?? [],
+        variants: shopifyVariants,
+        has_variants: shopifyVariants.length > 1,
+      },
+      images: {
+        ...emptyProduct.images,
+        source: {
+          ...emptyProduct.images.source,
+          relative_path: featuredImage,
+          absolute_path: featuredImage,
+          validation: {
+            ...emptyProduct.images.source.validation,
+            passed: Boolean(featuredImage),
+            errors: featuredImage ? [] : emptyProduct.images.source.validation.errors,
+          },
+        },
+        shopify: {
+          ...emptyProduct.images.shopify,
+          relative_path: featuredImage,
+          absolute_path: featuredImage,
+          validation: {
+            ...emptyProduct.images.shopify.validation,
+            passed: Boolean(featuredImage),
+            errors: featuredImage ? [] : emptyProduct.images.shopify.validation.errors,
+          },
+        },
+      },
+    };
+
+    setDraft(nextDraft);
+    setVariantsByMarket(sampleVariants);
+    setProductId(null);
+    setShopifyProductId(product.shopifyProductId);
+    setSourceTitle(product.title);
+    setPublishVendor(product.vendor ?? "");
+    setPublishDescription(product.description ?? "");
+    setPublishPrice(price);
+    setPublishSku(sku);
+    setPublishStatus((product.status?.toUpperCase() as PublishStatus) === "DRAFT" ? "DRAFT" : "ACTIVE");
+    setPublishStock(String(stock));
+    setPublishOnOnlineStore((product.status?.toUpperCase() ?? "DRAFT") === "ACTIVE");
+    setPublishTrackInventory(true);
+    setShopifyPublishMessage("");
+    clearPublishTargetAnalysis();
+    setPublishFieldErrors(emptyPublishFieldErrors);
+    setHasSavedDraft(true);
     setStatusMessage(message);
   }
 
@@ -2693,6 +2802,7 @@ export default function AddProductEditor({
     }
 
     setShopifySubmitMode("active");
+    setIsUploadingToAll(true);
     setPublishSubmitting({
       shopify: true,
       commandctr: true,
@@ -2800,6 +2910,7 @@ export default function AddProductEditor({
       setStatusMessage("An unexpected error occurred during bulk upload.");
     } finally {
       setShopifySubmitMode(null);
+      setIsUploadingToAll(false);
       setPublishSubmitting({
         shopify: false,
         commandctr: false,
@@ -2832,7 +2943,7 @@ export default function AddProductEditor({
 
     setIsGenerating(true);
     try {
-      const response = await fetch("/api/product-ai/products/generate", {
+      const response = await fetch("/api/product-ai/products/generate/text", {
         method: "POST",
         body: formData,
       });
@@ -2843,10 +2954,13 @@ export default function AddProductEditor({
       }
 
       const record = (await response.json()) as ApiRecord;
+      const generatedProductId = record.id;
       setShopifyProductId(null);
       clearPublishTargetAnalysis();
-      applyRecord(record, successMessage);
-      router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
+      applyRecord(record, "AI text draft generated. Marketplace sections are now generating in parallel.");
+      router.replace(`/products/add?market=${activeMarket}&productId=${generatedProductId}`, { scroll: false });
+      clearSelectedImageSelection();
+      await generateMarketplaceSectionsInParallel(generatedProductId, ["amazon", "ebay", "etsy", "tiktok", "shopify"], successMessage);
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Product generation failed.";
@@ -2894,29 +3008,49 @@ export default function AddProductEditor({
     }
   }
 
-  async function generateWithoutImage() {
+  async function generateTextOnly() {
     if (!sourceTitle.trim()) {
       setStatusMessage("Add a source title before generating.");
       return;
     }
-    setStatusMessage("Creating context for title-only generation...");
-    try {
-      const base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-      const res = await fetch(base64);
-      const blob = await res.blob();
-      const forcedFile = new File([blob], "placeholder_source.png", { type: "image/png" });
 
-      setStatusMessage("Generating draft content from title...");
-      await generateProduct("AI draft generated from title successfully.", forcedFile);
-    } catch (err) {
-      console.error(err);
-      setStatusMessage("Failed to generate dummy image context.");
+    if (!selectedImage) {
+      setStatusMessage("Upload a product image before generating text-only content.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("title", sourceTitle.trim());
+    formData.append("image", selectedImage);
+
+    setIsGenerating(true);
+    try {
+      const response = await fetch("/api/product-ai/products/generate/text", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Text-only generation failed.");
+      }
+
+      const record = (await response.json()) as ApiRecord;
+      setShopifyProductId(null);
+      clearPublishTargetAnalysis();
+      applyRecord(record, "AI text draft generated and ready for marketplace images.");
+      clearSelectedImageSelection();
+      router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Text-only generation failed.");
+    } finally {
+      setIsGenerating(false);
     }
   }
 
   async function generateMarketplaceDraft(
     market: MarketKey,
-    successMessage = `${marketLabels[market]} image generated and the new product draft is ready.`,
+    successMessage = `${marketLabels[market]} content and image generated and the new product draft is ready.`,
   ) {
     if (!selectedImage) {
       setStatusMessage("Upload a product image before generating.");
@@ -2941,7 +3075,7 @@ export default function AddProductEditor({
 
       if (!response.ok) {
         const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} image.`);
+        throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} content and image.`);
       }
 
       const record = (await response.json()) as ApiRecord;
@@ -2952,11 +3086,66 @@ export default function AddProductEditor({
       router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
       return true;
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} image.`);
+      setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} content and image.`);
       return false;
     } finally {
       setMarketImageGenerating((prev) => ({ ...prev, [market]: false }));
     }
+  }
+
+  async function generateMarketplaceSectionsInParallel(
+    requestedProductId: string,
+    markets: MarketKey[],
+    successMessage = "All marketplace content and image generations complete.",
+  ) {
+    const uniqueMarkets = Array.from(new Set(markets));
+    if (uniqueMarkets.length === 0) {
+      return true;
+    }
+
+    setStatusMessage("Generating marketplace sections in parallel...");
+    setMarketImageGenerating((prev) => {
+      const next = { ...prev };
+      for (const market of uniqueMarkets) {
+        next[market] = true;
+      }
+      return next;
+    });
+
+    const results = await Promise.allSettled(
+      uniqueMarkets.map(async (market) => {
+        const response = await fetch(`/api/product-ai/products/${requestedProductId}/marketplaces/${market}/generate`, {
+          method: "POST",
+        });
+
+        if (!response.ok) {
+          const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} content and image.`);
+        }
+
+        const record = (await response.json()) as ApiRecord;
+        applyRecord(record, `${marketLabels[market]} content and image generated.`);
+        return market;
+      }),
+    );
+
+    setMarketImageGenerating((prev) => {
+      const next = { ...prev };
+      for (const market of uniqueMarkets) {
+        next[market] = false;
+      }
+      return next;
+    });
+
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failures.length > 0) {
+      const failure = failures[0]?.reason;
+      setStatusMessage(failure instanceof Error ? failure.message : "Some marketplace images could not be generated.");
+      return false;
+    }
+
+    setStatusMessage(successMessage);
+    return true;
   }
 
   async function saveDraft(updatedImages?: ApiGeneratedImages) {
@@ -3420,10 +3609,26 @@ export default function AddProductEditor({
       setStatusMessage("Please generate the product draft with AI first.");
       return;
     }
-    const marketsToGen: MarketKey[] = ["amazon", "ebay", "etsy", "tiktok", "shopify"];
-    setStatusMessage("Generating images for all marketplaces in parallel...");
-    await Promise.all(marketsToGen.map((m) => regenerateMarketplaceImage(m)));
-    setStatusMessage("All marketplace image generations complete.");
+    if (!hasSourceImage) {
+      if (!selectedImage) {
+        setStatusMessage("Upload a source image first, then generate marketplace images.");
+        return;
+      }
+
+      const uploadSucceeded = await uploadSelectedSourceImage(
+        selectedImage,
+        "Source image uploaded. Marketplace sections are now generating in parallel...",
+      );
+      if (!uploadSucceeded) {
+        return;
+      }
+    }
+
+    await generateMarketplaceSectionsInParallel(
+      productId,
+      ["amazon", "ebay", "etsy", "tiktok", "shopify"],
+      "All marketplace content and image generations complete.",
+    );
   }
 
   async function clearMarketplaceImage(key: ImageCardKey) {
@@ -3569,13 +3774,13 @@ export default function AddProductEditor({
 
     if (!hasSourceImage) {
       if (!selectedImage) {
-        setStatusMessage("Upload a source image first, then generate the marketplace image you want.");
+        setStatusMessage("Upload a source image first, then generate the marketplace content and image you want.");
         return;
       }
 
       const uploadSucceeded = await uploadSelectedSourceImage(
         selectedImage,
-        `Source image uploaded. Generating the ${marketLabels[market]} image now...`,
+        `Source image uploaded. Generating the ${marketLabels[market]} content and image now...`,
       );
 
       if (!uploadSucceeded) {
@@ -3585,28 +3790,38 @@ export default function AddProductEditor({
 
     setMarketImageGenerating((prev) => ({ ...prev, [market]: true }));
     try {
-      const response = await fetch(`/api/product-ai/products/${productId}/marketplaces/${market}/regenerate`, {
+      const response = await fetch(`/api/product-ai/products/${productId}/marketplaces/${market}/generate`, {
         method: "POST",
       });
 
       if (!response.ok) {
         const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} image.`);
+        throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} content and image.`);
       }
 
       const record = (await response.json()) as ApiRecord;
       applyRecord(
         record,
-        `${marketLabels[market]} image generated for the selected marketplace.`,
+        `${marketLabels[market]} content and image generated for the selected marketplace.`,
       );
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} image.`);
+      setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} content and image.`);
     } finally {
       setMarketImageGenerating((prev) => ({ ...prev, [market]: false }));
     }
   }
 
   const currentVariants = variantsByMarket[activeMarket] ?? [];
+
+  const isStatusError =
+    publishFieldErrors.title ||
+    publishFieldErrors.price ||
+    statusMessage.toLowerCase().includes("please fill") ||
+    statusMessage.toLowerCase().includes("required before") ||
+    statusMessage.toLowerCase().includes("must be") ||
+    statusMessage.toLowerCase().includes("missing") ||
+    statusMessage.toLowerCase().includes("failed") ||
+    statusMessage.toLowerCase().includes("could not");
 
   return (
     <section className="px-4 pt-1 pb-5 md:px-8 md:pt-4 md:pb-8">
@@ -3649,8 +3864,13 @@ export default function AddProductEditor({
               </div>
 
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-[#1b325f]/50 px-3 py-1 text-xs font-medium text-[#7adfff] border border-[#3059a4]/50">
-                  {statusMessage}
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-all duration-300 ${
+                  isStatusError 
+                    ? "bg-[#ef4444]/10 text-[#fca5a5] border-[#ef4444]/40 shadow-[0_0_12px_rgba(239,68,68,0.2)] animate-pulse" 
+                    : "bg-[#1b325f]/50 text-[#7adfff] border-[#3059a4]/50"
+                }`}>
+                  {isStatusError && <CircleAlert className="h-3.5 w-3.5 text-[#ef4444] shrink-0" />}
+                  <span>{statusMessage}</span>
                 </span>
               </div>
             </div>
@@ -3772,7 +3992,7 @@ export default function AddProductEditor({
                 <button
                   type="button"
                   disabled={isGenerating || !sourceTitle.trim()}
-                  onClick={() => void generateWithoutImage()}
+                  onClick={() => void generateTextOnly()}
                   className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-[#172544] to-[#263c70] px-3.5 text-xs font-bold text-white shadow-xs hover:opacity-90 active:scale-98 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                 >
                   {isGenerating ? (
@@ -4274,15 +4494,27 @@ export default function AddProductEditor({
                     </div>
 
                     {/* Card 5: Pricing */}
-                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                    <div className={`rounded-2xl border p-5 shadow-xs transition-colors duration-300 ${
+                      publishFieldErrors.price 
+                        ? "border-[#ef6b6b] bg-[#fff5f5]" 
+                        : "border-[#dbe2ee] bg-white"
+                    }`}>
                       <h3 className="text-sm font-bold text-[#1f2c44] mb-3">Pricing</h3>
                       
                       <div className="space-y-4">
                         {/* Primary Price Field */}
-                        <div className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 max-w-xs transition focus-within:border-[#2b7cf5] focus-within:bg-white">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1">Price</span>
+                        <div className={`flex flex-col rounded-xl border p-3 max-w-xs transition-all focus-within:bg-white ${
+                          publishFieldErrors.price 
+                            ? "border-[#ef6b6b] bg-[#fffcfc] focus-within:border-[#ef6b6b]" 
+                            : "border-[#dbe2ee] bg-[#f8fbff] focus-within:border-[#2b7cf5]"
+                        }`}>
+                          <span className={`text-[11px] font-bold uppercase tracking-wider mb-1 transition-colors ${
+                            publishFieldErrors.price ? "text-[#cf4b4b]" : "text-[#8093b2]"
+                          }`}>Price</span>
                           <div className="flex items-center">
-                            <span className="text-xs font-semibold text-[#8ea0bf] select-none mr-1.5">£</span>
+                            <span className={`text-xs font-semibold select-none mr-1.5 transition-colors ${
+                              publishFieldErrors.price ? "text-[#cf4b4b]" : "text-[#8ea0bf]"
+                            }`}>£</span>
                             <input
                               type="text"
                               value={publishPrice}
@@ -4290,11 +4522,19 @@ export default function AddProductEditor({
                                 const val = e.target.value.replace(/[^0-9.]/g, "");
                                 updatePublishPrice(val);
                               }}
-                              className="w-full bg-transparent text-xs text-[#31415e] font-semibold outline-none border-0"
+                              className={`w-full bg-transparent text-xs font-semibold outline-none border-0 transition-colors ${
+                                publishFieldErrors.price ? "text-[#cf4b4b] placeholder-[#fca5a5]" : "text-[#31415e] placeholder:text-[#aab8d6]"
+                              }`}
                               placeholder="0.00"
                             />
                           </div>
                         </div>
+                        {publishFieldErrors.price ? (
+                          <p className="text-xs text-[#cf4b4b] font-semibold flex items-center gap-1 animate-pulse">
+                            <CircleAlert className="h-3.5 w-3.5 text-[#cf4b4b] shrink-0" />
+                            Please fill the required publish fields: Default price.
+                          </p>
+                        ) : null}
 
                         {/* Interactive Pill Buttons */}
                         <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -5678,10 +5918,15 @@ export default function AddProductEditor({
                       }}
                       value={publishSku}
                     />
-                    <div className={`block rounded-2xl border bg-[#f8fbff] p-3 ${publishFieldErrors.price ? "border-[#ef6b6b] bg-[#fff7f7]" : "border-[#dbe2ee]"}`}>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Default Price</p>
-                      {publishFieldErrors.price ? <p className="mt-1 text-xs text-[#cf4b4b]">Required for Shopify publish.</p> : null}
-                      <div className={`mt-2 flex h-9 w-full items-center rounded-lg border bg-white overflow-hidden transition-all focus-within:border-[#97abd0] ${publishFieldErrors.price ? "border-[#ef6b6b]" : "border-[#d4ddec]"}`}>
+                    <div className={`block rounded-2xl border p-3 transition-colors duration-300 ${publishFieldErrors.price ? "border-[#ef6b6b] bg-[#fff5f5]" : "border-[#dbe2ee] bg-[#f8fbff]"}`}>
+                      <p className={`text-xs font-semibold uppercase tracking-wide transition-colors ${publishFieldErrors.price ? "text-[#cf4b4b]" : "text-[#8093b2]"}`}>Default Price</p>
+                      {publishFieldErrors.price ? (
+                        <p className="mt-1 text-xs font-semibold text-[#cf4b4b] flex items-center gap-1 animate-pulse">
+                          <CircleAlert className="h-3.5 w-3.5 text-[#cf4b4b] shrink-0" />
+                          Please fill the required publish fields: Default price.
+                        </p>
+                      ) : null}
+                      <div className={`mt-2 flex h-9 w-full items-center rounded-lg border bg-white overflow-hidden transition-all ${publishFieldErrors.price ? "border-[#ef6b6b] focus-within:border-[#ef6b6b]" : "border-[#d4ddec] focus-within:border-[#97abd0]"}`}>
                         {/* Decrement Button */}
                         <button
                           type="button"
@@ -6135,7 +6380,7 @@ export default function AddProductEditor({
                     onClick={() => void uploadToAllShops()}
                     type="button"
                   >
-                    {Object.values(publishSubmitting).some(Boolean) ? (
+                    {isUploadingToAll ? (
                       <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <Sparkles className="h-3.5 w-3.5 text-[#35d3ce]" />
@@ -6475,7 +6720,7 @@ export default function AddProductEditor({
                                 type="button"
                               >
                                 <RefreshCcw className={`h-3.5 w-3.5 ${(isGeneratingThis || (key === "transparent_cutout" && isUploadingSourceImage)) ? "animate-spin" : ""}`} />
-                                {hasPath ? "Regenerate" : "Generate"}
+                                {hasPath ? "Regenerate Image" : "Generate Image"}
                               </button>
                             ) : selectedImage ? (
                               <button

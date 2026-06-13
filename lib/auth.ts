@@ -133,7 +133,7 @@ export const requestWithAuth = async <T>(path: string, init?: RequestInit): Prom
   const response = await fetch(`/api/backend${path.startsWith("/") ? path : `/${path}`}`, {
     ...init,
     credentials: "same-origin",
-    headers: init?.headers,
+    headers: buildDefaultHeaders(init?.headers),
   });
 
   const payload = await parsePayload<T>(response);

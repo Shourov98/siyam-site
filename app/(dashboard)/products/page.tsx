@@ -84,15 +84,8 @@ export default function ProductsPage() {
       return;
     }
 
-    if (!hasLoadedOnce) {
-      void loadPage();
-      return;
-    }
-
-    if (shouldRefresh()) {
-      void loadPage();
-    }
-  }, [hasHydrated, hasLoadedOnce, loadPage, shouldRefresh]);
+    void loadPage(undefined, { refreshShopify: true });
+  }, [hasHydrated, loadPage]);
 
   const showInitialLoading = !hasHydrated || (isLoading && products.length === 0);
   const showRefreshing = isLoading && products.length > 0;
@@ -382,14 +375,12 @@ export default function ProductsPage() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Link>
-                              {product.source === "product_ai" ? (
-                                <Link
-                                  className="text-[#223763] transition hover:text-[#121f39]"
-                                  href={`/products/add?productId=${product.id}`}
-                                >
-                                  <Edit3 className="h-4 w-4" />
-                                </Link>
-                              ) : null}
+                              <Link
+                                className="text-[#223763] transition hover:text-[#121f39]"
+                                href={`/products/add?id=${product.id}&source=${product.source}`}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </Link>
                             </div>
                             <p
                               className={`text-center text-xs ${

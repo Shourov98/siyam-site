@@ -106,12 +106,48 @@ function buildInventoryLocationMap(levels: ShopifyInventoryLevel[]) {
   );
 }
 
+function buildInventoryQuantityByItemId(levels: ShopifyInventoryLevel[]) {
+  const totals = new Map<string, number>();
+
+  for (const level of levels) {
+    if (!level.inventoryItemId) {
+      continue;
+    }
+
+    totals.set(level.inventoryItemId, (totals.get(level.inventoryItemId) ?? 0) + Math.max(level.quantity, 0));
+  }
+
+  return totals;
+}
+
+function buildInventoryQuantityByProductId(levels: ShopifyInventoryLevel[]) {
+  const totals = new Map<string, number>();
+
+  for (const level of levels) {
+    if (!level.productId) {
+      continue;
+    }
+
+    totals.set(level.productId, (totals.get(level.productId) ?? 0) + Math.max(level.quantity, 0));
+  }
+
+  return totals;
+}
+
 function mapProductRows(products: ProductListItem[], inventoryLevels: ShopifyInventoryLevel[]) {
   const inventoryLocationByItemId = buildInventoryLocationMap(inventoryLevels);
+  const inventoryQuantityByItemId = buildInventoryQuantityByItemId(inventoryLevels);
+  const inventoryQuantityByProductId = buildInventoryQuantityByProductId(inventoryLevels);
 
   return products.map<ProductRow>((product) => {
     const primaryVariant = product.variants[0];
     const inventoryItemId = primaryVariant?.inventoryItemId;
+    const liveStock =
+      (inventoryItemId ? inventoryQuantityByItemId.get(inventoryItemId) : undefined)
+      ?? inventoryQuantityByProductId.get(product.shopifyProductId)
+      ?? primaryVariant?.inventoryQuantity
+      ?? product.totalInventory
+      ?? 0;
 
     return {
       id: getProductDocumentId(product),
@@ -121,7 +157,7 @@ function mapProductRows(products: ProductListItem[], inventoryLevels: ShopifyInv
       vendor: product.vendor ?? "",
       productType: product.productType ?? "",
       status: product.status ?? "DRAFT",
-      stock: primaryVariant?.inventoryQuantity ?? product.totalInventory ?? 0,
+      stock: liveStock,
       featuredImage: product.featuredImage,
       shopifyPrice: primaryVariant?.price ?? "",
       shopifyVariantId: primaryVariant?.shopifyVariantId,
@@ -155,7 +191,7 @@ function mapProductAiRows(products: ProductAiListItem[]) {
 function sortProductRows(rows: ProductRow[]) {
   return [...rows].sort((left, right) => {
     if (left.source !== right.source) {
-      return left.source === "product_ai" ? -1 : 1;
+      return left.source === "shopify" ? -1 : 1;
     }
 
     const leftTime = Date.parse(left.updatedAt ?? left.createdAt ?? "");

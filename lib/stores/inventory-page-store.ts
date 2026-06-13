@@ -73,6 +73,24 @@ function getInventoryKey(inventoryItemId: string, locationId?: string | null) {
   return `${inventoryItemId}:${locationId ?? ""}`;
 }
 
+function getTimestampValue(value?: string) {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getShopifyNumericId(value?: string) {
+  if (!value) {
+    return 0;
+  }
+
+  const match = value.match(/(\d+)(?!.*\d)/);
+  return match ? Number(match[1]) : 0;
+}
+
 function mapInventoryRows(inventory: InventoryRecord[], products: ProductListItem[], liveLevels: ShopifyInventoryLevel[]) {
   const productByShopifyId = new Map(products.map((product) => [product.shopifyProductId, product]));
   const liveByInventoryKey = new Map(liveLevels.map((level) => [getInventoryKey(level.inventoryItemId, level.locationId), level]));
@@ -80,7 +98,7 @@ function mapInventoryRows(inventory: InventoryRecord[], products: ProductListIte
   const inventoryByKey = new Map(activeInventory.map((record) => [getInventoryKey(record.inventoryItemId, record.locationId), record]));
 
   if (liveLevels.length > 0) {
-    return liveLevels.map<InventoryRow>((level) => {
+    const rows = liveLevels.map((level) => {
       const key = getInventoryKey(level.inventoryItemId, level.locationId);
       const record = inventoryByKey.get(key);
       const product = productByShopifyId.get(level.productId) ?? (record?.shopifyProductId ? productByShopifyId.get(record.shopifyProductId) : undefined);
@@ -105,11 +123,23 @@ function mapInventoryRows(inventory: InventoryRecord[], products: ProductListIte
         available,
         safetyBuffer,
         lowStockThreshold,
+        sortUpdatedAt: Math.max(getTimestampValue(product?.updatedAt), getTimestampValue(record?.updatedAt)),
+        sortShopifyId: getShopifyNumericId(record?.shopifyProductId ?? level.productId),
       };
     });
+
+    rows.sort((a, b) => {
+      if (b.sortUpdatedAt !== a.sortUpdatedAt) {
+        return b.sortUpdatedAt - a.sortUpdatedAt;
+      }
+
+      return b.sortShopifyId - a.sortShopifyId;
+    });
+
+    return rows.map(({ sortUpdatedAt: _sortUpdatedAt, sortShopifyId: _sortShopifyId, ...row }) => row);
   }
 
-  return activeInventory.map<InventoryRow>((record) => {
+  const rows = activeInventory.map((record) => {
     const product = record.shopifyProductId ? productByShopifyId.get(record.shopifyProductId) : undefined;
     const liveLevel = liveByInventoryKey.get(getInventoryKey(record.inventoryItemId, record.locationId));
     const masterCount = clampNonNegative(liveLevel?.quantity ?? record.shopifyQuantity ?? 0);
@@ -131,8 +161,20 @@ function mapInventoryRows(inventory: InventoryRecord[], products: ProductListIte
       available,
       safetyBuffer,
       lowStockThreshold,
+      sortUpdatedAt: Math.max(getTimestampValue(product?.updatedAt), getTimestampValue(record.updatedAt)),
+      sortShopifyId: getShopifyNumericId(record.shopifyProductId ?? product?.shopifyProductId),
     };
   });
+
+  rows.sort((a, b) => {
+    if (b.sortUpdatedAt !== a.sortUpdatedAt) {
+      return b.sortUpdatedAt - a.sortUpdatedAt;
+    }
+
+    return b.sortShopifyId - a.sortShopifyId;
+  });
+
+  return rows.map(({ sortUpdatedAt: _sortUpdatedAt, sortShopifyId: _sortShopifyId, ...row }) => row);
 }
 
 async function fetchInventoryData() {
