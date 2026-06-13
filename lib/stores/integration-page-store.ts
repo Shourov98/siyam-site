@@ -321,6 +321,34 @@ export const useIntegrationPageStore = create<IntegrationPageState>()(
     }),
     {
       name: "commandctr-integration-page",
+      version: 2,
+      migrate: (persistedState) => {
+        const state = persistedState as Partial<IntegrationPageState> | undefined;
+        const persistedShopifyState = state?.shopifyState as Partial<ShopifyState> | undefined;
+
+        return {
+          ...state,
+          shopifyState: {
+            ...initialShopifyState,
+            ...persistedShopifyState,
+            scopes: Array.isArray(persistedShopifyState?.scopes) ? persistedShopifyState.scopes : [],
+          },
+        } as IntegrationPageState;
+      },
+      merge: (persistedState, currentState) => {
+        const state = persistedState as Partial<IntegrationPageState> | undefined;
+        const persistedShopifyState = state?.shopifyState as Partial<ShopifyState> | undefined;
+
+        return {
+          ...currentState,
+          ...state,
+          shopifyState: {
+            ...currentState.shopifyState,
+            ...persistedShopifyState,
+            scopes: Array.isArray(persistedShopifyState?.scopes) ? persistedShopifyState.scopes : currentState.shopifyState.scopes,
+          },
+        };
+      },
       partialize: (state) => ({
         banner: state.banner,
         shopifyState: state.shopifyState,

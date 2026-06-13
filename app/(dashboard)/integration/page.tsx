@@ -30,21 +30,18 @@ const TikTokIcon = ({ className }: { className?: string }) => (
 );
 
 const EbayIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg">
-    <text x="50" y="29" textAnchor="middle" fontSize="30" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="bold" letterSpacing="-2.5">
-      <tspan fill="#e53238">e</tspan>
-      <tspan fill="#0064d2" dy="-2">b</tspan>
-      <tspan fill="#f5af02" dy="2">a</tspan>
-      <tspan fill="#86b817" dy="-1">y</tspan>
-    </text>
+  <svg className={className} viewBox="2.5 9 21.5 9" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 14.5c0 1.2.8 1.8 1.8 1.8.6 0 1.2-.2 1.6-.5l.4.8c-.6.4-1.4.7-2.2.7-1.8 0-3-1-3-3 0-2 1.2-3 2.8-3 1.8 0 2.4 1.3 2.4 2.7v.5H6zm2.2-.8c0-.9-.4-1.4-1.2-1.4-.8 0-1.3.5-1.4 1.4h2.6z" fill="#e53238" />
+    <path d="M12 9.5v2.8c-.4-.5-1-.8-1.7-.8-1.5 0-2.5 1.1-2.5 2.8s1 2.8 2.5 2.8c.7 0 1.3-.3 1.7-.8v.7h1.2V9.5H12zm-.2 4.7c0 1-.6 1.6-1.3 1.6-.8 0-1.3-.6-1.3-1.6s.5-1.6 1.3-1.6c.7 0 1.3.6 1.3 1.6z" fill="#0064d2" />
+    <path d="M18 12.8c-.4-.7-1.1-1-1.9-1-1.4 0-2.4 1-2.4 2.5s1 2.5 2.4 2.5c.8 0 1.5-.3 1.9-1v1h1.2v-4.5h-1.2v.5zm-.2 1.8c0 .8-.5 1.3-1.2 1.3-.7 0-1.2-.5-1.2-1.3s.5-1.3 1.2-1.3c.7 0 1.2.5 1.2 1.3z" fill="#f5af02" />
+    <path d="M22 11.5l-1.6 4-1.2-4h-1.3l2 5.5-1.5 3.5h1.3L23.3 11.5H22z" fill="#86b817" />
   </svg>
 );
 
 const EtsyIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg">
-    <text x="50" y="29" textAnchor="middle" fontSize="28" fontFamily="Georgia, serif" fontStyle="italic" fontWeight="bold" fill="#F1641E" letterSpacing="-1.5">
-      Etsy
-    </text>
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="24" height="24" rx="6" fill="#F1641E" />
+    <path d="M7 6h10v3h-2.5v-1H10.5v3.5h4v2h-4v4h4.5v-1H17v3.5H7V6z" fill="#FFFFFF" />
   </svg>
 );
 
@@ -268,7 +265,7 @@ export default function IntegrationPage() {
         title: "eBay",
         subtitle: "Global Retail",
         description: "Connect your eBay seller account to prepare for future marketplace workflows in CommandCtr.",
-        icon: <EbayIcon className="h-6 w-16" />,
+        icon: <EbayIcon className="h-5 w-12" />,
         themeBg: "bg-[#0064d2]",
         badgeText: ebayState.connected ? "CONNECTED" : null,
         interactive: true,
@@ -278,7 +275,7 @@ export default function IntegrationPage() {
         title: "Etsy",
         subtitle: "Handmade & Vintage",
         description: "Connect your Etsy shop to sync and manage your listings and handmade inventory in CommandCtr.",
-        icon: <EtsyIcon className="h-6 w-16" />,
+        icon: <EtsyIcon className="h-7 w-7" />,
         themeBg: "bg-[#F1641E]",
         badgeText: etsyState.connected ? "CONNECTED" : null,
         interactive: true,
@@ -297,9 +294,22 @@ export default function IntegrationPage() {
     [ebayState.connected, etsyState.connected, shopifyState.connected],
   );
 
+  const shopifyScopes = Array.isArray(shopifyState.scopes) ? shopifyState.scopes : [];
+  const hasEffectiveShopifyScope = (scope: string) => {
+    if (shopifyScopes.includes(scope)) {
+      return true;
+    }
+
+    if (scope.startsWith("read_")) {
+      return shopifyScopes.includes(`write_${scope.slice("read_".length)}`);
+    }
+
+    return false;
+  };
+
   const shopifyMissingScopes = useMemo(
-    () => ["read_publications", "write_publications"].filter((scope) => !shopifyState.scopes.includes(scope)),
-    [shopifyState.scopes],
+    () => ["read_publications", "write_publications"].filter((scope) => !hasEffectiveShopifyScope(scope)),
+    [shopifyScopes],
   );
 
   const renderCollapsedFooter = (platformId: string) => {

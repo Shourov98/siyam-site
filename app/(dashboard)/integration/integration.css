@@ -42,7 +42,7 @@
   .channel-deck {
     flex-direction: row;
     align-items: stretch;
-    height: 470px; /* Increased height to prevent layout overflow */
+    min-height: 470px; /* Use min-height so cards can expand to fit their full content */
   }
 }
 
