@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Loader2, PackageCheck, Phone, Receipt, SendHorizontal, Truck } from "lucide-react";
+import { FileText, Loader2, PackageCheck, Phone, Receipt, SendHorizontal, Truck, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -53,6 +53,15 @@ function getPlatformLabel(marketplace?: string) {
   return `${marketplace.charAt(0).toUpperCase()}${marketplace.slice(1)} Marketplace`;
 }
 
+const CANCEL_REASONS = [
+  { label: "Customer request", value: "CUSTOMER" },
+  { label: "Inventory issue", value: "INVENTORY" },
+  { label: "Payment declined", value: "DECLINED" },
+  { label: "Fraud risk", value: "FRAUD" },
+  { label: "Staff error", value: "STAFF" },
+  { label: "Other", value: "OTHER" },
+] as const;
+
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -61,6 +70,12 @@ export default function OrderDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [note, setNote] = useState("");
   const [pageMessage, setPageMessage] = useState("");
+  const [isCancelOpen, setIsCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState<(typeof CANCEL_REASONS)[number]["value"]>("CUSTOMER");
+  const [cancelRestock, setCancelRestock] = useState(true);
+  const [cancelRefund, setCancelRefund] = useState(true);
+  const [cancelNotifyCustomer, setCancelNotifyCustomer] = useState(false);
+  const [cancelStaffNote, setCancelStaffNote] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -93,6 +108,8 @@ export default function OrderDetailPage() {
   const customerName = order?.customerName || order?.email || "Customer";
   const shippingLines = formatAddress(order?.shippingAddress);
   const billingLines = formatAddress(order?.billingAddress);
+  const canCancelOrder = order?.status === "Pending";
+  const canMarkAsShipped = order?.status === "Pending";
 
   const handleCancelOrder = async () => {
     if (!order) {
@@ -103,9 +120,17 @@ export default function OrderDetailPage() {
     setPageMessage("");
 
     try {
-      const updatedOrder = await ordersApi.updateOrderStatus(id, { status: "Cancelled" });
+      const updatedOrder = await ordersApi.updateOrderStatus(id, {
+        status: "Cancelled",
+        cancelReason,
+        restock: cancelRestock,
+        refund: cancelRefund,
+        notifyCustomer: cancelNotifyCustomer,
+        staffNote: cancelStaffNote.trim() || undefined,
+      });
       setOrder(updatedOrder);
-      setPageMessage("Order status updated.");
+      setIsCancelOpen(false);
+      setPageMessage("Order cancelled successfully.");
     } catch (error) {
       setPageMessage(error instanceof ApiClientError ? error.message : "Could not cancel order.");
     } finally {
@@ -176,6 +201,7 @@ export default function OrderDetailPage() {
                     <button
                       className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-[#7d8fb5] text-sm font-semibold text-[#dce6ff]"
                       type="button"
+                      onClick={() => window.open(`/orders/${id}/invoice`, "_blank", "noopener,noreferrer")}
                     >
                       <Receipt className="h-4 w-4" />
                       Invoice
@@ -183,6 +209,7 @@ export default function OrderDetailPage() {
                     <button
                       className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-[#7d8fb5] text-sm font-semibold text-[#dce6ff]"
                       type="button"
+                      onClick={() => window.open(`/orders/${id}/slip`, "_blank", "noopener,noreferrer")}
                     >
                       <FileText className="h-4 w-4" />
                       Slip
@@ -192,16 +219,20 @@ export default function OrderDetailPage() {
                   <div className="flex gap-2">
                     <button
                       className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-[#ef4a89] disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={isSaving}
-                      onClick={() => void handleCancelOrder()}
+                      disabled={isSaving || !canCancelOrder}
+                      onClick={() => setIsCancelOpen(true)}
                       type="button"
+                      title={canCancelOrder ? "Cancel this order" : "Only pending orders can be cancelled from here"}
                     >
                       <span className="text-base">⊗</span>
                       Cancel Order
                     </button>
                     <Link
-                      className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-[#35d3ce] px-4 text-sm font-semibold text-white"
-                      href={`/orders/${id}/shipping-label`}
+                      aria-disabled={!canMarkAsShipped}
+                      className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white ${
+                        canMarkAsShipped ? "bg-[#35d3ce]" : "pointer-events-none bg-[#7ac8c5]/55"
+                      }`}
+                      href={canMarkAsShipped ? `/orders/${id}/shipping-label` : "#"}
                     >
                       <PackageCheck className="h-4 w-4" />
                       Mark as Shipped
@@ -225,10 +256,14 @@ export default function OrderDetailPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
                         <div
-                          className={`h-14 w-14 rounded-xl bg-gradient-to-br ${
+                          className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br ${
                             index % 2 === 0 ? "from-[#638a82] to-[#355e58]" : "from-[#f3d2ae] to-[#cbac86]"
                           }`}
-                        />
+                        >
+                          {item.imageUrl ? (
+                            <img alt={item.title || "Order item"} className="h-full w-full object-cover" src={item.imageUrl} />
+                          ) : null}
+                        </div>
                         <div>
                           <p className="font-semibold text-[#2b3b57]">{item.title || "Untitled item"}</p>
                           <p className="text-xs text-[#8ca0bf]">SKU: {item.sku || "--"}</p>
@@ -355,6 +390,80 @@ export default function OrderDetailPage() {
           </>
         )}
       </div>
+
+      {isCancelOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0b162d]/55 p-4 sm:items-center">
+          <article className="w-full max-w-2xl overflow-hidden rounded-xl border border-[#34466d] bg-[#1b2748] text-white shadow-[0_30px_80px_-35px_rgba(17,31,56,0.9)]">
+            <header className="flex items-center justify-between border-b border-[#445982] px-5 py-4">
+              <div>
+                <h3 className="text-2xl font-semibold">Cancel order</h3>
+                <p className="mt-1 text-sm text-[#b8c5de]">Matches the Shopify admin flow with refund, restock, and customer notification options.</p>
+              </div>
+              <button className="text-[#9fb1cf]" onClick={() => setIsCancelOpen(false)} type="button">
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+
+            <div className="space-y-4 px-5 py-4">
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-[#b9c6df]">Cancellation reason</label>
+                <select
+                  className="h-12 w-full rounded-xl border border-[#d6dce9] bg-white px-4 text-base text-[#243251] outline-none"
+                  onChange={(event) => setCancelReason(event.target.value as (typeof CANCEL_REASONS)[number]["value"])}
+                  value={cancelReason}
+                >
+                  {CANCEL_REASONS.map((reason) => (
+                    <option key={reason.value} value={reason.value}>
+                      {reason.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <label className="flex items-start gap-3 rounded-xl bg-[#243251] px-4 py-3 text-sm text-[#d7e2f6]">
+                <input checked={cancelRefund} className="mt-1 h-4 w-4" onChange={(event) => setCancelRefund(event.target.checked)} type="checkbox" />
+                <span>Refund customer to the original payment method when Shopify allows it.</span>
+              </label>
+
+              <label className="flex items-start gap-3 rounded-xl bg-[#243251] px-4 py-3 text-sm text-[#d7e2f6]">
+                <input checked={cancelRestock} className="mt-1 h-4 w-4" onChange={(event) => setCancelRestock(event.target.checked)} type="checkbox" />
+                <span>Restock committed inventory back into available stock.</span>
+              </label>
+
+              <label className="flex items-start gap-3 rounded-xl bg-[#243251] px-4 py-3 text-sm text-[#d7e2f6]">
+                <input checked={cancelNotifyCustomer} className="mt-1 h-4 w-4" onChange={(event) => setCancelNotifyCustomer(event.target.checked)} type="checkbox" />
+                <span>Send cancellation notification to the customer.</span>
+              </label>
+
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-[#b9c6df]">Staff note</label>
+                <textarea
+                  className="min-h-24 w-full rounded-xl border border-[#d6dce9] bg-white px-4 py-3 text-sm text-[#243251] outline-none"
+                  maxLength={255}
+                  onChange={(event) => setCancelStaffNote(event.target.value)}
+                  placeholder="Optional internal note for the cancellation timeline"
+                  value={cancelStaffNote}
+                />
+              </div>
+            </div>
+
+            <footer className="flex items-center justify-end gap-3 border-t border-[#445982] px-5 py-4">
+              <button className="px-4 py-2 text-base font-semibold text-[#d5e1fa]" disabled={isSaving} onClick={() => setIsCancelOpen(false)} type="button">
+                Keep order
+              </button>
+              <button
+                className="inline-flex items-center gap-2 rounded-xl bg-[#ef4a89] px-6 py-2 text-base font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSaving}
+                onClick={() => void handleCancelOrder()}
+                type="button"
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Cancel order
+              </button>
+            </footer>
+          </article>
+        </div>
+      ) : null}
     </section>
   );
 }

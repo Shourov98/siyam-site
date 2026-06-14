@@ -9,6 +9,7 @@ export type OrderLineItem = {
   price?: string;
   shopifyVariantId?: string;
   shopifyProductId?: string;
+  imageUrl?: string;
 };
 
 export type OrderAddress = {
@@ -120,6 +121,10 @@ export const ordersApi = {
     trackingUrl?: string;
     labelUrl?: string;
     notifyCustomer?: boolean;
+    cancelReason?: "CUSTOMER" | "DECLINED" | "FRAUD" | "INVENTORY" | "STAFF" | "OTHER";
+    restock?: boolean;
+    refund?: boolean;
+    staffNote?: string;
   }) {
     return requestWithAuth<OrderRecord>(`/orders/${encodeURIComponent(orderId)}/status`, {
       method: "PATCH",
