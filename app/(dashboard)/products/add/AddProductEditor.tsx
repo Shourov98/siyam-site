@@ -240,6 +240,12 @@ type ApiProductPricingSnapshot = {
   markets: ApiMarketplacePricingSnapshot[];
 };
 
+type ApiDynamicPricingQueryResponse = {
+  query: string;
+  generated_at: string;
+  markets: ApiMarketplacePricingSnapshot[];
+};
+
 type MarketActionState = Record<MarketKey, boolean>;
 type PublishTarget = "commandctr" | MarketKey;
 type PublishActionState = Record<PublishTarget, boolean>;
@@ -1859,6 +1865,102 @@ export default function AddProductEditor({
     }
   }
 
+  function syncPublishPriceFromPricing(pricing: ApiProductPricingSnapshot["markets"][number] | null | undefined) {
+    if (!pricing) {
+      return false;
+    }
+
+    const nextRecommendedPrice =
+      typeof pricing.recommended_price === "number"
+        ? pricing.recommended_price
+        : typeof pricing.suggested_price_range?.recommended === "number"
+          ? pricing.suggested_price_range.recommended
+          : null;
+    if (nextRecommendedPrice === null) {
+      return false;
+    }
+
+    updatePublishPrice(nextRecommendedPrice.toFixed(2));
+    return true;
+  }
+
+  function buildQueryPricingText() {
+    const attrs = draft.core.attributes ?? {};
+    const pieces = [
+      draft.core.normalized_title,
+      draft.core.source_title,
+      publishVendor,
+      attrs.brand,
+      attrs.model ?? attrs.model_number,
+      attrs.color,
+      attrs.material,
+      attrs.style,
+      draft.core.product_type,
+      draft.core.category,
+      "price",
+    ];
+
+    return pieces
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .filter((value, index, array) => array.indexOf(value) === index)
+      .join(" ");
+  }
+
+  async function fetchQueryBasedPricing(marketplace: MarketKey) {
+    const queryText = buildQueryPricingText();
+    if (!queryText) {
+      return null;
+    }
+
+    const response = await fetch("/api/product-ai/pricing/query", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        product_name: queryText,
+        marketplace,
+      }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as ApiDynamicPricingQueryResponse;
+    return {
+      product_id: productId ?? "query",
+      generated_at: payload.generated_at,
+      markets: payload.markets,
+    } satisfies ApiProductPricingSnapshot;
+  }
+
+  useEffect(() => {
+    if (!productId || isLoadingProduct || isRefreshingPricing) {
+      return;
+    }
+    if (publishPrice.trim()) {
+      return;
+    }
+    if (pricingSnapshot !== null) {
+      return;
+    }
+
+    void analyzeDynamicPricing();
+  }, [productId, isLoadingProduct, isRefreshingPricing, pricingSnapshot, publishPrice, activeMarket]);
+
+  useEffect(() => {
+    if (isRefreshingPricing || !pricingSnapshot) {
+      return;
+    }
+
+    const activePricing = pricingSnapshot.markets.find((entry) => entry.marketplace === activeMarket) ?? null;
+    if (!syncPublishPriceFromPricing(activePricing)) {
+      return;
+    }
+  }, [activeMarket, pricingSnapshot, isRefreshingPricing]);
+
   function buildComparableDraftSignature(snapshot: SavedDraftSnapshot) {
     return JSON.stringify({
       draft: snapshot.draft,
@@ -3327,14 +3429,27 @@ export default function AddProductEditor({
       setPricingSnapshot(snapshot);
       const activePricing = snapshot.markets.find((entry) => entry.marketplace === activeMarket) ?? snapshot.markets[0];
       if (activePricing) {
-        if (typeof activePricing.recommended_price === "number") {
-          const nextPrice = activePricing.recommended_price.toFixed(2);
-          updatePublishPrice(nextPrice);
+        const synced = syncPublishPriceFromPricing(activePricing);
+        if (synced) {
+          setStatusMessage(activePricing.analysis_summary || `Marketplace pricing refreshed for ${marketLabels[activePricing.marketplace]}.`);
+          return;
         }
-        setStatusMessage(activePricing.analysis_summary || `Marketplace pricing refreshed for ${marketLabels[activePricing.marketplace]}.`);
       } else {
         setStatusMessage("Marketplace pricing refreshed.");
+        return;
       }
+
+      const querySnapshot = await fetchQueryBasedPricing(activeMarket);
+      if (querySnapshot) {
+        setPricingSnapshot(querySnapshot);
+        const queryPricing = querySnapshot.markets.find((entry) => entry.marketplace === activeMarket) ?? querySnapshot.markets[0];
+        if (queryPricing && syncPublishPriceFromPricing(queryPricing)) {
+          setStatusMessage(queryPricing.analysis_summary || `Marketplace pricing refreshed for ${marketLabels[queryPricing.marketplace]}.`);
+          return;
+        }
+      }
+
+      setStatusMessage(activePricing?.analysis_summary || "Marketplace pricing refreshed, but no reliable price was found.");
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Could not load marketplace pricing.");
     } finally {
@@ -6152,7 +6267,15 @@ export default function AddProductEditor({
                   <>
                     {activeMarketPricing ? (
                       <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-                        <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!syncPublishPriceFromPricing(activeMarketPricing)) {
+                              void analyzeDynamicPricing();
+                            }
+                          }}
+                          className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-left transition hover:border-[#b8c9e4] hover:bg-[#f8fbff] cursor-pointer"
+                        >
                           <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">
                             {marketLabels[activeMarketPricing.marketplace]} Dynamic Price
                           </p>
@@ -6162,8 +6285,31 @@ export default function AddProductEditor({
                           <p className="mt-3 text-xs text-[#8ea0bf]">
                             {activeMarketPricing.market_signal || "Marketplace signal available after pricing refresh."}
                           </p>
-                        </div>
-                        <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3">
+                          {activeMarketPricing.similar_listings.length ? (
+                            <div className="mt-3 space-y-2">
+                              {activeMarketPricing.similar_listings.slice(0, 4).map((listing, index) => (
+                                <div key={`${listing.source}-${listing.title}-${index}`} className="rounded-xl border border-[#edf2fb] bg-[#f8fbff] px-3 py-2">
+                                  <p className="text-xs font-semibold text-[#31415e]">
+                                    {listing.source}: {listing.title}
+                                  </p>
+                                  <p className="mt-1 text-[11px] text-[#6f82a3]">
+                                    {typeof listing.price === "number" ? formatPriceValue(listing.price) : "Price unavailable"}
+                                    {listing.url ? ` • ${listing.url}` : ""}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!syncPublishPriceFromPricing(activeMarketPricing)) {
+                              void analyzeDynamicPricing();
+                            }
+                          }}
+                          className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-left transition hover:border-[#b8c9e4] hover:bg-[#f8fbff] cursor-pointer"
+                        >
                           <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">Range</p>
                           {activeMarketPricing.suggested_price_range ? (
                             <>
@@ -6184,7 +6330,7 @@ export default function AddProductEditor({
                             Source: {getPricingModeLabel(activeMarketPricing.source_mode)}
                             {activeMarketPricing.comparable_count ? ` • ${activeMarketPricing.comparable_count} comparable listings` : ""}
                           </p>
-                        </div>
+                        </button>
                       </div>
                     ) : null}
                   </>

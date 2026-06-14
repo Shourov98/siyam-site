@@ -2,6 +2,8 @@ import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 
+import { getSessionFromCookies, setCookiesOnResponse } from "@/lib/server/auth-session";
+
 const DEFAULT_BACKEND_BASE_URL = "http://127.0.0.1:8000/api";
 const DEFAULT_PROXY_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -17,6 +19,11 @@ function getProxyTimeoutMs() {
 }
 
 async function forwardRequest(request: NextRequest, pathSegments: string[]) {
+  const session = await getSessionFromCookies();
+  if (!session.user || !session.accessToken) {
+    return NextResponse.json({ detail: "Authorization token is required." }, { status: 401 });
+  }
+
   const backendBaseUrl = getBackendBaseUrl();
   const upstreamUrl = new URL(`${backendBaseUrl.replace(/\/$/, "")}/${pathSegments.join("/")}`);
   const timeoutMs = getProxyTimeoutMs();
@@ -29,6 +36,7 @@ async function forwardRequest(request: NextRequest, pathSegments: string[]) {
   headers.delete("host");
   headers.delete("connection");
   headers.delete("content-length");
+  headers.set("Authorization", `Bearer ${session.accessToken}`);
 
   const init: RequestInit = {
     method: request.method,
@@ -68,11 +76,17 @@ async function forwardRequest(request: NextRequest, pathSegments: string[]) {
   responseHeaders.delete("content-length");
   responseHeaders.delete("transfer-encoding");
 
-  return new Response(upstreamResponse.body, {
+  const response = new NextResponse(upstreamResponse.body, {
     status: upstreamResponse.status,
     statusText: upstreamResponse.statusText,
     headers: responseHeaders,
   });
+
+  if (session.refreshed) {
+    setCookiesOnResponse(response, { accessToken: session.accessToken });
+  }
+
+  return response;
 }
 
 type RouteContext = {
