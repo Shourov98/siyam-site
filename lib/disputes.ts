@@ -62,6 +62,39 @@ export type DisputeDetailResponse = {
   } | null;
 };
 
+export type ImportShopifyDisputesResponse =
+  | {
+      success: false;
+      reason: "missing_scope";
+      requiredScope: "read_shopify_payments_disputes";
+      count: 0;
+      message: string;
+    }
+  | {
+      success: false;
+      reason: "shopify_api_error";
+      count: 0;
+      message: string;
+      details: {
+        provider: "shopify";
+        operation: "disputes";
+        statusCode?: number;
+        errorMessage?: string;
+      };
+    }
+  | {
+      success: true;
+      reason: "no_disputes";
+      count: 0;
+      message: string;
+    }
+  | {
+      success: true;
+      reason: "imported";
+      count: number;
+      message: string;
+    };
+
 export type DisputeListParams = {
   status?: DisputeStatus;
   search?: string;
@@ -99,7 +132,7 @@ export const disputesApi = {
   },
 
   importShopifyDisputes() {
-    return requestWithAuth<{ count: number; warning?: string }>("/shopify/import-disputes", {
+    return requestWithAuth<ImportShopifyDisputesResponse>("/shopify/import-disputes", {
       method: "POST",
     });
   },

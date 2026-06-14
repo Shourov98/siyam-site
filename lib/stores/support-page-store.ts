@@ -107,12 +107,15 @@ export const useSupportPageStore = create<SupportPageState>()(
 
         try {
           const result = await disputesApi.importShopifyDisputes();
-          if (result.warning) {
-            set({ notice: "Shopify dispute data may require additional Shopify Payments permissions. Reconnect Shopify after scopes are added." });
-          } else if (result.count === 0) {
-            set({ notice: "No Shopify disputes found" });
+
+          if (result.reason === "missing_scope") {
+            set({ notice: "Reconnect Shopify with dispute permissions to import Shopify Payments disputes.", error: null });
+          } else if (result.reason === "shopify_api_error") {
+            set({ error: result.message, notice: null });
+          } else if (result.reason === "no_disputes") {
+            set({ notice: result.message, error: null });
           } else {
-            set({ notice: "Disputes refreshed" });
+            set({ notice: "Disputes refreshed", error: null });
           }
 
           await get().loadDisputes();
