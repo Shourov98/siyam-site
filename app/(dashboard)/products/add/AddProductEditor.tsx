@@ -3979,6 +3979,59 @@ export default function AddProductEditor({
     statusMessage.toLowerCase().includes("failed") ||
     statusMessage.toLowerCase().includes("could not");
 
+  function getDisplayStatusMessage(message: string) {
+    const normalized = message.trim();
+    const lower = normalized.toLowerCase();
+
+    if (!normalized) {
+      return "Ready.";
+    }
+
+    if (
+      lower.includes("dynamic pricing") ||
+      lower.includes("default price around") ||
+      lower.includes("pricing refreshed") ||
+      lower.includes("pricing ready") ||
+      lower.includes("recommends a default price")
+    ) {
+      return "Dynamic pricing ready.";
+    }
+
+    if (lower.includes("ai draft generated")) {
+      return "AI draft ready.";
+    }
+
+    if (lower.includes("text draft generated")) {
+      return "AI text draft ready.";
+    }
+
+    if (lower.includes("generating marketplace sections in parallel")) {
+      return "Generating marketplace sections...";
+    }
+
+    if (lower.includes("all marketplace content and image generations complete")) {
+      return "All marketplace sections ready.";
+    }
+
+    if (lower.includes("content and image generated")) {
+      const market = Object.entries(marketLabels).find(([, label]) => lower.includes(label.toLowerCase()))?.[1];
+      return market ? `${market} content ready.` : "Marketplace content ready.";
+    }
+
+    if (lower.includes("product data optimized")) {
+      const market = Object.entries(marketLabels).find(([, label]) => lower.includes(label.toLowerCase()))?.[1];
+      return market ? `${market} optimization complete.` : "Marketplace optimization complete.";
+    }
+
+    if (lower.includes("source image uploaded")) {
+      return "Source image ready.";
+    }
+
+    return normalized;
+  }
+
+  const displayStatusMessage = isStatusError ? statusMessage : getDisplayStatusMessage(statusMessage);
+
   return (
     <section className="px-4 pt-1 pb-5 md:px-8 md:pt-4 md:pb-8">
       <input
@@ -4020,13 +4073,16 @@ export default function AddProductEditor({
               </div>
 
               <div className="flex items-center gap-3">
-                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-all duration-300 ${
+                <span
+                  title={statusMessage}
+                  className={`inline-flex max-w-[340px] items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-all duration-300 ${
                   isStatusError 
                     ? "bg-[#ef4444]/10 text-[#fca5a5] border-[#ef4444]/40 shadow-[0_0_12px_rgba(239,68,68,0.2)] animate-pulse" 
                     : "bg-[#1b325f]/50 text-[#7adfff] border-[#3059a4]/50"
-                }`}>
+                }`}
+                >
                   {isStatusError && <CircleAlert className="h-3.5 w-3.5 text-[#ef4444] shrink-0" />}
-                  <span>{statusMessage}</span>
+                  <span className="truncate">{displayStatusMessage}</span>
                 </span>
               </div>
             </div>
