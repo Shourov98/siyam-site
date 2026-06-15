@@ -28,10 +28,15 @@ type ApiErrorResponse = {
 const CLIENT_SESSION_STORAGE_KEY = "commandctr-merchant-auth";
 export const AUTH_REQUIRED_MESSAGE = "Your session expired. Sign in again.";
 
-const buildDefaultHeaders = (headers?: HeadersInit): HeadersInit => ({
-  "Content-Type": "application/json",
-  ...(headers ?? {}),
-});
+const buildDefaultHeaders = (headers?: HeadersInit, body?: BodyInit | null): HeadersInit => {
+  const normalizedHeaders = new Headers(headers);
+
+  if (body != null && !normalizedHeaders.has("Content-Type")) {
+    normalizedHeaders.set("Content-Type", "application/json");
+  }
+
+  return normalizedHeaders;
+};
 
 export class ApiClientError extends Error {
   details?: unknown;
@@ -52,10 +57,11 @@ const parsePayload = async <T>(response: Response) => {
 };
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
+  const headers = buildDefaultHeaders(init?.headers, init?.body);
   const response = await fetch(path, {
     ...init,
     credentials: "same-origin",
-    headers: buildDefaultHeaders(init?.headers),
+    headers,
   });
 
   const payload = await parsePayload<T>(response);
@@ -130,11 +136,32 @@ const redirectToLogin = () => {
 };
 
 export const requestWithAuth = async <T>(path: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(`/api/backend${path.startsWith("/") ? path : `/${path}`}`, {
+  const requestPath = `/api/backend${path.startsWith("/") ? path : `/${path}`}`;
+  const headers = buildDefaultHeaders(init?.headers, init?.body);
+
+  if (typeof window !== "undefined") {
+    console.info("[requestWithAuth] sending request", {
+      path: requestPath,
+      method: init?.method ?? "GET",
+      hasBody: init?.body != null,
+      contentType: headers instanceof Headers ? headers.get("Content-Type") : undefined,
+    });
+  }
+
+  const response = await fetch(requestPath, {
     ...init,
     credentials: "same-origin",
-    headers: buildDefaultHeaders(init?.headers),
+    headers,
   });
+
+  if (typeof window !== "undefined") {
+    console.info("[requestWithAuth] received response", {
+      path: requestPath,
+      method: init?.method ?? "GET",
+      status: response.status,
+      ok: response.ok,
+    });
+  }
 
   const payload = await parsePayload<T>(response);
 

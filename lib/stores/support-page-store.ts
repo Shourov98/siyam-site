@@ -106,7 +106,15 @@ export const useSupportPageStore = create<SupportPageState>()(
         set({ notice: null, isRefreshing: true });
 
         try {
+          if (typeof window !== "undefined") {
+            console.info("[support-page-store.refreshDisputes] starting Shopify dispute refresh");
+          }
+
           const result = await disputesApi.importShopifyDisputes();
+
+          if (typeof window !== "undefined") {
+            console.info("[support-page-store.refreshDisputes] import result", result);
+          }
 
           if (result.reason === "missing_scope") {
             set({ notice: "Reconnect Shopify with dispute permissions to import Shopify Payments disputes.", error: null });
@@ -118,9 +126,16 @@ export const useSupportPageStore = create<SupportPageState>()(
             set({ notice: "Disputes refreshed", error: null });
           }
 
+          if (typeof window !== "undefined") {
+            console.info("[support-page-store.refreshDisputes] reloading disputes list");
+          }
+
           await get().loadDisputes();
         } catch (refreshError) {
           const message = refreshError instanceof ApiClientError ? refreshError.message : "Could not refresh Shopify disputes.";
+          if (typeof window !== "undefined") {
+            console.error("[support-page-store.refreshDisputes] refresh failed", refreshError);
+          }
           set({ error: message });
         } finally {
           set({ isRefreshing: false });

@@ -132,6 +132,10 @@ export const disputesApi = {
   },
 
   importShopifyDisputes() {
+    if (typeof window !== "undefined") {
+      console.info("[disputesApi.importShopifyDisputes] POST /api/backend/shopify/import-disputes");
+    }
+
     return requestWithAuth<ImportShopifyDisputesResponse>("/shopify/import-disputes", {
       method: "POST",
     });

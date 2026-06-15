@@ -177,7 +177,10 @@ export default function SupportPage() {
               <button
                 className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#35d3ce] px-4 text-sm font-semibold text-[#143b52] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={isRefreshing}
-                onClick={() => void refreshDisputes()}
+                onClick={() => {
+                  console.info("[SupportPage] Refresh Shopify Disputes button clicked");
+                  void refreshDisputes();
+                }}
                 type="button"
               >
                 <RefreshCcw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />

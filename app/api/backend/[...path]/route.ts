@@ -25,8 +25,9 @@ async function proxyRequest(request: Request, params: Promise<{ path: string[] }
   const { path } = await params;
   const pathname = `/${path.join("/")}`;
   const search = new URL(request.url).search;
-  const body =
+  const rawBody =
     request.method === "GET" || request.method === "HEAD" ? undefined : Buffer.from(await request.arrayBuffer());
+  const body = rawBody && rawBody.length > 0 ? rawBody : undefined;
   const tokens = await getAuthTokensFromCookies();
   if (!tokens.accessToken && !tokens.refreshToken) {
     const unauthorized = NextResponse.json(
@@ -46,7 +47,19 @@ async function proxyRequest(request: Request, params: Promise<{ path: string[] }
       headers.set(key, value);
     }
   });
+  if (!body) {
+    headers.delete("content-type");
+  }
   const targetUrl = `${(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5000/api/v1")}${pathname}${search}`;
+  console.info("[api/backend proxy] incoming request", {
+    method: request.method,
+    pathname,
+    search,
+    targetUrl,
+    hasAccessToken: Boolean(tokens.accessToken),
+    hasRefreshToken: Boolean(tokens.refreshToken),
+    bodyBytes: rawBody?.length ?? 0,
+  });
   try {
     const apiUrl = new URL(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:5000/api/v1");
     if (apiUrl.hostname.includes("ngrok")) {
@@ -73,6 +86,12 @@ async function proxyRequest(request: Request, params: Promise<{ path: string[] }
   };
 
   let upstream = await sendUpstream(accessToken);
+  console.info("[api/backend proxy] upstream response", {
+    method: request.method,
+    pathname,
+    status: upstream.status,
+    ok: upstream.ok,
+  });
   let refreshed = false;
 
   if (upstream.status === 401 && tokens.refreshToken) {
@@ -81,6 +100,12 @@ async function proxyRequest(request: Request, params: Promise<{ path: string[] }
       accessToken = nextAccessToken;
       upstream = await sendUpstream(accessToken);
       refreshed = true;
+      console.info("[api/backend proxy] upstream retried after refresh", {
+        method: request.method,
+        pathname,
+        status: upstream.status,
+        ok: upstream.ok,
+      });
     }
   }
 
