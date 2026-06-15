@@ -1628,6 +1628,8 @@ export default function AddProductEditor({
   const [publishOnOnlineStore, setPublishOnOnlineStore] = useState(true);
   const [publishTrackInventory, setPublishTrackInventory] = useState(true);
   const [pricingSnapshot, setPricingSnapshot] = useState<ApiProductPricingSnapshot | null>(null);
+  const lastPricingFallbackKeyRef = useRef<string | null>(null);
+  const lastAutoPublishPriceRef = useRef("");
   const [selectedPublishShop, setSelectedPublishShop] = useState<PublishTarget>("shopify");
   const [prevActiveMarket, setPrevActiveMarket] = useState<MarketKey>(activeMarket);
   if (activeMarket !== prevActiveMarket) {
@@ -1842,7 +1844,10 @@ export default function AddProductEditor({
     setIsRefreshingPricing(false);
   }
 
-  function updatePublishPrice(value: string) {
+  function updatePublishPrice(value: string, source: "manual" | "auto" = "manual") {
+    if (source === "manual" && value.trim() !== lastAutoPublishPriceRef.current) {
+      lastAutoPublishPriceRef.current = "";
+    }
     setPublishPrice(value);
     setDraft((prev) => {
       const nextAttributes = { ...prev.core.attributes };
@@ -1880,7 +1885,14 @@ export default function AddProductEditor({
       return false;
     }
 
-    updatePublishPrice(nextRecommendedPrice.toFixed(2));
+    const nextFormattedPrice = nextRecommendedPrice.toFixed(2);
+    const currentTrimmedPrice = publishPrice.trim();
+    if (currentTrimmedPrice && currentTrimmedPrice !== lastAutoPublishPriceRef.current) {
+      return false;
+    }
+
+    lastAutoPublishPriceRef.current = nextFormattedPrice;
+    updatePublishPrice(nextFormattedPrice, "auto");
     return true;
   }
 
@@ -1889,6 +1901,7 @@ export default function AddProductEditor({
     const pieces = [
       draft.core.normalized_title,
       draft.core.source_title,
+      publishPrice.trim() ? `current price ${publishPrice.trim()}` : "",
       publishVendor,
       attrs.brand,
       attrs.model ?? attrs.model_number,
@@ -1907,22 +1920,74 @@ export default function AddProductEditor({
       .join(" ");
   }
 
+  async function buildQueryPricingImageFile(): Promise<File | null> {
+    if (selectedImage) {
+      return selectedImage;
+    }
+
+    const sourcePath = draft.images.source?.absolute_path || draft.images.source?.relative_path;
+    if (!sourcePath) {
+      return null;
+    }
+
+    const src = imageUrlFor(sourcePath);
+    if (!src) {
+      return null;
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(src, { cache: "no-store" });
+    } catch {
+      return null;
+    }
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const blob = await response.blob();
+    const filename = sourcePath.split(/[\\/]/).pop() || "source-image.bin";
+    return new File([blob], filename, {
+      type: blob.type || "application/octet-stream",
+    });
+  }
+
   async function fetchQueryBasedPricing(marketplace: MarketKey) {
     const queryText = buildQueryPricingText();
     if (!queryText) {
       return null;
     }
 
-    const response = await fetch("/api/product-ai/pricing/query", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        product_name: queryText,
-        marketplace,
-      }),
-    });
+    const currentPrice = Number.parseFloat(publishPrice.trim());
+    const hasCurrentPrice = Number.isFinite(currentPrice) && currentPrice > 0;
+
+    const imageFile = await buildQueryPricingImageFile();
+    const response = imageFile
+      ? await (async () => {
+          const formData = new FormData();
+          formData.append("title", queryText);
+          formData.append("marketplace", marketplace);
+          if (hasCurrentPrice) {
+            formData.append("current_price", currentPrice.toFixed(2));
+          }
+          formData.append("image", imageFile);
+          return fetch("/api/product-ai/pricing/query/image", {
+            method: "POST",
+            body: formData,
+          });
+        })()
+      : await fetch("/api/product-ai/pricing/query/text", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            product_name: queryText,
+            marketplace,
+            ...(hasCurrentPrice ? { current_price: currentPrice } : {}),
+          }),
+        });
 
     if (!response.ok) {
       return null;
@@ -1934,6 +1999,23 @@ export default function AddProductEditor({
       generated_at: payload.generated_at,
       markets: payload.markets,
     } satisfies ApiProductPricingSnapshot;
+  }
+
+  async function ensureMarketPricingFallback(marketplace: MarketKey) {
+    const queryText = buildQueryPricingText();
+    const fallbackKey = `${productId ?? "query"}|${marketplace}|${queryText}`;
+    if (lastPricingFallbackKeyRef.current === fallbackKey) {
+      return null;
+    }
+
+    lastPricingFallbackKeyRef.current = fallbackKey;
+    const querySnapshot = await fetchQueryBasedPricing(marketplace);
+    if (!querySnapshot) {
+      return null;
+    }
+
+    setPricingSnapshot(querySnapshot);
+    return querySnapshot;
   }
 
   useEffect(() => {
@@ -1957,9 +2039,21 @@ export default function AddProductEditor({
 
     const activePricing = pricingSnapshot.markets.find((entry) => entry.marketplace === activeMarket) ?? null;
     if (!syncPublishPriceFromPricing(activePricing)) {
-      return;
+      if (!publishPrice.trim()) {
+        void (async () => {
+          const querySnapshot = await ensureMarketPricingFallback(activeMarket);
+          if (!querySnapshot) {
+            return;
+          }
+
+          const queryPricing = querySnapshot.markets.find((entry) => entry.marketplace === activeMarket) ?? querySnapshot.markets[0];
+          if (queryPricing) {
+            syncPublishPriceFromPricing(queryPricing);
+          }
+        })();
+      }
     }
-  }, [activeMarket, pricingSnapshot, isRefreshingPricing]);
+  }, [activeMarket, pricingSnapshot, isRefreshingPricing, publishPrice, productId]);
 
   function buildComparableDraftSignature(snapshot: SavedDraftSnapshot) {
     return JSON.stringify({
@@ -2596,12 +2690,24 @@ export default function AddProductEditor({
     return range;
   }
 
-  function formatPriceValue(value?: number | null) {
+  function getCurrencySymbol(currency?: string | null) {
+    switch (String(currency ?? "").toUpperCase()) {
+      case "GBP":
+        return "£";
+      case "EUR":
+        return "€";
+      case "USD":
+      default:
+        return "$";
+    }
+  }
+
+  function formatPriceValue(value?: number | null, currency?: string | null) {
     if (typeof value !== "number" || Number.isNaN(value)) {
       return "N/A";
     }
 
-    return `£${value.toFixed(2)}`;
+    return `${getCurrencySymbol(currency)}${value.toFixed(2)}`;
   }
 
   function getPricingModeLabel(mode: string) {
@@ -5992,7 +6098,7 @@ export default function AddProductEditor({
 
                         {/* Currency Symbol Prefix */}
                         <span className="pl-2.5 text-xs font-semibold text-[#8ea0bf] select-none">
-                          £
+                          {getCurrencySymbol(activeMarketPricing?.currency ?? getEstimatedPriceRange()?.currency ?? "USD")}
                         </span>
 
                         {/* Numeric Input */}
@@ -6226,10 +6332,10 @@ export default function AddProductEditor({
                       {getEstimatedPriceRange() ? (
                         <>
                           <p className="mt-3 text-lg font-semibold text-[#31415e]">
-                            £{getEstimatedPriceRange()?.minimum.toFixed(2)} - £{getEstimatedPriceRange()?.maximum.toFixed(2)}
+                            {formatPriceValue(getEstimatedPriceRange()?.minimum, getEstimatedPriceRange()?.currency)} - {formatPriceValue(getEstimatedPriceRange()?.maximum, getEstimatedPriceRange()?.currency)}
                           </p>
                           <p className="mt-1 text-xs text-[#8ea0bf]">
-                            Recommended: £{getEstimatedPriceRange()?.recommended.toFixed(2)} | Source: {getEstimatedPriceRange()?.source}
+                            Recommended: {formatPriceValue(getEstimatedPriceRange()?.recommended, getEstimatedPriceRange()?.currency)} | Source: {getEstimatedPriceRange()?.source}
                           </p>
                         </>
                       ) : (
@@ -6293,7 +6399,7 @@ export default function AddProductEditor({
                                     {listing.source}: {listing.title}
                                   </p>
                                   <p className="mt-1 text-[11px] text-[#6f82a3]">
-                                    {typeof listing.price === "number" ? formatPriceValue(listing.price) : "Price unavailable"}
+                                    {typeof listing.price === "number" ? formatPriceValue(listing.price, listing.currency) : "Price unavailable"}
                                     {listing.url ? ` • ${listing.url}` : ""}
                                   </p>
                                 </div>
@@ -6314,10 +6420,10 @@ export default function AddProductEditor({
                           {activeMarketPricing.suggested_price_range ? (
                             <>
                               <p className="mt-2 text-sm font-semibold text-[#31415e]">
-                                {formatPriceValue(activeMarketPricing.suggested_price_range.minimum)} - {formatPriceValue(activeMarketPricing.suggested_price_range.maximum)}
+                                {formatPriceValue(activeMarketPricing.suggested_price_range.minimum, activeMarketPricing.suggested_price_range.currency)} - {formatPriceValue(activeMarketPricing.suggested_price_range.maximum, activeMarketPricing.suggested_price_range.currency)}
                               </p>
                               <p className="mt-1 text-xs text-[#8ea0bf]">
-                                Recommended: {formatPriceValue(activeMarketPricing.suggested_price_range.recommended)}
+                                Recommended: {formatPriceValue(activeMarketPricing.suggested_price_range.recommended, activeMarketPricing.suggested_price_range.currency)}
                               </p>
                             </>
                           ) : (
