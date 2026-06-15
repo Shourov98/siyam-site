@@ -2139,7 +2139,7 @@ export default function AddProductEditor({
     setProductId(null);
     setShopifyProductId(null);
     setSourceTitle(emptyProduct.core.source_title);
-    setSelectedImage(null);
+    clearSelectedImageSelection();
     setPublishVendor("");
     setPublishDescription("");
     setPublishPrice("");
@@ -2166,6 +2166,7 @@ export default function AddProductEditor({
     setDraftSaveState("idle");
     lastSavedDraftRef.current = null;
     setRestoredLocalDraftProductId(undefined);
+    clearSelectedImageSelection();
     setStatusMessage(message);
     router.replace(`/products/add?market=${activeMarket}`, { scroll: false });
   }
@@ -2265,6 +2266,7 @@ export default function AddProductEditor({
       window.localStorage.setItem(getStoredDraftKey(), JSON.stringify(snapshot));
     }
 
+    clearSelectedImageSelection();
     lastSavedDraftRef.current = buildComparableDraftSignature(snapshot);
     setDraft(snapshot.draft);
     setVariantsByMarket(snapshot.variantsByMarket);
@@ -4033,7 +4035,7 @@ export default function AddProductEditor({
   const displayStatusMessage = isStatusError ? statusMessage : getDisplayStatusMessage(statusMessage);
 
   return (
-    <section className="px-4 pt-1 pb-5 md:px-8 md:pt-4 md:pb-8">
+    <section className="relative isolate px-4 pt-1 pb-5 md:px-8 md:pt-4 md:pb-8">
       <input
         accept="image/*"
         className="hidden"
@@ -4050,32 +4052,34 @@ export default function AddProductEditor({
       />
 
       <div className="space-y-6">
-        <header className="sticky top-16 md:top-4 z-30 rounded-2xl border border-[#2b3a5f] bg-[#1a2545]/95 backdrop-blur-md px-5 py-3 text-white shadow-[0_16px_35px_-24px_rgba(7,17,41,0.95)]">
-          <div className="flex flex-col gap-3">
-            {/* Top Row: Breadcrumbs, Title, ID and Status Message */}
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-wrap items-center gap-3">
+        <header className="sticky top-0 z-30 overflow-hidden rounded-[28px] border border-[#3c4d78] bg-[#1a2545] px-4 py-4 text-white shadow-[0_22px_50px_-30px_rgba(7,17,41,0.95)] md:px-5">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(90,221,232,0.14),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(120,149,255,0.12),transparent_30%)]" />
+          <div className="relative flex flex-col gap-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div className="flex min-w-0 flex-wrap items-center gap-3">
                 <Link
                   href="/products"
-                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[#51658f] bg-white/5 px-2.5 text-xs font-semibold text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#5e739f] bg-white/6 px-3 text-sm font-semibold text-white hover:bg-white/12 transition-colors cursor-pointer"
                 >
                   &larr; Back
                 </Link>
-                <div>
-                  <p className="text-[10px] font-semibold text-[#aab8d6] uppercase tracking-wide">Products &nbsp;&gt;&nbsp; Add Product</p>
-                  <h1 className="text-lg font-bold leading-tight">Add Product</h1>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9eb1d4]">Products &nbsp;&gt;&nbsp; Add Product</p>
+                  <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+                    <h1 className="text-[1.85rem] font-bold leading-none tracking-[-0.03em] text-white">Add Product</h1>
+                    {productId ? (
+                      <span className="rounded-full border border-[#5b7099] bg-white/8 px-2.5 py-1 text-[11px] font-semibold text-[#dce7fb]">
+                        ID: {productId.slice(0, 8)}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
-                {productId ? (
-                  <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold text-[#dce7fb] border border-[#51658f]/30">
-                    ID: {productId.slice(0, 8)}
-                  </span>
-                ) : null}
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex justify-start xl:justify-end">
                 <span
                   title={statusMessage}
-                  className={`inline-flex max-w-[340px] items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-all duration-300 ${
+                  className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-300 xl:max-w-[320px] ${
                   isStatusError 
                     ? "bg-[#ef4444]/10 text-[#fca5a5] border-[#ef4444]/40 shadow-[0_0_12px_rgba(239,68,68,0.2)] animate-pulse" 
                     : "bg-[#1b325f]/50 text-[#7adfff] border-[#3059a4]/50"
@@ -4087,12 +4091,18 @@ export default function AddProductEditor({
               </div>
             </div>
 
-            {/* Bottom Row: Source Input, Upload, and Primary/Secondary Actions */}
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-t border-[#2b3a5f]/40 pt-3">
-              {/* Product title input */}
-              <div className="flex-1 max-w-xl">
+            <div className="grid gap-4 border-t border-white/8 pt-4 xl:grid-cols-[minmax(0,1.25fr)_auto] xl:items-end">
+              <div className="min-w-0 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9eb1d4]">Source Title</p>
+                  {selectedImage ? (
+                    <span className="max-w-[210px] truncate rounded-full border border-[#56709d] bg-white/7 px-2.5 py-1 text-[11px] font-medium text-[#cfe0ff]">
+                      Image: {selectedImage.name}
+                    </span>
+                  ) : null}
+                </div>
                 <input
-                  className={`w-full h-10 rounded-xl bg-white/5 px-3.5 text-sm text-white outline-none transition placeholder:text-[#aab8d6] ${publishFieldErrors.title ? "border border-[#ff7d7d] focus:border-[#ff9b9b]" : "border border-[#51658f] focus:border-[#8ea0bf]"
+                  className={`h-12 w-full rounded-2xl bg-white/7 px-4 text-base font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition placeholder:text-[#aab8d6] ${publishFieldErrors.title ? "border border-[#ff7d7d] focus:border-[#ff9b9b]" : "border border-[#51658f] focus:border-[#8ea0bf]"
                     }`}
                   onChange={(event) => {
                     const value = event.target.value;
@@ -4102,83 +4112,84 @@ export default function AddProductEditor({
                       setPublishFieldErrors((prev) => ({ ...prev, title: false }));
                     }
                   }}
-                  placeholder="Source title used for generation"
+                  placeholder="Enter the source title used for AI generation"
                   type="text"
                   value={sourceTitle}
                 />
               </div>
 
-              {/* Grouped buttons */}
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Draft management controls inside a unified segment container */}
-                <div className="flex items-center bg-white/5 rounded-xl border border-[#51658f]/40 p-0.5">
-                  <button
-                    className="h-8 rounded-lg px-3 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-30 cursor-pointer"
-                    disabled={!hasSavedDraft}
-                    onClick={() => loadSavedDraft()}
-                    type="button"
-                  >
-                    Load
-                  </button>
-                  <button
-                    className="h-8 rounded-lg px-3 text-xs font-semibold text-[#dce7fb] transition hover:bg-white/10 cursor-pointer"
-                    onClick={() => clearSavedDraft()}
-                    type="button"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    className={`h-8 rounded-lg px-3 text-xs font-semibold transition hover:bg-white/10 disabled:opacity-30 cursor-pointer ${draftSaveState === "saved"
-                        ? "text-[#8ea0bf] opacity-60"
-                        : "text-[#ccebdc]"
-                      }`}
-                    disabled={isSaving}
-                    onClick={() => void saveDraft()}
-                    type="button"
-                  >
-                    {draftSaveState === "saving" ? "Saving..." : draftSaveState === "saved" ? "Saved" : "Save"}
-                  </button>
-                  <button
-                    className="h-8 rounded-lg px-3 text-xs font-semibold text-[#ffd8de] transition hover:bg-[#39151d] disabled:opacity-30 cursor-pointer"
-                    disabled={isDeletingDraft}
-                    onClick={() => void deleteDraft()}
-                    type="button"
-                  >
-                    {isDeletingDraft ? "..." : "Delete"}
-                  </button>
+              <div className="grid gap-2 xl:min-w-[560px] xl:grid-cols-[auto_auto_auto] xl:items-end">
+                <div className="rounded-2xl border border-[#51658f]/45 bg-white/6 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                  <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+                    <button
+                      className="h-10 rounded-xl px-3 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-30 cursor-pointer whitespace-nowrap"
+                      disabled={!hasSavedDraft}
+                      onClick={() => loadSavedDraft()}
+                      type="button"
+                    >
+                      Load
+                    </button>
+                    <button
+                      className="h-10 rounded-xl px-3 text-xs font-semibold text-[#dce7fb] transition hover:bg-white/10 cursor-pointer whitespace-nowrap"
+                      onClick={() => clearSavedDraft()}
+                      type="button"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      className={`h-10 rounded-xl px-3 text-xs font-semibold transition hover:bg-white/10 disabled:opacity-30 cursor-pointer whitespace-nowrap ${draftSaveState === "saved"
+                          ? "text-[#8ea0bf] opacity-60"
+                          : "text-[#ccebdc]"
+                        }`}
+                      disabled={isSaving}
+                      onClick={() => void saveDraft()}
+                      type="button"
+                    >
+                      {draftSaveState === "saving" ? "Saving..." : draftSaveState === "saved" ? "Saved" : "Save"}
+                    </button>
+                    <button
+                      className="h-10 rounded-xl px-3 text-xs font-semibold text-[#ffd8de] transition hover:bg-[#39151d] disabled:opacity-30 cursor-pointer whitespace-nowrap"
+                      disabled={isDeletingDraft}
+                      onClick={() => void deleteDraft()}
+                      type="button"
+                    >
+                      {isDeletingDraft ? "..." : "Delete"}
+                    </button>
+                  </div>
                 </div>
 
-                {/* Upload action */}
-                <button
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[#51658f] bg-white/5 px-3 text-xs font-semibold text-white cursor-pointer"
-                  onClick={() => uploadInputRef.current?.click()}
-                  type="button"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  {selectedImage ? selectedImage.name.slice(0, 12) + "..." : "Upload Product"}
-                </button>
-
-                {hasPersistedProduct && (
+                <div className="grid gap-2 sm:grid-cols-2">
                   <button
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-[#51658f] bg-white/5 px-3 text-xs font-semibold text-white disabled:opacity-60 cursor-pointer"
-                    disabled={isUploadingSourceImage || !selectedImage}
-                    onClick={() => void uploadProductSourceImage()}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#51658f] bg-white/6 px-4 text-sm font-semibold text-white transition hover:bg-white/10 cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                    onClick={() => uploadInputRef.current?.click()}
                     type="button"
                   >
-                    {isUploadingSourceImage ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                    Upload Src
+                    <Upload className="h-4 w-4" />
+                    {selectedImage ? "Change Product" : "Upload Product"}
                   </button>
-                )}
 
+                  {hasPersistedProduct ? (
+                    <button
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[#51658f] bg-white/6 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60 cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                      disabled={isUploadingSourceImage || !selectedImage}
+                      onClick={() => void uploadProductSourceImage()}
+                      type="button"
+                    >
+                      {isUploadingSourceImage ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                      Upload Src
+                    </button>
+                  ) : (
+                    <div className="hidden sm:block" />
+                  )}
+                </div>
 
-                {/* Main AI Generation CTA */}
                 <button
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-[#35d3ce] px-4 text-xs font-bold text-[#153c53] transition hover:bg-[#2bc7c2] disabled:opacity-60 cursor-pointer"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#35d3ce] px-5 text-sm font-bold text-[#153c53] shadow-[0_14px_30px_-20px_rgba(53,211,206,0.95)] transition hover:bg-[#2bc7c2] disabled:opacity-60 cursor-pointer"
                   disabled={isGenerating}
                   onClick={() => void generateProduct()}
                   type="button"
                 >
-                  {isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                  {isGenerating ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   {isGenerating ? "Generating..." : "Generate AI"}
                 </button>
               </div>
@@ -4186,8 +4197,8 @@ export default function AddProductEditor({
           </div>
         </header>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_380px] xl:h-[calc(100vh-168px)] xl:overflow-hidden">
-          <div className="space-y-5 xl:h-full xl:overflow-y-auto xl:pr-2">
+        <div className="grid gap-5 pt-4 xl:grid-cols-[minmax(0,1.7fr)_380px] xl:items-start">
+          <div className="space-y-5 xl:pr-2">
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
               {/* Header block with refined styling */}
               <div className="flex items-center justify-between gap-4 flex-wrap border-b border-[#eef2f6] pb-4 mb-4">
@@ -6684,7 +6695,7 @@ export default function AddProductEditor({
             {/* Marketplace Variants removed */}
           </div>
 
-          <aside className="space-y-5 xl:h-full xl:overflow-y-auto xl:pr-2">
+          <aside className="space-y-5 xl:pr-2">
             <article className="rounded-2xl border border-[#dbe2ee] bg-white p-4 shadow-[0_12px_26px_-24px_rgba(17,31,56,0.85)]">
               <div className="flex items-center justify-between gap-3 border-b border-[#eef2f6] pb-3">
                 <div className="flex items-center gap-3">
