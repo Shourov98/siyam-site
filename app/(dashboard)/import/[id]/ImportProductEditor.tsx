@@ -119,6 +119,9 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
     ];
   }, [record]);
 
+  const hasDuplicateBlock = Boolean(record?.primary_record_id) || (record?.duplicate_count ?? 0) > 0;
+  const hasMissingRequiredFields = Boolean(record && record.missing_fields.length > 0);
+
   if (!record && !isLoading) {
     return <section className="px-4 py-5 md:px-8 md:py-8"><div className="rounded-2xl border border-[#dbe2ee] bg-white p-6 text-sm text-[#546884]">{message}</div></section>;
   }
@@ -293,12 +296,17 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
             {marketBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />} Regenerate {activeMarket} Image
           </button>
           <button className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#172544] px-4 text-sm font-semibold text-white disabled:opacity-60" disabled={isUploading || !record?.can_upload_as_product} onClick={() => void uploadAsProduct()} type="button">
-            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} {record?.can_upload_as_product ? "Upload as Product" : "Resolve Duplicates First"}
+            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} {record?.can_upload_as_product ? "Upload as Product" : hasDuplicateBlock ? "Resolve Duplicates First" : "Complete Required Fields"}
           </button>
-          {!record?.can_upload_as_product && record ? (
+          {!record?.can_upload_as_product && record && hasDuplicateBlock ? (
             <Link className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#f4d7a2] bg-[#fff5df] px-4 text-sm font-semibold text-[#f4a632]" href={`/import/resolve/${record.id}`}>
               Resolve Duplicate Group
             </Link>
+          ) : null}
+          {!record?.can_upload_as_product && record && !hasDuplicateBlock && hasMissingRequiredFields ? (
+            <span className="inline-flex h-11 items-center rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d]">
+              Add a product title and source image to continue
+            </span>
           ) : null}
           {record?.linked_product_id ? (
             <Link className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d]" href={`/products/add?productId=${record.linked_product_id}`}>

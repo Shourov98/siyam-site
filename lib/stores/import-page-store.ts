@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type ImportStatus = "imported" | "needs_review" | "duplicate" | "parse_issue" | "uploaded";
+export type ImportStatus = "imported" | "needs_review" | "duplicate" | "parse_issue" | "rejected" | "uploaded";
 
 export type ImportRow = {
   id: string;
@@ -36,6 +36,7 @@ type ImportListResponse = {
     uploaded_as_product: number;
     needs_review: number;
     duplicates: number;
+    rejected?: number;
   };
 };
 
@@ -53,6 +54,8 @@ type ImportPageState = {
   searchQuery: string;
   isLoading: boolean;
   isUploading: boolean;
+  isBulkDeleting: boolean;
+  isGeneratingAll: boolean;
   busyRecordId: string | null;
   pageMessage: string;
   hasLoadedOnce: boolean;
@@ -62,7 +65,12 @@ type ImportPageState = {
   loadPage: (page?: number) => Promise<void>;
   uploadFile: (file: File) => Promise<void>;
   deleteImportRecord: (recordId: string) => Promise<void>;
+  deleteImportRecords: (recordIds: string[]) => Promise<void>;
+  deleteAllImportRecords: () => Promise<void>;
+  generateAllImportData: () => Promise<void>;
   uploadAsProduct: (recordId: string) => Promise<void>;
+  updateImportListing: (recordId: string, payload: { title?: string; category?: string }) => Promise<void>;
+  uploadSourceImage: (recordId: string, file: File) => Promise<void>;
   changePage: (nextPage: number) => Promise<void>;
 };
 
@@ -87,6 +95,8 @@ export const useImportPageStore = create<ImportPageState>()(
       searchQuery: "",
       isLoading: false,
       isUploading: false,
+      isBulkDeleting: false,
+      isGeneratingAll: false,
       busyRecordId: null,
       pageMessage: "Uploaded import records stay here until you delete them or upload them as products.",
       hasLoadedOnce: false,
@@ -166,6 +176,79 @@ export const useImportPageStore = create<ImportPageState>()(
       set({ busyRecordId: null });
     }
   },
+  async deleteImportRecords(recordIds) {
+    if (recordIds.length === 0) {
+      return;
+    }
+    set({ isBulkDeleting: true, busyRecordId: null });
+    try {
+      const response = await fetch("/api/product-ai/imports/products/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ record_ids: recordIds }),
+      });
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not delete selected import records.");
+      }
+
+      const payload = (await response.json()) as { deleted_count?: number };
+      await get().loadPage(get().pagination.page);
+      set({ pageMessage: `${payload.deleted_count ?? recordIds.length} import record(s) deleted.` });
+    } catch (error) {
+      set({
+        pageMessage: error instanceof Error ? error.message : "Could not delete selected import records.",
+      });
+    } finally {
+      set({ isBulkDeleting: false });
+    }
+  },
+  async deleteAllImportRecords() {
+    set({ isBulkDeleting: true, busyRecordId: null });
+    try {
+      const response = await fetch("/api/product-ai/imports/products/delete-all", {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not delete all import records.");
+      }
+
+      const payload = (await response.json()) as { deleted_count?: number };
+      await get().loadPage(1);
+      set({ pageMessage: `${payload.deleted_count ?? 0} import record(s) deleted.` });
+    } catch (error) {
+      set({
+        pageMessage: error instanceof Error ? error.message : "Could not delete all import records.",
+      });
+    } finally {
+      set({ isBulkDeleting: false });
+    }
+  },
+  async generateAllImportData() {
+    set({ isGeneratingAll: true });
+    try {
+      const response = await fetch("/api/product-ai/imports/products/generate-data", {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not generate data for imported products.");
+      }
+
+      const payload = (await response.json()) as { processed_count?: number; skipped_count?: number; failed_count?: number };
+      await get().loadPage(get().pagination.page);
+      set({
+        pageMessage: `Generated data for ${payload.processed_count ?? 0} product(s). Skipped ${payload.skipped_count ?? 0}, failed ${payload.failed_count ?? 0}.`,
+      });
+    } catch (error) {
+      set({
+        pageMessage: error instanceof Error ? error.message : "Could not generate data for imported products.",
+      });
+    } finally {
+      set({ isGeneratingAll: false });
+    }
+  },
   async uploadAsProduct(recordId) {
     set({ busyRecordId: recordId });
     try {
@@ -180,6 +263,60 @@ export const useImportPageStore = create<ImportPageState>()(
     } catch (error) {
       set({
         pageMessage: error instanceof Error ? error.message : "Could not upload import record as product.",
+      });
+    } finally {
+      set({ busyRecordId: null });
+    }
+  },
+  async updateImportListing(recordId, payload) {
+    set({ busyRecordId: recordId });
+    try {
+      const trimmedTitle = payload.title?.trim();
+      const trimmedCategory = payload.category?.trim();
+      const response = await fetch(`/api/product-ai/imports/products/${recordId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          core: {
+            ...(trimmedTitle !== undefined ? { normalized_title: trimmedTitle, source_title: trimmedTitle } : {}),
+            ...(trimmedCategory !== undefined ? { category: trimmedCategory || "General Merchandise" } : {}),
+          },
+        }),
+      });
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not update import record.");
+      }
+
+      await get().loadPage(get().pagination.page);
+      set({ pageMessage: "Import record updated." });
+    } catch (error) {
+      set({
+        pageMessage: error instanceof Error ? error.message : "Could not update import record.",
+      });
+    } finally {
+      set({ busyRecordId: null });
+    }
+  },
+  async uploadSourceImage(recordId, file) {
+    const formData = new FormData();
+    formData.append("image", file);
+    set({ busyRecordId: recordId });
+    try {
+      const response = await fetch(`/api/product-ai/imports/products/${recordId}/source-image`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not upload source image.");
+      }
+
+      await get().loadPage(get().pagination.page);
+      set({ pageMessage: "Source image updated." });
+    } catch (error) {
+      set({
+        pageMessage: error instanceof Error ? error.message : "Could not upload source image.",
       });
     } finally {
       set({ busyRecordId: null });
