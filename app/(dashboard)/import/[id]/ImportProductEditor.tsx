@@ -66,7 +66,7 @@ function imageUrlFor(path: string) {
   return path;
 }
 
-export default function ImportProductEditor({ importId, activeMarket }: { importId: string; activeMarket: MarketKey }) {
+export default function ImportProductEditor({ importId, activeMarket, readOnly = false }: { importId: string; activeMarket: MarketKey; readOnly?: boolean }) {
   const sourceImageInputRef = useRef<HTMLInputElement>(null);
   const [record, setRecord] = useState<ImportRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,7 +90,7 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
       .then((payload) => {
         if (active) {
           setRecord(payload);
-          setMessage("Imported product loaded. Save changes here, then upload it as a real product when ready.");
+          setMessage(readOnly ? "Imported product loaded." : "Imported product loaded. Save changes here, then upload it as a real product when ready.");
         }
       })
       .catch((error) => {
@@ -104,7 +104,7 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
     return () => {
       active = false;
     };
-  }, [importId]);
+  }, [importId, readOnly]);
 
   const previewImages = useMemo(() => {
     if (!record) return [];
@@ -269,12 +269,19 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
     <section className="px-4 py-5 md:px-8 md:py-8">
       <div className="space-y-5">
         <div className="rounded-xl border border-[#2c3b61] bg-[#1b2748] px-5 py-5 text-white">
-          <p className="text-sm font-semibold text-[#a9b8d6]">Import Products &gt; Edit Imported Product</p>
+          <p className="text-sm font-semibold text-[#a9b8d6]">Import Products &gt; {readOnly ? "View Imported Product" : "Edit Imported Product"}</p>
           <h1 className="mt-2 text-2xl font-semibold">{record?.product.core.normalized_title || "Imported Product"}</h1>
           <p className="mt-1 text-sm text-[#a9b8d6]">{message}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {readOnly ? (
+            <Link className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d]" href={`/import/${importId}?market=${activeMarket}`}>
+              <Save className="h-4 w-4" /> Open Edit Mode
+            </Link>
+          ) : null}
+          {!readOnly ? (
+          <>
           <button
             className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:opacity-60"
             disabled={isUploadingImage}
@@ -308,6 +315,8 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
               Add a product title and source image to continue
             </span>
           ) : null}
+          </>
+          ) : null}
           {record?.linked_product_id ? (
             <Link className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d]" href={`/products/add?productId=${record.linked_product_id}`}>
               <CheckCircle2 className="h-4 w-4" /> Open Uploaded Product
@@ -326,13 +335,13 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
             />
             <div className="space-y-5">
               <Panel title="Core Product Data">
-                <Input label="Normalized Title" value={record.product.core.normalized_title} onChange={(value) => setRecord({ ...record, product: { ...record.product, core: { ...record.product.core, normalized_title: value } } })} />
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <Input label="Category" value={record.product.core.category} onChange={(value) => setRecord({ ...record, product: { ...record.product, core: { ...record.product.core, category: value } } })} />
-                  <Input label="Product Type" value={record.product.core.product_type} onChange={(value) => setRecord({ ...record, product: { ...record.product, core: { ...record.product.core, product_type: value } } })} />
-                </div>
-                <TextArea label="Product Summary" value={record.product.core.product_summary} onChange={(value) => setRecord({ ...record, product: { ...record.product, core: { ...record.product.core, product_summary: value } } })} />
-                <TextArea label="Structured Attributes" value={Object.entries(record.product.core.attributes).map(([key, value]) => `${key}: ${value}`).join("\n")} onChange={(value) => setRecord({ ...record, product: { ...record.product, core: { ...record.product.core, attributes: toAttributes(value) } } })} />
+                  <Input disabled={readOnly} label="Normalized Title" value={record.product.core.normalized_title} onChange={(value) => setRecord({ ...record, product: { ...record.product, core: { ...record.product.core, normalized_title: value } } })} />
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <Input disabled={readOnly} label="Category" value={record.product.core.category} onChange={(value) => setRecord({ ...record, product: { ...record.product, core: { ...record.product.core, category: value } } })} />
+                    <Input disabled={readOnly} label="Product Type" value={record.product.core.product_type} onChange={(value) => setRecord({ ...record, product: { ...record.product, core: { ...record.product.core, product_type: value } } })} />
+                  </div>
+                  <TextArea disabled={readOnly} label="Product Summary" value={record.product.core.product_summary} onChange={(value) => setRecord({ ...record, product: { ...record.product, core: { ...record.product.core, product_summary: value } } })} />
+                  <TextArea disabled={readOnly} label="Structured Attributes" value={Object.entries(record.product.core.attributes).map(([key, value]) => `${key}: ${value}`).join("\n")} onChange={(value) => setRecord({ ...record, product: { ...record.product, core: { ...record.product.core, attributes: toAttributes(value) } } })} />
               </Panel>
 
               <Panel title="Marketplace Content">
@@ -349,6 +358,7 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
                       </Link>
                     ))}
                   </div>
+                  {!readOnly ? (
                   <button
                     className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-4 text-sm font-semibold text-[#4a5d7d] disabled:opacity-60"
                     disabled={marketBusy}
@@ -358,45 +368,46 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
                     {marketBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                     Optimize {marketLabels[activeMarket]}
                   </button>
+                  ) : null}
                 </div>
 
                 <p className="mt-3 text-sm text-[#8093b2]">
-                  You can edit per-marketplace content and optimize the active marketplace SEO data from the backend.
+                  {readOnly ? "Review per-marketplace content for this imported product." : "You can edit per-marketplace content and optimize the active marketplace SEO data from the backend."}
                 </p>
 
                 <div className="mt-5 grid gap-4">
                   {activeMarket === "amazon" ? (
                     <>
-                      <Input label="Title" value={record.product.amazon.title} onChange={(value) => setRecord({ ...record, product: { ...record.product, amazon: { ...record.product.amazon, title: value } } })} />
-                      <TextArea label="Description" value={record.product.amazon.description} onChange={(value) => setRecord({ ...record, product: { ...record.product, amazon: { ...record.product.amazon, description: value } } })} />
-                      <TextArea label="Bullet Points" value={record.product.amazon.bullet_points.join("\n")} onChange={(value) => setRecord({ ...record, product: { ...record.product, amazon: { ...record.product.amazon, bullet_points: toList(value) } } })} />
+                      <Input disabled={readOnly} label="Title" value={record.product.amazon.title} onChange={(value) => setRecord({ ...record, product: { ...record.product, amazon: { ...record.product.amazon, title: value } } })} />
+                      <TextArea disabled={readOnly} label="Description" value={record.product.amazon.description} onChange={(value) => setRecord({ ...record, product: { ...record.product, amazon: { ...record.product.amazon, description: value } } })} />
+                      <TextArea disabled={readOnly} label="Bullet Points" value={record.product.amazon.bullet_points.join("\n")} onChange={(value) => setRecord({ ...record, product: { ...record.product, amazon: { ...record.product.amazon, bullet_points: toList(value) } } })} />
                     </>
                   ) : null}
                   {activeMarket === "ebay" ? (
                     <>
-                      <Input label="Title" value={record.product.ebay.title} onChange={(value) => setRecord({ ...record, product: { ...record.product, ebay: { ...record.product.ebay, title: value } } })} />
-                      <Input label="Condition" value={record.product.ebay.condition} onChange={(value) => setRecord({ ...record, product: { ...record.product, ebay: { ...record.product.ebay, condition: value } } })} />
-                      <TextArea label="Listing Notes" value={record.product.ebay.listing_notes} onChange={(value) => setRecord({ ...record, product: { ...record.product, ebay: { ...record.product.ebay, listing_notes: value } } })} />
+                      <Input disabled={readOnly} label="Title" value={record.product.ebay.title} onChange={(value) => setRecord({ ...record, product: { ...record.product, ebay: { ...record.product.ebay, title: value } } })} />
+                      <Input disabled={readOnly} label="Condition" value={record.product.ebay.condition} onChange={(value) => setRecord({ ...record, product: { ...record.product, ebay: { ...record.product.ebay, condition: value } } })} />
+                      <TextArea disabled={readOnly} label="Listing Notes" value={record.product.ebay.listing_notes} onChange={(value) => setRecord({ ...record, product: { ...record.product, ebay: { ...record.product.ebay, listing_notes: value } } })} />
                     </>
                   ) : null}
                   {activeMarket === "etsy" ? (
                     <>
-                      <Input label="Title" value={record.product.etsy.title} onChange={(value) => setRecord({ ...record, product: { ...record.product, etsy: { ...record.product.etsy, title: value } } })} />
-                      <TextArea label="Description" value={record.product.etsy.description} onChange={(value) => setRecord({ ...record, product: { ...record.product, etsy: { ...record.product.etsy, description: value } } })} />
+                      <Input disabled={readOnly} label="Title" value={record.product.etsy.title} onChange={(value) => setRecord({ ...record, product: { ...record.product, etsy: { ...record.product.etsy, title: value } } })} />
+                      <TextArea disabled={readOnly} label="Description" value={record.product.etsy.description} onChange={(value) => setRecord({ ...record, product: { ...record.product, etsy: { ...record.product.etsy, description: value } } })} />
                     </>
                   ) : null}
                   {activeMarket === "tiktok" ? (
                     <>
-                      <Input label="Title" value={record.product.tiktok.title} onChange={(value) => setRecord({ ...record, product: { ...record.product, tiktok: { ...record.product.tiktok, title: value } } })} />
-                      <TextArea label="Social Description" value={record.product.tiktok.social_description} onChange={(value) => setRecord({ ...record, product: { ...record.product, tiktok: { ...record.product.tiktok, social_description: value } } })} />
+                      <Input disabled={readOnly} label="Title" value={record.product.tiktok.title} onChange={(value) => setRecord({ ...record, product: { ...record.product, tiktok: { ...record.product.tiktok, title: value } } })} />
+                      <TextArea disabled={readOnly} label="Social Description" value={record.product.tiktok.social_description} onChange={(value) => setRecord({ ...record, product: { ...record.product, tiktok: { ...record.product.tiktok, social_description: value } } })} />
                     </>
                   ) : null}
                   {activeMarket === "shopify" ? (
                     <>
-                      <Input label="Title" value={record.product.shopify.title} onChange={(value) => setRecord({ ...record, product: { ...record.product, shopify: { ...record.product.shopify, title: value } } })} />
-                      <Input label="Product Type" value={record.product.shopify.product_type} onChange={(value) => setRecord({ ...record, product: { ...record.product, shopify: { ...record.product.shopify, product_type: value } } })} />
-                      <Input label="SEO Title" value={record.product.shopify.seo_title} onChange={(value) => setRecord({ ...record, product: { ...record.product, shopify: { ...record.product.shopify, seo_title: value } } })} />
-                      <TextArea label="SEO Description" value={record.product.shopify.seo_description} onChange={(value) => setRecord({ ...record, product: { ...record.product, shopify: { ...record.product.shopify, seo_description: value } } })} />
+                      <Input disabled={readOnly} label="Title" value={record.product.shopify.title} onChange={(value) => setRecord({ ...record, product: { ...record.product, shopify: { ...record.product.shopify, title: value } } })} />
+                      <Input disabled={readOnly} label="Product Type" value={record.product.shopify.product_type} onChange={(value) => setRecord({ ...record, product: { ...record.product, shopify: { ...record.product.shopify, product_type: value } } })} />
+                      <Input disabled={readOnly} label="SEO Title" value={record.product.shopify.seo_title} onChange={(value) => setRecord({ ...record, product: { ...record.product, shopify: { ...record.product.shopify, seo_title: value } } })} />
+                      <TextArea disabled={readOnly} label="SEO Description" value={record.product.shopify.seo_description} onChange={(value) => setRecord({ ...record, product: { ...record.product, shopify: { ...record.product.shopify, seo_description: value } } })} />
                     </>
                   ) : null}
                 </div>
@@ -422,7 +433,7 @@ export default function ImportProductEditor({ importId, activeMarket }: { import
                           <p className="px-6 text-center text-sm text-[#8ea0bf]">No image generated yet.</p>
                         )}
                       </div>
-                      {item.key === "source" ? (
+                      {item.key === "source" && !readOnly ? (
                         <button
                           className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5dcea] bg-white px-3 text-xs font-semibold text-[#4a5d7d] disabled:opacity-60"
                           disabled={isUploadingImage}
@@ -456,20 +467,20 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function Input({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function Input({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
   return (
     <label className="block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">{label}</p>
-      <input className="mt-3 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-3 text-sm text-[#31415e] outline-none" type="text" value={value} onChange={(event) => onChange(event.target.value)} />
+      <input className="mt-3 h-11 w-full rounded-xl border border-[#d4ddec] bg-white px-3 text-sm text-[#31415e] outline-none disabled:bg-[#eef3fb] disabled:text-[#667a97]" disabled={disabled} readOnly={disabled} type="text" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
 
-function TextArea({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function TextArea({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
   return (
     <label className="mt-4 block rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4 first:mt-0">
       <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2]">{label}</p>
-      <textarea className="mt-3 min-h-36 w-full rounded-xl border border-[#d4ddec] bg-white px-3 py-3 text-sm leading-6 text-[#31415e] outline-none" value={value} onChange={(event) => onChange(event.target.value)} />
+      <textarea className="mt-3 min-h-36 w-full rounded-xl border border-[#d4ddec] bg-white px-3 py-3 text-sm leading-6 text-[#31415e] outline-none disabled:bg-[#eef3fb] disabled:text-[#667a97]" disabled={disabled} readOnly={disabled} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
