@@ -108,6 +108,10 @@ type ApiEbay = {
   title: string;
   item_specifics: Record<string, string>;
   condition: string;
+  marketplace_id: string;
+  currency: string;
+  category_id: string;
+  description_override: string;
   listing_notes: string;
 };
 
@@ -503,6 +507,268 @@ const emptyPublishFieldErrors: PublishFieldErrors = {
   title: false,
   price: false,
 };
+const allowedEbayConditions = [
+  "NEW",
+  "USED",
+  "NEW_OTHER",
+  "USED_EXCELLENT",
+  "USED_GOOD",
+  "USED_ACCEPTABLE",
+] as const;
+
+type AllowedEbayCondition = (typeof allowedEbayConditions)[number];
+
+const ebayConditionLabels: Record<AllowedEbayCondition, string> = {
+  NEW: "New",
+  USED: "Used",
+  NEW_OTHER: "New Other",
+  USED_EXCELLENT: "Used Excellent",
+  USED_GOOD: "Used Good",
+  USED_ACCEPTABLE: "Used Acceptable",
+};
+
+const ebayMarketplaceDefaultCurrency = "GBP";
+const ebayMarketplaceDefaultId = "EBAY_GB";
+
+const ebaySpecificFieldAliases: Record<string, string[]> = {
+  Brand: ["Brand"],
+  Colour: ["Colour", "Color"],
+  Department: ["Department"],
+  Type: ["Type"],
+  Style: ["Style"],
+  UKShoeSize: ["UK Shoe Size"],
+};
+
+const demoColorKeywords = [
+  "Black",
+  "White",
+  "Red",
+  "Blue",
+  "Green",
+  "Grey",
+  "Gray",
+  "Brown",
+  "Pink",
+  "Purple",
+  "Orange",
+  "Yellow",
+  "Silver",
+  "Gold",
+  "Beige",
+  "Navy",
+];
+
+function normalizeEbayCondition(value?: string | null): AllowedEbayCondition | string {
+  const normalized = value?.trim();
+  if (!normalized || /^not\s+specified$/i.test(normalized)) {
+    return "NEW";
+  }
+
+  const canonical = normalized.toUpperCase().replace(/[\s-]+/g, "_");
+  switch (canonical) {
+    case "NEW":
+      return "NEW";
+    case "USED":
+      return "USED";
+    case "NEW_OTHER":
+      return "NEW_OTHER";
+    case "USED_EXCELLENT":
+      return "USED_EXCELLENT";
+    case "USED_GOOD":
+      return "USED_GOOD";
+    case "USED_ACCEPTABLE":
+      return "USED_ACCEPTABLE";
+    default:
+      return canonical;
+  }
+}
+
+function isAllowedEbayCondition(value: string): value is AllowedEbayCondition {
+  return allowedEbayConditions.includes(value as AllowedEbayCondition);
+}
+
+function getEbaySpecificFieldValue(
+  specifics: Record<string, string>,
+  primaryKey: keyof typeof ebaySpecificFieldAliases,
+) {
+  const aliases = ebaySpecificFieldAliases[primaryKey];
+  for (const alias of aliases) {
+    const value = specifics[alias]?.trim();
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function setEbaySpecificFieldValue(
+  specifics: Record<string, string>,
+  primaryKey: keyof typeof ebaySpecificFieldAliases,
+  value: string,
+) {
+  const nextSpecifics = { ...specifics };
+  const aliases = ebaySpecificFieldAliases[primaryKey];
+
+  for (const alias of aliases) {
+    delete nextSpecifics[alias];
+  }
+
+  const trimmedValue = value.trim();
+  if (trimmedValue) {
+    nextSpecifics[aliases[0]] = trimmedValue;
+  }
+
+  return nextSpecifics;
+}
+
+function findAttributeValue(attributes: Record<string, string>, aliases: string[]) {
+  const entries = Object.entries(attributes ?? {});
+  for (const alias of aliases) {
+    const directValue = attributes[alias]?.trim();
+    if (directValue) {
+      return directValue;
+    }
+
+    const match = entries.find(([key, value]) => key.trim().toLowerCase() === alias.toLowerCase() && value.trim());
+    if (match) {
+      return match[1].trim();
+    }
+  }
+
+  return "";
+}
+
+function inferEbayDepartment(text: string) {
+  const normalized = text.toLowerCase();
+  if (/\b(women|woman|ladies|female|girl)\b/.test(normalized)) {
+    return "Women";
+  }
+  if (/\b(men|man|male|boy)\b/.test(normalized)) {
+    return "Men";
+  }
+  if (/\b(kids|kid|youth|child|children|toddler)\b/.test(normalized)) {
+    return "Kids";
+  }
+
+  return "Unisex Adults";
+}
+
+function inferEbayColour(text: string) {
+  const normalized = text.toLowerCase();
+  const matches = demoColorKeywords.filter((color) => normalized.includes(color.toLowerCase()));
+  if (matches.length === 0) {
+    return "Black";
+  }
+
+  return matches.filter((value, index, array) => array.indexOf(value) === index).join("/");
+}
+
+function inferEbayStyle(text: string) {
+  const normalized = text.toLowerCase();
+  if (normalized.includes("sneaker")) return "Sneaker";
+  if (normalized.includes("running")) return "Running Shoe";
+  if (normalized.includes("boot")) return "Boot";
+  if (normalized.includes("trainer")) return "Trainer";
+  if (normalized.includes("sandal")) return "Sandal";
+
+  return "Sneaker";
+}
+
+function inferEbayUkShoeSize(text: string) {
+  const normalized = text.toLowerCase();
+  const sizeMatch =
+    normalized.match(/\b(?:uk\s*)?size\s*([0-9]+(?:\.[0-9])?)\b/)
+    || normalized.match(/\buk\s*([0-9]+(?:\.[0-9])?)\b/);
+
+  if (sizeMatch?.[1]) {
+    return sizeMatch[1];
+  }
+
+  return "10";
+}
+
+function withMissingEbayDraftDefaults(draft: ApiProduct, publishVendor: string) {
+  const coreTitle = draft.core.normalized_title.trim() || draft.core.source_title.trim();
+  const referenceText = [draft.ebay.title, coreTitle, draft.core.product_type, draft.core.category, draft.core.product_summary]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(" ");
+  const brandValue =
+    getEbaySpecificFieldValue(draft.ebay.item_specifics, "Brand")
+    || publishVendor.trim()
+    || findAttributeValue(draft.core.attributes, ["brand", "Brand", "vendor", "Vendor"])
+    || "Demo Brand";
+  const colourValue =
+    getEbaySpecificFieldValue(draft.ebay.item_specifics, "Colour")
+    || findAttributeValue(draft.core.attributes, ["Colour", "Color", "colour", "color"])
+    || inferEbayColour(referenceText);
+  const departmentValue =
+    getEbaySpecificFieldValue(draft.ebay.item_specifics, "Department")
+    || findAttributeValue(draft.core.attributes, ["Department", "Gender", "gender"])
+    || inferEbayDepartment(referenceText);
+  const typeValue =
+    getEbaySpecificFieldValue(draft.ebay.item_specifics, "Type")
+    || draft.core.product_type.trim()
+    || draft.core.category.trim()
+    || "Athletic";
+  const styleValue =
+    getEbaySpecificFieldValue(draft.ebay.item_specifics, "Style")
+    || findAttributeValue(draft.core.attributes, ["Style"])
+    || inferEbayStyle(referenceText);
+  const ukShoeSizeValue =
+    getEbaySpecificFieldValue(draft.ebay.item_specifics, "UKShoeSize")
+    || findAttributeValue(draft.core.attributes, ["UK Shoe Size", "Shoe Size", "Size"])
+    || inferEbayUkShoeSize(referenceText);
+
+  let nextSpecifics = draft.ebay.item_specifics;
+  let changed = false;
+
+  if (!getEbaySpecificFieldValue(nextSpecifics, "Brand")) {
+    nextSpecifics = setEbaySpecificFieldValue(nextSpecifics, "Brand", brandValue);
+    changed = true;
+  }
+  if (!getEbaySpecificFieldValue(nextSpecifics, "Colour")) {
+    nextSpecifics = setEbaySpecificFieldValue(nextSpecifics, "Colour", colourValue);
+    changed = true;
+  }
+  if (!getEbaySpecificFieldValue(nextSpecifics, "Department")) {
+    nextSpecifics = setEbaySpecificFieldValue(nextSpecifics, "Department", departmentValue);
+    changed = true;
+  }
+  if (!getEbaySpecificFieldValue(nextSpecifics, "Type")) {
+    nextSpecifics = setEbaySpecificFieldValue(nextSpecifics, "Type", typeValue);
+    changed = true;
+  }
+  if (!getEbaySpecificFieldValue(nextSpecifics, "Style")) {
+    nextSpecifics = setEbaySpecificFieldValue(nextSpecifics, "Style", styleValue);
+    changed = true;
+  }
+  if (!getEbaySpecificFieldValue(nextSpecifics, "UKShoeSize")) {
+    nextSpecifics = setEbaySpecificFieldValue(nextSpecifics, "UKShoeSize", ukShoeSizeValue);
+    changed = true;
+  }
+
+  const nextEbay = {
+    ...draft.ebay,
+    title: draft.ebay.title.trim() || coreTitle,
+    marketplace_id: draft.ebay.marketplace_id.trim() || ebayMarketplaceDefaultId,
+    currency: draft.ebay.currency.trim() || ebayMarketplaceDefaultCurrency,
+    item_specifics: nextSpecifics,
+  };
+
+  if (nextEbay.title !== draft.ebay.title) {
+    changed = true;
+  }
+  if (nextEbay.marketplace_id !== draft.ebay.marketplace_id) {
+    changed = true;
+  }
+  if (nextEbay.currency !== draft.ebay.currency) {
+    changed = true;
+  }
+
+  return changed ? { ...draft, ebay: nextEbay } : draft;
+}
 
 const emptyProduct: ApiProduct = {
   core: {
@@ -525,7 +791,11 @@ const emptyProduct: ApiProduct = {
   ebay: {
     title: "",
     item_specifics: {},
-    condition: "",
+    condition: "NEW",
+    marketplace_id: ebayMarketplaceDefaultId,
+    currency: ebayMarketplaceDefaultCurrency,
+    category_id: "",
+    description_override: "",
     listing_notes: "",
   },
   etsy: {
@@ -1634,6 +1904,21 @@ export default function AddProductEditor({
   const [publishStock, setPublishStock] = useState("0");
   const [publishOnOnlineStore, setPublishOnOnlineStore] = useState(true);
   const [publishTrackInventory, setPublishTrackInventory] = useState(true);
+  useEffect(() => {
+    setDraft((prev) => withMissingEbayDraftDefaults(prev, publishVendor));
+  }, [
+    publishVendor,
+    draft.core.attributes,
+    draft.core.category,
+    draft.core.normalized_title,
+    draft.core.product_summary,
+    draft.core.product_type,
+    draft.core.source_title,
+    draft.ebay.currency,
+    draft.ebay.item_specifics,
+    draft.ebay.marketplace_id,
+    draft.ebay.title,
+  ]);
   const [pricingSnapshot, setPricingSnapshot] = useState<ApiProductPricingSnapshot | null>(null);
   const lastPricingFallbackKeyRef = useRef<string | null>(null);
   const lastAutoPublishPriceRef = useRef("");
@@ -2113,6 +2398,11 @@ export default function AddProductEditor({
     };
     const normalizedDraft = {
       ...snapshot.draft,
+      ebay: {
+        ...emptyProduct.ebay,
+        ...(snapshot.draft.ebay ?? {}),
+        condition: normalizeEbayCondition(snapshot.draft.ebay?.condition),
+      },
       shopify: normalizedShopify,
     };
     setDraft(normalizedDraft);
@@ -2643,7 +2933,11 @@ export default function AddProductEditor({
       ebay: {
         ...emptyProduct.ebay,
         title: product.title,
-        condition: product.ebayCondition ?? "",
+        condition: normalizeEbayCondition(product.ebayCondition),
+        marketplace_id: product.ebayMarketplaceId ?? ebayMarketplaceDefaultId,
+        currency: product.ebayCurrency ?? ebayMarketplaceDefaultCurrency,
+        category_id: product.ebayCategoryId ?? "",
+        description_override: product.ebayDescriptionOverride ?? "",
         listing_notes: product.ebayListingNotes ?? "",
         item_specifics: ebayItemSpecifics,
       },
@@ -2880,12 +3174,12 @@ export default function AddProductEditor({
     const publicImages = getPublicPublishImageUrls();
     const allImagePaths = getAllCandidateImagePaths();
     const title = draft.ebay.title.trim() || getPublishTitle();
-    const description = getPublishDescription();
+    const description = draft.ebay.description_override.trim() || getPublishDescription();
     const ebayItemSpecifics = buildEbayItemSpecifics();
-    const currencyHint =
-      pricingSnapshot?.markets.find((entry) => entry.marketplace === "ebay")?.currency
-      ?? pricingSnapshot?.markets.find((entry) => entry.marketplace === activeMarket)?.currency
-      ?? undefined;
+    const normalizedCondition = normalizeEbayCondition(draft.ebay.condition);
+    const currencyHint = draft.ebay.currency.trim() || ebayMarketplaceDefaultCurrency;
+    const marketplaceId = draft.ebay.marketplace_id.trim() || ebayMarketplaceDefaultId;
+    const categoryId = draft.ebay.category_id.trim() || undefined;
 
     return {
       marketplace: "ebay",
@@ -2907,12 +3201,13 @@ export default function AddProductEditor({
         },
       ],
       ebaySku: publishSku.trim() || undefined,
-      ebayCondition: draft.ebay.condition.trim() || undefined,
-      ebayCategoryId: undefined,
+      ebayMarketplaceId: marketplaceId,
+      ebayCondition: isAllowedEbayCondition(normalizedCondition) ? normalizedCondition : undefined,
+      ebayCategoryId: categoryId,
       ebayItemSpecifics: Object.keys(ebayItemSpecifics).length > 0 ? ebayItemSpecifics : undefined,
       ebayListingNotes: draft.ebay.listing_notes.trim() || undefined,
       ebayDescriptionOverride: description || undefined,
-      ebayCurrency: currencyHint?.trim() || undefined,
+      ebayCurrency: currencyHint,
     };
   }
 
@@ -2957,6 +3252,9 @@ export default function AddProductEditor({
     const trimmedSku = publishSku.trim();
     const description = getPublishDescription();
     const publicImages = getPublicPublishImageUrls();
+    const normalizedCondition = normalizeEbayCondition(draft.ebay.condition);
+    const colourSpecific = getEbaySpecificFieldValue(draft.ebay.item_specifics, "Colour");
+    const ukShoeSizeSpecific = getEbaySpecificFieldValue(draft.ebay.item_specifics, "UKShoeSize");
 
     setShopifyPublishMessage("");
     const nextFieldErrors: PublishFieldErrors = {
@@ -2981,6 +3279,12 @@ export default function AddProductEditor({
     if (publicImages.length === 0) {
       missingFields.push("Public image URL");
     }
+    if (!colourSpecific) {
+      missingFields.push("Colour item specific");
+    }
+    if (!ukShoeSizeSpecific) {
+      missingFields.push("UK Shoe Size item specific");
+    }
 
     if (missingFields.length > 0) {
       const message = `Required before eBay Sandbox publish: ${missingFields.join(", ")}.`;
@@ -2995,6 +3299,23 @@ export default function AddProductEditor({
       setShopifyPublishMessage("Default price must be a valid number greater than or equal to 0.");
       setStatusMessage("Price must be a valid number greater than or equal to 0.");
       return;
+    }
+
+    if (!isAllowedEbayCondition(normalizedCondition)) {
+      const message = `eBay condition must be one of: ${allowedEbayConditions.join(", ")}.`;
+      setShopifyPublishMessage(message);
+      setStatusMessage(message);
+      return;
+    }
+
+    if (draft.ebay.condition !== normalizedCondition) {
+      setDraft((prev) => ({
+        ...prev,
+        ebay: {
+          ...prev.ebay,
+          condition: normalizedCondition,
+        },
+      }));
     }
 
     if (mode === "draft") {
@@ -4671,10 +4992,145 @@ export default function AddProductEditor({
                       onChange={(value) => setDraft((prev) => ({ ...prev, ebay: { ...prev.ebay, title: value } }))}
                       value={draft.ebay.title}
                     />
+                    <div className="flex flex-col rounded-2xl border border-[#dbe2ee] bg-[#f8fbff] p-4 transition-all duration-200 focus-within:border-[#cbd5e1] focus-within:bg-white focus-within:shadow-[0_8px_20px_-6px_rgba(0,0,0,0.03)]">
+                      <div className="flex items-center justify-between border-b border-[#eef2f6] pb-2.5 mb-3">
+                        <div>
+                          <span className="text-xs font-bold uppercase tracking-wider text-[#8093b2]">Condition</span>
+                          <p className="mt-0.5 text-[11px] text-[#8ea0bf]">eBay publish supports only approved inventory conditions.</p>
+                        </div>
+                      </div>
+                      <select
+                        className="h-10 w-full rounded-lg border border-[#d4ddec] bg-white px-3 text-xs font-medium text-[#31415e] outline-none transition focus:border-[#2b7cf5]"
+                        onChange={(event) =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            ebay: {
+                              ...prev.ebay,
+                              condition: normalizeEbayCondition(event.target.value),
+                            },
+                          }))
+                        }
+                        value={isAllowedEbayCondition(normalizeEbayCondition(draft.ebay.condition)) ? normalizeEbayCondition(draft.ebay.condition) : "NEW"}
+                      >
+                        {allowedEbayConditions.map((condition) => (
+                          <option key={condition} value={condition}>
+                            {ebayConditionLabels[condition]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid gap-3 lg:grid-cols-3">
+                      <EditableField
+                        label="Marketplace ID"
+                        helperText="Use EBAY_GB for your current sandbox setup."
+                        onChange={(value) => setDraft((prev) => ({ ...prev, ebay: { ...prev.ebay, marketplace_id: value.toUpperCase() } }))}
+                        value={draft.ebay.marketplace_id}
+                      />
+                      <EditableField
+                        label="Currency"
+                        helperText="GBP for EBAY_GB."
+                        onChange={(value) => setDraft((prev) => ({ ...prev, ebay: { ...prev.ebay, currency: value.toUpperCase() } }))}
+                        value={draft.ebay.currency}
+                      />
+                      <EditableField
+                        label="Category ID"
+                        helperText="Optional. Leave blank to use backend default sandbox category."
+                        onChange={(value) => setDraft((prev) => ({ ...prev, ebay: { ...prev.ebay, category_id: value } }))}
+                        value={draft.ebay.category_id}
+                      />
+                    </div>
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      <EditableField
+                        label="Brand"
+                        helperText="Recommended eBay item specific."
+                        onChange={(value) =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            ebay: {
+                              ...prev.ebay,
+                              item_specifics: setEbaySpecificFieldValue(prev.ebay.item_specifics, "Brand", value),
+                            },
+                          }))
+                        }
+                        value={getEbaySpecificFieldValue(draft.ebay.item_specifics, "Brand")}
+                      />
+                      <EditableField
+                        label="Colour"
+                        helperText="Required by many eBay fashion categories."
+                        onChange={(value) =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            ebay: {
+                              ...prev.ebay,
+                              item_specifics: setEbaySpecificFieldValue(prev.ebay.item_specifics, "Colour", value),
+                            },
+                          }))
+                        }
+                        value={getEbaySpecificFieldValue(draft.ebay.item_specifics, "Colour")}
+                      />
+                      <EditableField
+                        label="Department"
+                        helperText="Example: Men, Women, Unisex Adults."
+                        onChange={(value) =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            ebay: {
+                              ...prev.ebay,
+                              item_specifics: setEbaySpecificFieldValue(prev.ebay.item_specifics, "Department", value),
+                            },
+                          }))
+                        }
+                        value={getEbaySpecificFieldValue(draft.ebay.item_specifics, "Department")}
+                      />
+                      <EditableField
+                        label="Type"
+                        helperText="Example: Trainer, Boot, Athletic."
+                        onChange={(value) =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            ebay: {
+                              ...prev.ebay,
+                              item_specifics: setEbaySpecificFieldValue(prev.ebay.item_specifics, "Type", value),
+                            },
+                          }))
+                        }
+                        value={getEbaySpecificFieldValue(draft.ebay.item_specifics, "Type")}
+                      />
+                      <EditableField
+                        label="Style"
+                        helperText="Example: Sneaker, Running Shoe."
+                        onChange={(value) =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            ebay: {
+                              ...prev.ebay,
+                              item_specifics: setEbaySpecificFieldValue(prev.ebay.item_specifics, "Style", value),
+                            },
+                          }))
+                        }
+                        value={getEbaySpecificFieldValue(draft.ebay.item_specifics, "Style")}
+                      />
+                      <EditableField
+                        label="UK Shoe Size"
+                        helperText="Required by your current eBay footwear category."
+                        onChange={(value) =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            ebay: {
+                              ...prev.ebay,
+                              item_specifics: setEbaySpecificFieldValue(prev.ebay.item_specifics, "UKShoeSize", value),
+                            },
+                          }))
+                        }
+                        value={getEbaySpecificFieldValue(draft.ebay.item_specifics, "UKShoeSize")}
+                      />
+                    </div>
                     <EditableField
-                      label="Condition"
-                      onChange={(value) => setDraft((prev) => ({ ...prev, ebay: { ...prev.ebay, condition: value } }))}
-                      value={draft.ebay.condition}
+                      label="Description Override"
+                      helperText="Optional eBay-specific description used instead of the general publish description."
+                      multiline
+                      onChange={(value) => setDraft((prev) => ({ ...prev, ebay: { ...prev.ebay, description_override: value } }))}
+                      value={draft.ebay.description_override}
                     />
                     <EditableField
                       label="Listing Notes"
