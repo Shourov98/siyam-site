@@ -22,7 +22,12 @@ export type ProductRow = {
   shopifyVariantId?: string;
   inventoryItemId?: string;
   inventoryLocationId?: string;
-  source: "shopify" | "product_ai";
+  source: "shopify" | "product_ai" | "commandctr";
+  marketplace?: string;
+  ebayStatus?: string;
+  ebayListingId?: string;
+  ebayOfferId?: string;
+  ebayInventoryItemId?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -95,7 +100,7 @@ type ProductsPageState = {
 };
 
 function getProductDocumentId(product: ProductListItem) {
-  return product._id ?? product.id ?? product.shopifyProductId;
+  return product._id ?? product.id ?? product.shopifyProductId ?? product.title;
 }
 
 function buildInventoryLocationMap(levels: ShopifyInventoryLevel[]) {
@@ -142,16 +147,17 @@ function mapProductRows(products: ProductListItem[], inventoryLevels: ShopifyInv
   return products.map<ProductRow>((product) => {
     const primaryVariant = product.variants[0];
     const inventoryItemId = primaryVariant?.inventoryItemId;
+    const shopifyLookupId = product.shopifyProductId;
     const liveStock =
       (inventoryItemId ? inventoryQuantityByItemId.get(inventoryItemId) : undefined)
-      ?? inventoryQuantityByProductId.get(product.shopifyProductId)
+      ?? (shopifyLookupId ? inventoryQuantityByProductId.get(shopifyLookupId) : undefined)
       ?? primaryVariant?.inventoryQuantity
       ?? product.totalInventory
       ?? 0;
 
     return {
       id: getProductDocumentId(product),
-      shopifyProductId: product.shopifyProductId,
+      shopifyProductId: product.shopifyProductId ?? product._id ?? product.id ?? "",
       title: product.title,
       sku: primaryVariant?.sku ?? "",
       vendor: product.vendor ?? "",
@@ -163,8 +169,13 @@ function mapProductRows(products: ProductListItem[], inventoryLevels: ShopifyInv
       shopifyVariantId: primaryVariant?.shopifyVariantId,
       inventoryItemId,
       inventoryLocationId: inventoryItemId ? (inventoryLocationByItemId.get(inventoryItemId) ?? "") : "",
-      source: "shopify",
-      createdAt: product.updatedAt,
+      source: (product.marketplace ?? "shopify") === "shopify" ? "shopify" : "commandctr",
+      marketplace: product.marketplace,
+      ebayStatus: product.ebayStatus,
+      ebayListingId: product.ebayListingId,
+      ebayOfferId: product.ebayOfferId,
+      ebayInventoryItemId: product.ebayInventoryItemId,
+      createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     };
   });
@@ -182,6 +193,7 @@ function mapProductAiRows(products: ProductAiListItem[]) {
     stock: 0,
     featuredImage: product.preview_image_path,
     shopifyPrice: product.default_price?.trim() ?? "",
+    marketplace: "product_ai",
     source: "product_ai",
     createdAt: product.created_at,
     updatedAt: product.updated_at,
@@ -191,7 +203,8 @@ function mapProductAiRows(products: ProductAiListItem[]) {
 function sortProductRows(rows: ProductRow[]) {
   return [...rows].sort((left, right) => {
     if (left.source !== right.source) {
-      return left.source === "shopify" ? -1 : 1;
+      const weight = { commandctr: 0, shopify: 1, product_ai: 2 } as const;
+      return weight[left.source] - weight[right.source];
     }
 
     const leftTime = Date.parse(left.updatedAt ?? left.createdAt ?? "");

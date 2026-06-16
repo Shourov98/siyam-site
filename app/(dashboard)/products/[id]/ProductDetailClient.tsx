@@ -215,7 +215,7 @@ export default function ProductDetailClient({ id, sourceHint }: { id: string; so
                 <ReadOnlyField label="Vendor / Brand" value={product.vendor || "--"} />
                 <ReadOnlyField label="Product Type" value={product.productType || "--"} />
                 <ReadOnlyField label="Status" value={product.status || "--"} />
-                <ReadOnlyField label="Shopify Product ID" value={product.shopifyProductId} />
+                <ReadOnlyField label="Shopify Product ID" value={product.shopifyProductId || "--"} />
                 <ReadOnlyField label="Tags" value={product.tags?.join(", ") || "--"} />
               </div>
               <div className="mt-4">

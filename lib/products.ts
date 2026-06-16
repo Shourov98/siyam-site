@@ -1,7 +1,7 @@
 import { requestWithAuth } from "@/lib/auth";
 
 export type ProductListVariant = {
-  shopifyVariantId: string;
+  shopifyVariantId?: string;
   title: string;
   sku?: string;
   price?: string;
@@ -13,7 +13,8 @@ export type ProductListVariant = {
 export type ProductListItem = {
   _id?: string;
   id?: string;
-  shopifyProductId: string;
+  marketplace?: string;
+  shopifyProductId?: string;
   title: string;
   description?: string;
   handle?: string;
@@ -23,8 +24,47 @@ export type ProductListItem = {
   tags?: string[];
   totalInventory?: number;
   featuredImage?: string;
+  images?: string[];
   variants: ProductListVariant[];
+  ebayInventoryItemId?: string;
+  ebayOfferId?: string;
+  ebayListingId?: string;
+  ebaySku?: string;
+  ebayMarketplaceId?: string;
+  ebayCurrency?: string;
+  ebayCondition?: string;
+  ebayCategoryId?: string;
+  ebayItemSpecifics?: Record<string, string[]>;
+  ebayListingNotes?: string;
+  ebayDescriptionOverride?: string;
+  ebayStatus?: string;
+  lastEbaySyncAt?: string;
   updatedAt?: string;
+  createdAt?: string;
+};
+
+export type ProductCreatePayload = {
+  marketplace?: string;
+  shopifyProductId?: string;
+  title: string;
+  description?: string;
+  handle?: string;
+  vendor?: string;
+  productType?: string;
+  status?: string;
+  tags?: string[];
+  totalInventory?: number;
+  featuredImage?: string;
+  images?: string[];
+  variants: ProductListVariant[];
+  ebaySku?: string;
+  ebayMarketplaceId?: string;
+  ebayCurrency?: string;
+  ebayCondition?: string;
+  ebayCategoryId?: string;
+  ebayItemSpecifics?: Record<string, string[]>;
+  ebayListingNotes?: string;
+  ebayDescriptionOverride?: string;
 };
 
 export type ShopifyInventoryLevel = {
@@ -79,6 +119,24 @@ export type ShopifyImportProductsResult = {
 export const productsApi = {
   getProducts() {
     return requestWithAuth<ProductListItem[]>("/products");
+  },
+
+  getProductById(productId: string) {
+    return requestWithAuth<ProductListItem>(`/products/${encodeURIComponent(productId)}`);
+  },
+
+  createProduct(payload: ProductCreatePayload) {
+    return requestWithAuth<ProductListItem>("/products", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateProduct(productId: string, payload: Partial<ProductCreatePayload>) {
+    return requestWithAuth<ProductListItem>(`/products/${encodeURIComponent(productId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
   },
 
   importShopifyProducts() {

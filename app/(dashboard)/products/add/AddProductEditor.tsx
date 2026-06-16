@@ -41,7 +41,8 @@ import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "
 import JSZip from "jszip";
 
 import { ApiClientError, authStorage } from "@/lib/auth";
-import { productsApi, type ProductListItem } from "@/lib/products";
+import { ebayApi } from "@/lib/ebay";
+import { productsApi, type ProductCreatePayload, type ProductListItem } from "@/lib/products";
 import { shopifyProductsApi } from "@/lib/shopify-products";
 
 type MarketKey = "amazon" | "ebay" | "etsy" | "tiktok" | "shopify";
@@ -255,6 +256,7 @@ type SavedDraftSnapshot = {
   draft: ApiProduct;
   variantsByMarket: Record<MarketKey, ApiVariant[]>;
   productId: string | null;
+  backendProductId: string | null;
   shopifyProductId: string | null;
   sourceTitle: string;
   publishVendor: string;
@@ -761,6 +763,10 @@ function imageUrlFor(pathValue: string) {
   }
 
   return `/api/product-ai/image?path=${encodeURIComponent(pathValue)}`;
+}
+
+function isPublicHttpUrl(pathValue: string) {
+  return pathValue.startsWith("http://") || pathValue.startsWith("https://");
 }
 
 function cartesianProduct(arrays: string[][]): string[][] {
@@ -1596,7 +1602,7 @@ export default function AddProductEditor({
 }: {
   activeMarket: MarketKey;
   initialProductId: string | null;
-  initialSourceHint: "shopify" | "product_ai" | null;
+  initialSourceHint: "shopify" | "product_ai" | "commandctr" | null;
   localDraftSeed: LocalDraftSeed | null;
 }) {
   const router = useRouter();
@@ -1606,6 +1612,7 @@ export default function AddProductEditor({
   const [draft, setDraft] = useState<ApiProduct>(emptyProduct);
   const [variantsByMarket, setVariantsByMarket] = useState<Record<MarketKey, ApiVariant[]>>(sampleVariants);
   const [productId, setProductId] = useState<string | null>(initialProductId);
+  const [backendProductId, setBackendProductId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Choose an image and generate a product draft.");
   const [sourceTitle, setSourceTitle] = useState(emptyProduct.core.source_title);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -1796,6 +1803,7 @@ export default function AddProductEditor({
       draft,
       variantsByMarket,
       productId,
+      backendProductId,
       shopifyProductId,
       sourceTitle,
       publishVendor,
@@ -2060,6 +2068,7 @@ export default function AddProductEditor({
       draft: snapshot.draft,
       variantsByMarket: snapshot.variantsByMarket,
       productId: snapshot.productId,
+      backendProductId: snapshot.backendProductId,
       shopifyProductId: snapshot.shopifyProductId,
       sourceTitle: snapshot.sourceTitle,
       publishVendor: snapshot.publishVendor,
@@ -2111,6 +2120,7 @@ export default function AddProductEditor({
     setShowCostPerItem(!!normalizedShopify.cost_per_item);
     setVariantsByMarket(snapshot.variantsByMarket);
     setProductId(snapshot.productId);
+    setBackendProductId(snapshot.backendProductId ?? null);
     setShopifyProductId(snapshot.shopifyProductId);
     setSourceTitle(snapshot.sourceTitle);
     setPublishVendor(snapshot.publishVendor);
@@ -2137,6 +2147,7 @@ export default function AddProductEditor({
     setDraft(emptyProduct);
     setVariantsByMarket(sampleVariants);
     setProductId(null);
+    setBackendProductId(null);
     setShopifyProductId(null);
     setSourceTitle(emptyProduct.core.source_title);
     clearSelectedImageSelection();
@@ -2249,6 +2260,7 @@ export default function AddProductEditor({
       draft: nextDraft,
       variantsByMarket: sampleVariants,
       productId: null,
+      backendProductId: null,
       shopifyProductId: null,
       sourceTitle: trimmedTitle,
       publishVendor: "",
@@ -2271,6 +2283,7 @@ export default function AddProductEditor({
     setDraft(snapshot.draft);
     setVariantsByMarket(snapshot.variantsByMarket);
     setProductId(snapshot.productId);
+    setBackendProductId(snapshot.backendProductId ?? null);
     setShopifyProductId(snapshot.shopifyProductId);
     setSourceTitle(snapshot.sourceTitle);
     setPublishVendor(snapshot.publishVendor);
@@ -2352,30 +2365,42 @@ export default function AddProductEditor({
     let active = true;
 
     async function loadProduct() {
+      const requestedProductId = initialProductId;
+      if (!requestedProductId) {
+        return;
+      }
+
       setIsLoadingProduct(true);
       try {
-        if (initialSourceHint !== "shopify") {
-          const response = await fetch(`/api/product-ai/products/${initialProductId}`, { cache: "no-store" });
+        if (initialSourceHint !== "shopify" && initialSourceHint !== "commandctr") {
+          const response = await fetch(`/api/product-ai/products/${requestedProductId}`, { cache: "no-store" });
           if (response.ok) {
             const record = (await response.json()) as ApiRecord;
             if (!active) {
               return;
             }
 
+            setBackendProductId(null);
             setShopifyProductId(null);
             applyRecord(record, `Loaded draft ${record.id.slice(0, 8)} for editing.`);
             return;
           }
         }
 
-        const products = await productsApi.getProducts();
-        const product = products.find((item) => item._id === initialProductId || item.id === initialProductId || item.shopifyProductId === initialProductId);
+        let product: ProductListItem | null = null;
+        try {
+          product = await productsApi.getProductById(requestedProductId);
+        } catch {
+          const products = await productsApi.getProducts();
+          product = products.find((item) => item._id === requestedProductId || item.id === requestedProductId || item.shopifyProductId === requestedProductId) ?? null;
+        }
+
         if (product) {
           if (!active) {
             return;
           }
 
-          applyShopifyProduct(product, `Loaded Shopify product for editing.`);
+          applyPersistedProduct(product, `Loaded saved product for editing.`);
           return;
         }
 
@@ -2413,6 +2438,7 @@ export default function AddProductEditor({
       draft,
       variantsByMarket,
       productId,
+      backendProductId,
       shopifyProductId,
       sourceTitle,
       publishVendor,
@@ -2429,7 +2455,7 @@ export default function AddProductEditor({
     window.setTimeout(() => {
       setHasSavedDraft(true);
     }, 0);
-  }, [draft, hasInitializedDraftStorage, productId, publishDescription, publishPrice, publishSku, publishStatus, publishVendor, shopifyProductId, sourceTitle, variantsByMarket, publishStock, publishOnOnlineStore, publishTrackInventory]);
+  }, [backendProductId, draft, hasInitializedDraftStorage, productId, publishDescription, publishPrice, publishSku, publishStatus, publishVendor, shopifyProductId, sourceTitle, variantsByMarket, publishStock, publishOnOnlineStore, publishTrackInventory]);
 
   const selectedImagePreviewUrl = useMemo(
     () => (selectedImage ? URL.createObjectURL(selectedImage) : null),
@@ -2450,6 +2476,7 @@ export default function AddProductEditor({
         draft,
         variantsByMarket,
         productId,
+        backendProductId,
         shopifyProductId,
         sourceTitle,
         publishVendor,
@@ -2462,7 +2489,7 @@ export default function AddProductEditor({
         publishTrackInventory,
         savedAt: "",
       }),
-    [draft, variantsByMarket, productId, shopifyProductId, sourceTitle, publishVendor, publishDescription, publishPrice, publishSku, publishStatus, publishStock, publishOnOnlineStore, publishTrackInventory],
+    [backendProductId, draft, variantsByMarket, productId, shopifyProductId, sourceTitle, publishVendor, publishDescription, publishPrice, publishSku, publishStatus, publishStock, publishOnOnlineStore, publishTrackInventory],
   );
 
   useEffect(() => {
@@ -2553,6 +2580,7 @@ export default function AddProductEditor({
       draft: mergedProduct,
       variantsByMarket: record.variants,
       productId: record.id,
+      backendProductId,
       shopifyProductId: shopifyProductId,
       sourceTitle: record.product.core.source_title,
       publishVendor: finalVendor,
@@ -2570,12 +2598,19 @@ export default function AddProductEditor({
     setStatusMessage(message);
   }
 
-  function applyShopifyProduct(product: ProductListItem, message: string) {
+  function applyPersistedProduct(product: ProductListItem, message: string) {
     const primaryVariant = product.variants[0];
     const stock = Math.max(0, primaryVariant?.inventoryQuantity ?? product.totalInventory ?? 0);
     const price = primaryVariant?.price?.trim() ?? "";
     const sku = primaryVariant?.sku?.trim() ?? "";
     const featuredImage = product.featuredImage ?? "";
+    const productDocumentId = product._id ?? product.id ?? null;
+    const marketplace = (product.marketplace ?? "").toLowerCase();
+    const isShopifyProduct = marketplace === "shopify" && Boolean(product.shopifyProductId);
+    const imageValue = [featuredImage, ...(product.images ?? []).filter(Boolean)].find(Boolean) ?? "";
+    const ebayItemSpecifics = Object.fromEntries(
+      Object.entries(product.ebayItemSpecifics ?? {}).map(([key, values]) => [key, Array.isArray(values) ? values.join(", ") : String(values)]),
+    );
 
     const shopifyVariants: ApiShopifyVariant[] = product.variants.map((variant) => ({
       title: variant.title || "Default Title",
@@ -2605,6 +2640,13 @@ export default function AddProductEditor({
         source_title: product.title,
         vision_confidence: 0,
       },
+      ebay: {
+        ...emptyProduct.ebay,
+        title: product.title,
+        condition: product.ebayCondition ?? "",
+        listing_notes: product.ebayListingNotes ?? "",
+        item_specifics: ebayItemSpecifics,
+      },
       shopify: {
         ...emptyProduct.shopify,
         title: product.title,
@@ -2620,22 +2662,32 @@ export default function AddProductEditor({
         ...emptyProduct.images,
         source: {
           ...emptyProduct.images.source,
-          relative_path: featuredImage,
-          absolute_path: featuredImage,
+          relative_path: imageValue,
+          absolute_path: imageValue,
           validation: {
             ...emptyProduct.images.source.validation,
-            passed: Boolean(featuredImage),
-            errors: featuredImage ? [] : emptyProduct.images.source.validation.errors,
+            passed: Boolean(imageValue),
+            errors: imageValue ? [] : emptyProduct.images.source.validation.errors,
+          },
+        },
+        ebay: {
+          ...emptyProduct.images.ebay,
+          relative_path: imageValue,
+          absolute_path: imageValue,
+          validation: {
+            ...emptyProduct.images.ebay.validation,
+            passed: Boolean(imageValue),
+            errors: imageValue ? [] : emptyProduct.images.ebay.validation.errors,
           },
         },
         shopify: {
           ...emptyProduct.images.shopify,
-          relative_path: featuredImage,
-          absolute_path: featuredImage,
+          relative_path: imageValue,
+          absolute_path: imageValue,
           validation: {
             ...emptyProduct.images.shopify.validation,
-            passed: Boolean(featuredImage),
-            errors: featuredImage ? [] : emptyProduct.images.shopify.validation.errors,
+            passed: Boolean(imageValue),
+            errors: imageValue ? [] : emptyProduct.images.shopify.validation.errors,
           },
         },
       },
@@ -2644,12 +2696,13 @@ export default function AddProductEditor({
     setDraft(nextDraft);
     setVariantsByMarket(sampleVariants);
     setProductId(null);
-    setShopifyProductId(product.shopifyProductId);
+    setBackendProductId(productDocumentId);
+    setShopifyProductId(isShopifyProduct ? product.shopifyProductId ?? null : null);
     setSourceTitle(product.title);
     setPublishVendor(product.vendor ?? "");
-    setPublishDescription(product.description ?? "");
+    setPublishDescription(product.ebayDescriptionOverride ?? product.description ?? "");
     setPublishPrice(price);
-    setPublishSku(sku);
+    setPublishSku(product.ebaySku ?? sku);
     setPublishStatus((product.status?.toUpperCase() as PublishStatus) === "DRAFT" ? "DRAFT" : "ACTIVE");
     setPublishStock(String(stock));
     setPublishOnOnlineStore((product.status?.toUpperCase() ?? "DRAFT") === "ACTIVE");
@@ -2659,6 +2712,23 @@ export default function AddProductEditor({
     setPublishFieldErrors(emptyPublishFieldErrors);
     setHasSavedDraft(true);
     setStatusMessage(message);
+    persistDraftSnapshot({
+      draft: nextDraft,
+      variantsByMarket: sampleVariants,
+      productId: null,
+      backendProductId: productDocumentId,
+      shopifyProductId: isShopifyProduct ? product.shopifyProductId ?? null : null,
+      sourceTitle: product.title,
+      publishVendor: product.vendor ?? "",
+      publishDescription: product.ebayDescriptionOverride ?? product.description ?? "",
+      publishPrice: price,
+      publishSku: product.ebaySku ?? sku,
+      publishStatus: (product.status?.toUpperCase() as PublishStatus) === "DRAFT" ? "DRAFT" : "ACTIVE",
+      publishStock: String(stock),
+      publishOnOnlineStore: (product.status?.toUpperCase() ?? "DRAFT") === "ACTIVE",
+      publishTrackInventory: true,
+      savedAt: new Date().toISOString(),
+    });
   }
 
   function clearSelectedImageSelection() {
@@ -2759,6 +2829,233 @@ export default function AddProductEditor({
 
   function getPublishImagePath() {
     return draft.images.shopify.absolute_path || draft.images.shopify.relative_path || "";
+  }
+
+  function getAllCandidateImagePaths() {
+    return [
+      draft.images.ebay.absolute_path,
+      draft.images.ebay.relative_path,
+      draft.images.shopify.absolute_path,
+      draft.images.shopify.relative_path,
+      draft.images.source.absolute_path,
+      draft.images.source.relative_path,
+    ]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .filter((value, index, array) => array.indexOf(value) === index);
+  }
+
+  function getPublicPublishImageUrls() {
+    return getAllCandidateImagePaths().filter(isPublicHttpUrl);
+  }
+
+  function getSanitizedPublishStock() {
+    const numericStock = Number.parseInt(publishStock.trim() || "0", 10);
+    return Number.isFinite(numericStock) && numericStock >= 0 ? numericStock : 0;
+  }
+
+  function getSanitizedPublishPrice() {
+    const numericPrice = Number.parseFloat(publishPrice.trim());
+    return Number.isFinite(numericPrice) && numericPrice >= 0 ? numericPrice.toFixed(2) : null;
+  }
+
+  function buildEbayItemSpecifics() {
+    return Object.fromEntries(
+      Object.entries(draft.ebay.item_specifics ?? {})
+        .map(([key, value]) => {
+          const normalizedValues = value
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean);
+
+          return [key.trim(), normalizedValues] as const;
+        })
+        .filter(([key, values]) => key && values.length > 0),
+    );
+  }
+
+  function buildBackendProductPayloadForEbay(): ProductCreatePayload {
+    const sanitizedPrice = getSanitizedPublishPrice();
+    const stock = getSanitizedPublishStock();
+    const publicImages = getPublicPublishImageUrls();
+    const allImagePaths = getAllCandidateImagePaths();
+    const title = draft.ebay.title.trim() || getPublishTitle();
+    const description = getPublishDescription();
+    const ebayItemSpecifics = buildEbayItemSpecifics();
+    const currencyHint =
+      pricingSnapshot?.markets.find((entry) => entry.marketplace === "ebay")?.currency
+      ?? pricingSnapshot?.markets.find((entry) => entry.marketplace === activeMarket)?.currency
+      ?? undefined;
+
+    return {
+      marketplace: "ebay",
+      title,
+      description,
+      vendor: getPublishVendor() || undefined,
+      productType: getPublishProductType() || undefined,
+      status: publishStatus,
+      tags: getPublishTags(),
+      featuredImage: allImagePaths[0],
+      images: allImagePaths,
+      totalInventory: stock,
+      variants: [
+        {
+          title: "Default Title",
+          sku: publishSku.trim() || undefined,
+          price: sanitizedPrice ?? undefined,
+          inventoryQuantity: stock,
+        },
+      ],
+      ebaySku: publishSku.trim() || undefined,
+      ebayCondition: draft.ebay.condition.trim() || undefined,
+      ebayCategoryId: undefined,
+      ebayItemSpecifics: Object.keys(ebayItemSpecifics).length > 0 ? ebayItemSpecifics : undefined,
+      ebayListingNotes: draft.ebay.listing_notes.trim() || undefined,
+      ebayDescriptionOverride: description || undefined,
+      ebayCurrency: currencyHint?.trim() || undefined,
+    };
+  }
+
+  async function materializeBackendProductForEbay() {
+    const payload = buildBackendProductPayloadForEbay();
+    const savedProduct = backendProductId
+      ? await productsApi.updateProduct(backendProductId, payload)
+      : await productsApi.createProduct(payload);
+    const savedProductId = savedProduct._id ?? savedProduct.id ?? null;
+
+    if (!savedProductId) {
+      throw new Error("Backend product was created without an ID.");
+    }
+
+    setBackendProductId(savedProductId);
+    persistDraftSnapshot({
+      ...buildDraftSnapshot(),
+      backendProductId: savedProductId,
+    });
+
+    return savedProduct;
+  }
+
+  async function pollEbayPublishJob(jobId: string) {
+    const maxAttempts = 45;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const job = await ebayApi.getJob(jobId);
+      if (job.status === "completed" || job.status === "failed") {
+        return job;
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 2000));
+    }
+
+    throw new Error("Timed out waiting for the eBay Sandbox publish job to finish.");
+  }
+
+  async function uploadToEbay(mode: "active" | "draft") {
+    const title = draft.ebay.title.trim() || getPublishTitle();
+    const trimmedPrice = publishPrice.trim();
+    const trimmedSku = publishSku.trim();
+    const description = getPublishDescription();
+    const publicImages = getPublicPublishImageUrls();
+
+    setShopifyPublishMessage("");
+    const nextFieldErrors: PublishFieldErrors = {
+      title: !title,
+      price: !trimmedPrice,
+    };
+    setPublishFieldErrors(nextFieldErrors);
+
+    const missingFields: string[] = [];
+    if (nextFieldErrors.title) {
+      missingFields.push("Product title");
+    }
+    if (nextFieldErrors.price) {
+      missingFields.push("Default price");
+    }
+    if (!trimmedSku) {
+      missingFields.push("SKU");
+    }
+    if (!description) {
+      missingFields.push("Description");
+    }
+    if (publicImages.length === 0) {
+      missingFields.push("Public image URL");
+    }
+
+    if (missingFields.length > 0) {
+      const message = `Required before eBay Sandbox publish: ${missingFields.join(", ")}.`;
+      setShopifyPublishMessage(message);
+      setStatusMessage(message);
+      return;
+    }
+
+    const numericPrice = Number(trimmedPrice);
+    if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+      setPublishFieldErrors((prev) => ({ ...prev, price: true }));
+      setShopifyPublishMessage("Default price must be a valid number greater than or equal to 0.");
+      setStatusMessage("Price must be a valid number greater than or equal to 0.");
+      return;
+    }
+
+    if (mode === "draft") {
+      const message = "eBay Sandbox publish currently supports the live publish path only.";
+      setShopifyPublishMessage(message);
+      setStatusMessage(message);
+      return;
+    }
+
+    const categoryWarning = " Using default eBay category for sandbox.";
+
+    setShopifySubmitMode(mode);
+    setPublishSubmitting((prev) => ({ ...prev, ebay: true }));
+
+    try {
+      setShopifyPublishMessage(`Saving product for eBay Sandbox...${categoryWarning}`);
+      const savedProduct = await materializeBackendProductForEbay();
+      const savedProductId = savedProduct._id ?? savedProduct.id;
+      if (!savedProductId) {
+        throw new Error("Saved product ID is missing.");
+      }
+
+      setShopifyPublishMessage(`Queueing eBay Sandbox publish job...${categoryWarning}`);
+      const job = await ebayApi.publishProduct(savedProductId);
+      const jobId = job._id;
+
+      setShopifyPublishMessage(`eBay Sandbox publish queued.${categoryWarning}${jobId ? ` Job ID: ${jobId}` : ""}`);
+
+      const completedJob = jobId ? await pollEbayPublishJob(jobId) : job;
+      const refreshedProduct = await productsApi.getProductById(savedProductId);
+      const listingStatus = await ebayApi.getProductStatus(savedProductId).catch(() => null);
+      const listingId = refreshedProduct.ebayListingId ?? listingStatus?.listingId;
+      const publishState = refreshedProduct.ebayStatus ?? listingStatus?.status ?? completedJob.status;
+
+      setBackendProductId(savedProductId);
+      persistDraftSnapshot({
+        ...buildDraftSnapshot(),
+        backendProductId: savedProductId,
+      });
+
+      if (completedJob.status === "failed") {
+        const failureMessage =
+          completedJob.lastError
+          ?? completedJob.result?.error
+          ?? "eBay Sandbox publish failed.";
+        throw new Error(failureMessage);
+      }
+
+      const successMessage = listingId
+        ? `Published to eBay Sandbox. Listing ID: ${listingId}. Status: ${publishState}.`
+        : `Published to eBay Sandbox. Status: ${publishState}.`;
+      setShopifyPublishMessage(successMessage);
+      setStatusMessage(successMessage);
+    } catch (error) {
+      const message = error instanceof ApiClientError ? error.message : error instanceof Error ? error.message : "Could not publish to eBay Sandbox.";
+      setShopifyPublishMessage(message);
+      setStatusMessage(message);
+    } finally {
+      setShopifySubmitMode(null);
+      setPublishSubmitting((prev) => ({ ...prev, ebay: false }));
+    }
   }
 
   async function uploadToShopify(mode: ShopifyUploadMode) {
@@ -2926,6 +3223,13 @@ export default function AddProductEditor({
   }
 
   async function uploadToMockShop(shop: string, mode: "active" | "draft") {
+    if (shop === "ebay") {
+      const message = "eBay is no longer simulated here. Use Publish to eBay Sandbox for the real flow.";
+      setShopifyPublishMessage(message);
+      setStatusMessage(message);
+      return;
+    }
+
     const title = getPublishTitle();
     const trimmedPrice = publishPrice.trim();
     setShopifyPublishMessage("");
@@ -3113,14 +3417,16 @@ export default function AddProductEditor({
 
         ...(["amazon", "ebay", "tiktok", "etsy"] as MarketKey[]).map(async (shop) => {
           try {
+            if (shop === "ebay") {
+              return "eBay: Use the dedicated eBay Sandbox publish button for the real publish flow.";
+            }
+
             await new Promise((resolve) => setTimeout(resolve, 1500));
             const randomId = generateMockListingId();
             let msg = "";
             if (shop === "amazon") {
               const mockASIN = generateMockASIN();
               msg = `Amazon: Success (ASIN: ${mockASIN})`;
-            } else if (shop === "ebay") {
-              msg = `eBay: Success (Item ID: ${randomId})`;
             } else if (shop === "tiktok") {
               msg = `TikTok Shop: Success (Product ID: ${randomId})`;
             } else if (shop === "etsy") {
@@ -3397,6 +3703,7 @@ export default function AddProductEditor({
         draft: nextDraft,
         variantsByMarket,
         productId,
+        backendProductId,
         shopifyProductId,
         sourceTitle,
         publishVendor,
@@ -6535,7 +6842,8 @@ export default function AddProductEditor({
                           onClick={() => {
                             setSelectedPublishShop(target.key as PublishTarget);
                             if (target.key !== "commandctr") {
-                              const suffix = productId ? `&productId=${productId}` : "";
+                              const persistedId = productId ?? backendProductId;
+                              const suffix = persistedId ? `&productId=${persistedId}` : "";
                               router.replace(`/products/add?market=${target.key}${suffix}`, { scroll: false });
                             }
                           }}
@@ -6616,6 +6924,8 @@ export default function AddProductEditor({
                       onClick={() => {
                         if (selectedPublishShop === "shopify") {
                           void uploadToShopify("active");
+                        } else if (selectedPublishShop === "ebay") {
+                          void uploadToEbay("active");
                         } else {
                           void uploadToMockShop(selectedPublishShop, "active");
                         }
@@ -6631,6 +6941,8 @@ export default function AddProductEditor({
                         ? `Uploading to ${marketLabels[selectedPublishShop as MarketKey]}...`
                         : selectedPublishShop === "shopify" && shopifyProductId
                           ? "Update on Shopify"
+                          : selectedPublishShop === "ebay"
+                            ? "Publish to eBay Sandbox"
                           : `Upload to ${marketLabels[selectedPublishShop as MarketKey]}`}
                     </button>
                   )}
@@ -6656,13 +6968,19 @@ export default function AddProductEditor({
                 <ul className="list-disc pl-4 space-y-1">
                   <li><strong>Shopify</strong>: Fully integrated upload and update support via active endpoints.</li>
                   <li><strong>CommandCtr DB</strong>: Saves the current product draft to the local SQLite database.</li>
-                  <li><strong>Amazon, eBay, TikTok Shop, Etsy</strong>: Simulated upload integration. Click to test output listings.</li>
+                  <li><strong>eBay</strong>: Uses the real eBay Sandbox publish flow through the backend job worker.</li>
+                  <li><strong>Amazon, TikTok Shop, Etsy</strong>: Simulated upload integration. Click to test output listings.</li>
                 </ul>
               </div>
               {selectedPublishShop === "shopify" && shopifyProductId ? (
                 <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-xs leading-6 text-[#667a99]">
                   Current Shopify product ID:
                   <span className="ml-2 font-semibold text-[#31415e]">{shopifyProductId}</span>
+                </div>
+              ) : selectedPublishShop === "ebay" && backendProductId ? (
+                <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-xs leading-6 text-[#667a99]">
+                  Current backend product ID:
+                  <span className="ml-2 font-semibold text-[#31415e]">{backendProductId}</span>
                 </div>
               ) : null}
               <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-xs leading-6 text-[#667a99]">
@@ -6682,7 +7000,7 @@ export default function AddProductEditor({
                 <div
                   className={`mt-4 rounded-2xl px-4 py-3 text-sm whitespace-pre-line ${Object.values(publishSubmitting).some(Boolean)
                       ? "border border-[#cde4ff] bg-[#f3f8ff] text-[#355b91]"
-                      : shopifyPublishMessage.toLowerCase().includes("success")
+                      : shopifyPublishMessage.toLowerCase().includes("success") || shopifyPublishMessage.toLowerCase().includes("published to ebay sandbox")
                         ? "border border-[#ccebdc] bg-[#eefbf4] text-[#267a4f]"
                         : "border border-[#dbe2ee] bg-[#f8fbff] text-[#546884]"
                     }`}

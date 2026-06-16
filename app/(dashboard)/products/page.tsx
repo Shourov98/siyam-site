@@ -57,6 +57,47 @@ function MarketPlaceholder() {
   );
 }
 
+function toEbayStatusTone(status?: string) {
+  const normalized = String(status ?? "").toLowerCase();
+  if (normalized === "active") {
+    return {
+      dotClassName: "bg-[#2bc7c4]",
+      textClassName: "text-[#1b6d80]",
+      label: "Active",
+    };
+  }
+
+  if (normalized === "failed") {
+    return {
+      dotClassName: "bg-[#ea2e3f]",
+      textClassName: "text-[#b24646]",
+      label: "Failed",
+    };
+  }
+
+  if (normalized === "ended") {
+    return {
+      dotClassName: "bg-[#94a3b8]",
+      textClassName: "text-[#64748b]",
+      label: "Ended",
+    };
+  }
+
+  if (normalized === "draft") {
+    return {
+      dotClassName: "bg-[#e3b101]",
+      textClassName: "text-[#8a6c00]",
+      label: "Draft",
+    };
+  }
+
+  return {
+    dotClassName: "bg-[#d4dceb]",
+    textClassName: "text-[#9aa5bc]",
+    label: "Empty",
+  };
+}
+
 export default function ProductsPage() {
   const products = useProductsPageStore((state) => state.products);
   const pagination = useProductsPageStore((state) => state.pagination);
@@ -109,11 +150,13 @@ export default function ProductsPage() {
   const metrics = useMemo(() => {
     const lowStockCount = products.filter((product) => product.source === "shopify" && product.stock <= 10).length;
     const activeListings = products.filter((product) => product.source === "shopify" && product.status.toUpperCase() === "ACTIVE").length;
+    const activeEbayListings = products.filter((product) => (product.ebayStatus ?? "").toLowerCase() === "active").length;
     const syncErrors = Object.values(rowFeedbackById).filter((feedback) => feedback.tone === "error").length;
 
     return {
       totalProducts: products.length,
       activeListings,
+      activeEbayListings,
       lowStockCount,
       syncErrors,
     };
@@ -136,6 +179,7 @@ export default function ProductsPage() {
             </div>
             <p className="text-sm font-semibold uppercase tracking-wide text-[#f2f6ff]">Active Shopify Listings</p>
             <p className="mt-1 text-3xl font-semibold leading-none">{metrics.activeListings}</p>
+            <p className="mt-2 text-xs text-[#b7c6e4]">eBay active: {metrics.activeEbayListings}</p>
           </article>
           <article className="rounded-2xl bg-[#1a2548] p-4 text-white shadow-[0_18px_40px_-28px_rgba(17,33,64,0.9)]">
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#fff7cb]">
@@ -358,7 +402,21 @@ export default function ProductsPage() {
                           <MarketPlaceholder />
                         </td>
                         <td className="border-l border-[#d2e5ff] px-4 py-4 text-center">
-                          <MarketPlaceholder />
+                          {product.ebayListingId || product.ebayStatus ? (
+                            <>
+                              <div className="mx-auto flex h-8 w-full items-center justify-center rounded-lg px-2 text-sm text-[#3f4d65]">
+                                {product.shopifyPrice ? toCurrencyValue(product.shopifyPrice) : "--"}
+                              </div>
+                              <div className="mt-1 flex items-center justify-center gap-1.5">
+                                <span className={`h-2 w-2 rounded-full ${toEbayStatusTone(product.ebayStatus).dotClassName}`} />
+                                <span className={`text-xs ${toEbayStatusTone(product.ebayStatus).textClassName}`}>
+                                  {product.ebayListingId ? `${toEbayStatusTone(product.ebayStatus).label} • ${product.ebayListingId}` : toEbayStatusTone(product.ebayStatus).label}
+                                </span>
+                              </div>
+                            </>
+                          ) : (
+                            <MarketPlaceholder />
+                          )}
                         </td>
                         <td className="border-l border-[#f5d4e6] px-4 py-4 text-center">
                           <MarketPlaceholder />
@@ -398,7 +456,11 @@ export default function ProductsPage() {
                                   ? globalEditMode
                                     ? "Blur field to sync Shopify."
                                     : "View details. Inline edit is available here."
-                                  : "View or edit Product AI record"
+                                  : product.source === "commandctr"
+                                    ? product.ebayListingId
+                                      ? "eBay Sandbox listing is attached to this product."
+                                      : "View or edit backend product record."
+                                    : "View or edit Product AI record"
                               )}
                             </p>
                           </div>
@@ -419,8 +481,8 @@ export default function ProductsPage() {
         </div>
 
         <div className="flex items-center justify-between rounded-xl border border-[#e1e6f0] bg-white px-4 py-3 text-xs text-[#7b89a6]">
-          <p>Showing {filteredProducts.length} of {pagination.total_items} Product AI items on page {pagination.page}{pagination.total_pages ? ` of ${pagination.total_pages}` : ""}</p>
-          <div className="text-right text-[#8c99b2]">Marketplace columns remain placeholders until live marketplace listings are connected.</div>
+          <p>Showing {filteredProducts.length} rows. Product AI draft page {pagination.page}{pagination.total_pages ? ` of ${pagination.total_pages}` : ""} remains included in this combined view.</p>
+          <div className="text-right text-[#8c99b2]">eBay rows now show real sandbox status when a backend product has been published.</div>
         </div>
         <div className="flex items-center justify-end gap-2">
           <button
