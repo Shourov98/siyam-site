@@ -529,6 +529,7 @@ const ebayConditionLabels: Record<AllowedEbayCondition, string> = {
 
 const ebayMarketplaceDefaultCurrency = "GBP";
 const ebayMarketplaceDefaultId = "EBAY_GB";
+const ebaySandboxListingBaseUrl = "https://www.sandbox.ebay.com/itm/";
 
 const ebaySpecificFieldAliases: Record<string, string[]> = {
   Brand: ["Brand"],
@@ -689,39 +690,44 @@ function inferEbayUkShoeSize(text: string) {
 }
 
 function withMissingEbayDraftDefaults(draft: ApiProduct, publishVendor: string) {
+  const ebayDraft = {
+    ...emptyProduct.ebay,
+    ...(draft.ebay ?? {}),
+    item_specifics: draft.ebay?.item_specifics ?? {},
+  };
   const coreTitle = draft.core.normalized_title.trim() || draft.core.source_title.trim();
-  const referenceText = [draft.ebay.title, coreTitle, draft.core.product_type, draft.core.category, draft.core.product_summary]
+  const referenceText = [ebayDraft.title, coreTitle, draft.core.product_type, draft.core.category, draft.core.product_summary]
     .map((value) => value.trim())
     .filter(Boolean)
     .join(" ");
   const brandValue =
-    getEbaySpecificFieldValue(draft.ebay.item_specifics, "Brand")
+    getEbaySpecificFieldValue(ebayDraft.item_specifics, "Brand")
     || publishVendor.trim()
     || findAttributeValue(draft.core.attributes, ["brand", "Brand", "vendor", "Vendor"])
     || "Demo Brand";
   const colourValue =
-    getEbaySpecificFieldValue(draft.ebay.item_specifics, "Colour")
+    getEbaySpecificFieldValue(ebayDraft.item_specifics, "Colour")
     || findAttributeValue(draft.core.attributes, ["Colour", "Color", "colour", "color"])
     || inferEbayColour(referenceText);
   const departmentValue =
-    getEbaySpecificFieldValue(draft.ebay.item_specifics, "Department")
+    getEbaySpecificFieldValue(ebayDraft.item_specifics, "Department")
     || findAttributeValue(draft.core.attributes, ["Department", "Gender", "gender"])
     || inferEbayDepartment(referenceText);
   const typeValue =
-    getEbaySpecificFieldValue(draft.ebay.item_specifics, "Type")
+    getEbaySpecificFieldValue(ebayDraft.item_specifics, "Type")
     || draft.core.product_type.trim()
     || draft.core.category.trim()
     || "Athletic";
   const styleValue =
-    getEbaySpecificFieldValue(draft.ebay.item_specifics, "Style")
+    getEbaySpecificFieldValue(ebayDraft.item_specifics, "Style")
     || findAttributeValue(draft.core.attributes, ["Style"])
     || inferEbayStyle(referenceText);
   const ukShoeSizeValue =
-    getEbaySpecificFieldValue(draft.ebay.item_specifics, "UKShoeSize")
+    getEbaySpecificFieldValue(ebayDraft.item_specifics, "UKShoeSize")
     || findAttributeValue(draft.core.attributes, ["UK Shoe Size", "Shoe Size", "Size"])
     || inferEbayUkShoeSize(referenceText);
 
-  let nextSpecifics = draft.ebay.item_specifics;
+  let nextSpecifics = ebayDraft.item_specifics;
   let changed = false;
 
   if (!getEbaySpecificFieldValue(nextSpecifics, "Brand")) {
@@ -750,20 +756,20 @@ function withMissingEbayDraftDefaults(draft: ApiProduct, publishVendor: string) 
   }
 
   const nextEbay = {
-    ...draft.ebay,
-    title: draft.ebay.title.trim() || coreTitle,
-    marketplace_id: draft.ebay.marketplace_id.trim() || ebayMarketplaceDefaultId,
-    currency: draft.ebay.currency.trim() || ebayMarketplaceDefaultCurrency,
+    ...ebayDraft,
+    title: ebayDraft.title.trim() || coreTitle,
+    marketplace_id: ebayDraft.marketplace_id?.trim() || ebayMarketplaceDefaultId,
+    currency: ebayDraft.currency?.trim() || ebayMarketplaceDefaultCurrency,
     item_specifics: nextSpecifics,
   };
 
-  if (nextEbay.title !== draft.ebay.title) {
+  if (nextEbay.title !== ebayDraft.title) {
     changed = true;
   }
-  if (nextEbay.marketplace_id !== draft.ebay.marketplace_id) {
+  if (nextEbay.marketplace_id !== ebayDraft.marketplace_id) {
     changed = true;
   }
-  if (nextEbay.currency !== draft.ebay.currency) {
+  if (nextEbay.currency !== ebayDraft.currency) {
     changed = true;
   }
 
@@ -1037,6 +1043,15 @@ function imageUrlFor(pathValue: string) {
 
 function isPublicHttpUrl(pathValue: string) {
   return pathValue.startsWith("http://") || pathValue.startsWith("https://");
+}
+
+function getEbaySandboxListingUrl(listingId?: string | null) {
+  const trimmedListingId = listingId?.trim();
+  if (!trimmedListingId) {
+    return null;
+  }
+
+  return `${ebaySandboxListingBaseUrl}${encodeURIComponent(trimmedListingId)}`;
 }
 
 function cartesianProduct(arrays: string[][]): string[][] {
@@ -1929,6 +1944,8 @@ export default function AddProductEditor({
     setSelectedPublishShop(activeMarket);
   }
   const [shopifyProductId, setShopifyProductId] = useState<string | null>(null);
+  const [ebayListingId, setEbayListingId] = useState<string | null>(null);
+  const [ebayListingStatus, setEbayListingStatus] = useState<string | null>(null);
   const [shopifySubmitMode, setShopifySubmitMode] = useState<ShopifyUploadMode | null>(null);
   const [shopifyPublishMessage, setShopifyPublishMessage] = useState("");
   const [hasSavedDraft, setHasSavedDraft] = useState(false);
@@ -2411,6 +2428,8 @@ export default function AddProductEditor({
     setVariantsByMarket(snapshot.variantsByMarket);
     setProductId(snapshot.productId);
     setBackendProductId(snapshot.backendProductId ?? null);
+    setEbayListingId(null);
+    setEbayListingStatus(null);
     setShopifyProductId(snapshot.shopifyProductId);
     setSourceTitle(snapshot.sourceTitle);
     setPublishVendor(snapshot.publishVendor);
@@ -2429,8 +2448,14 @@ export default function AddProductEditor({
     setStatusMessage(message);
   }
 
-  function resetDraftEditor(message: string) {
-    if (typeof window !== "undefined") {
+  function resetDraftEditor(
+    message: string,
+    options?: {
+      deleteSavedDraft?: boolean;
+    },
+  ) {
+    const shouldDeleteSavedDraft = options?.deleteSavedDraft ?? false;
+    if (typeof window !== "undefined" && shouldDeleteSavedDraft) {
       window.localStorage.removeItem(getStoredDraftKey());
     }
 
@@ -2438,6 +2463,8 @@ export default function AddProductEditor({
     setVariantsByMarket(sampleVariants);
     setProductId(null);
     setBackendProductId(null);
+    setEbayListingId(null);
+    setEbayListingStatus(null);
     setShopifyProductId(null);
     setSourceTitle(emptyProduct.core.source_title);
     clearSelectedImageSelection();
@@ -2459,13 +2486,13 @@ export default function AddProductEditor({
       tiktok: { size: "", color: "" },
       shopify: { size: "", color: "" },
     });
-    setHasSavedDraft(false);
+    setHasSavedDraft(shouldDeleteSavedDraft ? false : hasSavedDraft);
     setShowCompareAtPrice(false);
     setShowCostPerItem(false);
     setIsSeoCollapsed(true);
     setShippingPackage("Store default • Sample box - 8.6 × 5.4 × 1.8 in, 0 lb");
-    setDraftSaveState("idle");
-    lastSavedDraftRef.current = null;
+    setDraftSaveState(shouldDeleteSavedDraft ? "idle" : "saved");
+    lastSavedDraftRef.current = shouldDeleteSavedDraft ? null : lastSavedDraftRef.current;
     setRestoredLocalDraftProductId(undefined);
     clearSelectedImageSelection();
     setStatusMessage(message);
@@ -2473,7 +2500,7 @@ export default function AddProductEditor({
   }
 
   function clearSavedDraft() {
-    resetDraftEditor("Draft cleared for this account.");
+    resetDraftEditor("Editor cleared. Saved draft is still available to load again.");
   }
 
   function loadSavedDraft() {
@@ -2671,6 +2698,8 @@ export default function AddProductEditor({
             }
 
             setBackendProductId(null);
+            setEbayListingId(null);
+            setEbayListingStatus(null);
             setShopifyProductId(null);
             applyRecord(record, `Loaded draft ${record.id.slice(0, 8)} for editing.`);
             return;
@@ -2715,38 +2744,6 @@ export default function AddProductEditor({
     };
   }, [initialProductId, initialSourceHint, restoredLocalDraftProductId]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    if (!hasInitializedDraftStorage) {
-      return;
-    }
-
-    const snapshot: SavedDraftSnapshot = {
-      draft,
-      variantsByMarket,
-      productId,
-      backendProductId,
-      shopifyProductId,
-      sourceTitle,
-      publishVendor,
-      publishDescription,
-      publishPrice,
-      publishSku,
-      publishStatus,
-      publishStock,
-      publishOnOnlineStore,
-      publishTrackInventory,
-      savedAt: new Date().toISOString(),
-    };
-    window.localStorage.setItem(getStoredDraftKey(), JSON.stringify(snapshot));
-    window.setTimeout(() => {
-      setHasSavedDraft(true);
-    }, 0);
-  }, [backendProductId, draft, hasInitializedDraftStorage, productId, publishDescription, publishPrice, publishSku, publishStatus, publishVendor, shopifyProductId, sourceTitle, variantsByMarket, publishStock, publishOnOnlineStore, publishTrackInventory]);
-
   const selectedImagePreviewUrl = useMemo(
     () => (selectedImage ? URL.createObjectURL(selectedImage) : null),
     [selectedImage],
@@ -2781,6 +2778,11 @@ export default function AddProductEditor({
       }),
     [backendProductId, draft, variantsByMarket, productId, shopifyProductId, sourceTitle, publishVendor, publishDescription, publishPrice, publishSku, publishStatus, publishStock, publishOnOnlineStore, publishTrackInventory],
   );
+
+  const isDraftSaved =
+    Boolean(lastSavedDraftRef.current) && lastSavedDraftRef.current === currentDraftComparableSignature;
+  const effectiveDraftSaveState: DraftSaveState =
+    draftSaveState === "saving" ? "saving" : isDraftSaved ? "saved" : "idle";
 
   useEffect(() => {
     if (!lastSavedDraftRef.current) {
@@ -2991,6 +2993,8 @@ export default function AddProductEditor({
     setVariantsByMarket(sampleVariants);
     setProductId(null);
     setBackendProductId(productDocumentId);
+    setEbayListingId(product.ebayListingId ?? null);
+    setEbayListingStatus(product.ebayStatus ?? null);
     setShopifyProductId(isShopifyProduct ? product.shopifyProductId ?? null : null);
     setSourceTitle(product.title);
     setPublishVendor(product.vendor ?? "");
@@ -3178,7 +3182,6 @@ export default function AddProductEditor({
     const ebayItemSpecifics = buildEbayItemSpecifics();
     const normalizedCondition = normalizeEbayCondition(draft.ebay.condition);
     const currencyHint = draft.ebay.currency.trim() || ebayMarketplaceDefaultCurrency;
-    const marketplaceId = draft.ebay.marketplace_id.trim() || ebayMarketplaceDefaultId;
     const categoryId = draft.ebay.category_id.trim() || undefined;
 
     return {
@@ -3201,7 +3204,6 @@ export default function AddProductEditor({
         },
       ],
       ebaySku: publishSku.trim() || undefined,
-      ebayMarketplaceId: marketplaceId,
       ebayCondition: isAllowedEbayCondition(normalizedCondition) ? normalizedCondition : undefined,
       ebayCategoryId: categoryId,
       ebayItemSpecifics: Object.keys(ebayItemSpecifics).length > 0 ? ebayItemSpecifics : undefined,
@@ -3351,6 +3353,8 @@ export default function AddProductEditor({
       const publishState = refreshedProduct.ebayStatus ?? listingStatus?.status ?? completedJob.status;
 
       setBackendProductId(savedProductId);
+      setEbayListingId(listingId ?? null);
+      setEbayListingStatus(publishState ?? null);
       persistDraftSnapshot({
         ...buildDraftSnapshot(),
         backendProductId: savedProductId,
@@ -4107,6 +4111,7 @@ export default function AddProductEditor({
         savedProductId
           ? "Draft deleted locally. Backend draft was removed when supported by the upstream service."
           : "Local draft deleted.",
+        { deleteSavedDraft: true },
       );
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Draft delete failed.");
@@ -4318,6 +4323,17 @@ export default function AddProductEditor({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   }
 
+  function triggerDirectImageDownload(src: string, filename: string) {
+    const fallbackLink = document.createElement("a");
+    fallbackLink.href = src;
+    fallbackLink.download = filename;
+    fallbackLink.target = "_blank";
+    fallbackLink.rel = "noopener noreferrer";
+    document.body.appendChild(fallbackLink);
+    fallbackLink.click();
+    document.body.removeChild(fallbackLink);
+  }
+
   async function downloadMarketplaceImage(key: ImageCardKey, filename: string) {
     const card = imageCards.find((c) => c.key === key);
     const pathValue = card?.image?.absolute_path || card?.image?.relative_path;
@@ -4328,7 +4344,19 @@ export default function AddProductEditor({
     try {
       const src = imageUrlFor(pathValue);
       if (!src) return;
+      const isCrossOrigin =
+        typeof window !== "undefined" && new URL(src, window.location.href).origin !== window.location.origin;
+
+      if (isCrossOrigin) {
+        triggerDirectImageDownload(src, filename);
+        setStatusMessage(`Opened image download fallback for ${filename}.`);
+        return;
+      }
+
       const response = await fetch(src);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -4340,8 +4368,14 @@ export default function AddProductEditor({
       window.URL.revokeObjectURL(url);
       setStatusMessage(`Downloaded image: ${filename}`);
     } catch (error) {
-      console.error("Failed to download image", error);
-      setStatusMessage(`Download failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      const src = imageUrlFor(pathValue);
+      if (!src) {
+        setStatusMessage(`Download failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return;
+      }
+
+      triggerDirectImageDownload(src, filename);
+      setStatusMessage(`Opened image download fallback for ${filename}.`);
     }
   }
 
@@ -4765,7 +4799,7 @@ export default function AddProductEditor({
                       Clear
                     </button>
                     <button
-                      className={`h-10 rounded-xl px-3 text-xs font-semibold transition hover:bg-white/10 disabled:opacity-30 cursor-pointer whitespace-nowrap ${draftSaveState === "saved"
+                      className={`h-10 rounded-xl px-3 text-xs font-semibold transition hover:bg-white/10 disabled:opacity-30 cursor-pointer whitespace-nowrap ${effectiveDraftSaveState === "saved"
                           ? "text-[#8ea0bf] opacity-60"
                           : "text-[#ccebdc]"
                         }`}
@@ -4773,7 +4807,7 @@ export default function AddProductEditor({
                       onClick={() => void saveDraft()}
                       type="button"
                     >
-                      {draftSaveState === "saving" ? "Saving..." : draftSaveState === "saved" ? "Saved" : "Save"}
+                      {effectiveDraftSaveState === "saving" ? "Saving..." : effectiveDraftSaveState === "saved" ? "Saved" : "Save"}
                     </button>
                     <button
                       className="h-10 rounded-xl px-3 text-xs font-semibold text-[#ffd8de] transition hover:bg-[#39151d] disabled:opacity-30 cursor-pointer whitespace-nowrap"
@@ -5019,24 +5053,18 @@ export default function AddProductEditor({
                         ))}
                       </select>
                     </div>
-                    <div className="grid gap-3 lg:grid-cols-3">
-                      <EditableField
-                        label="Marketplace ID"
-                        helperText="Use EBAY_GB for your current sandbox setup."
-                        onChange={(value) => setDraft((prev) => ({ ...prev, ebay: { ...prev.ebay, marketplace_id: value.toUpperCase() } }))}
-                        value={draft.ebay.marketplace_id}
-                      />
+                    <div className="grid gap-3 lg:grid-cols-2">
                       <EditableField
                         label="Currency"
                         helperText="GBP for EBAY_GB."
                         onChange={(value) => setDraft((prev) => ({ ...prev, ebay: { ...prev.ebay, currency: value.toUpperCase() } }))}
-                        value={draft.ebay.currency}
+                        value={draft.ebay.currency ?? ""}
                       />
                       <EditableField
                         label="Category ID"
                         helperText="Optional. Leave blank to use backend default sandbox category."
                         onChange={(value) => setDraft((prev) => ({ ...prev, ebay: { ...prev.ebay, category_id: value } }))}
-                        value={draft.ebay.category_id}
+                        value={draft.ebay.category_id ?? ""}
                       />
                     </div>
                     <div className="grid gap-3 lg:grid-cols-2">
@@ -5130,7 +5158,7 @@ export default function AddProductEditor({
                       helperText="Optional eBay-specific description used instead of the general publish description."
                       multiline
                       onChange={(value) => setDraft((prev) => ({ ...prev, ebay: { ...prev.ebay, description_override: value } }))}
-                      value={draft.ebay.description_override}
+                      value={draft.ebay.description_override ?? ""}
                     />
                     <EditableField
                       label="Listing Notes"
@@ -7434,9 +7462,27 @@ export default function AddProductEditor({
                   <span className="ml-2 font-semibold text-[#31415e]">{shopifyProductId}</span>
                 </div>
               ) : selectedPublishShop === "ebay" && backendProductId ? (
-                <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-xs leading-6 text-[#667a99]">
-                  Current backend product ID:
-                  <span className="ml-2 font-semibold text-[#31415e]">{backendProductId}</span>
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-xs leading-6 text-[#667a99]">
+                    Current backend product ID:
+                    <span className="ml-2 font-semibold text-[#31415e]">{backendProductId}</span>
+                  </div>
+                  {ebayListingId ? (
+                    <div className="rounded-2xl border border-[#ccebdc] bg-[#eefbf4] px-4 py-3 text-xs leading-6 text-[#267a4f]">
+                      <span className="font-semibold text-[#1f6b45]">eBay Sandbox listing:</span>
+                      <a
+                        href={getEbaySandboxListingUrl(ebayListingId) ?? "#"}
+                        rel="noreferrer"
+                        target="_blank"
+                        className="ml-2 break-all font-semibold text-[#1f6b45] underline underline-offset-2 hover:text-[#155236]"
+                      >
+                        {getEbaySandboxListingUrl(ebayListingId)}
+                      </a>
+                      {ebayListingStatus ? (
+                        <span className="ml-2 text-[#3f7d5b]">Status: {ebayListingStatus}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               <div className="mt-4 rounded-2xl border border-[#dbe2ee] bg-white px-4 py-3 text-xs leading-6 text-[#667a99]">
