@@ -43,7 +43,52 @@ function getMimeType(filePath: string) {
   return "application/octet-stream";
 }
 
+function normalizeRemoteImageUrl(rawUrl: string) {
+  const remoteUrl = new URL(rawUrl);
+  remoteUrl.pathname = remoteUrl.pathname.replace(/%(?![0-9a-f]{2})/gi, "%25");
+  remoteUrl.search = remoteUrl.search.replace(/%(?![0-9a-f]{2})/gi, "%25");
+  return remoteUrl;
+}
+
+function isAllowedRemoteImageUrl(remoteUrl: URL) {
+  return (
+    remoteUrl.protocol === "https:" &&
+    (remoteUrl.hostname === "amazonaws.com" || remoteUrl.hostname.endsWith(".amazonaws.com"))
+  );
+}
+
 export async function GET(request: NextRequest) {
+  const rawUrl = request.nextUrl.searchParams.get("url");
+  if (rawUrl) {
+    let remoteUrl: URL;
+    try {
+      remoteUrl = normalizeRemoteImageUrl(rawUrl);
+    } catch {
+      return NextResponse.json({ detail: "Invalid remote image URL." }, { status: 400 });
+    }
+
+    if (!isAllowedRemoteImageUrl(remoteUrl)) {
+      return NextResponse.json({ detail: "Remote image host is not allowed." }, { status: 403 });
+    }
+
+    try {
+      const response = await fetch(remoteUrl, { cache: "no-store" });
+      if (!response.ok || !response.body) {
+        return NextResponse.json({ detail: "Remote image could not be loaded." }, { status: response.status });
+      }
+
+      return new NextResponse(response.body, {
+        status: 200,
+        headers: {
+          "Content-Type": response.headers.get("content-type") ?? "application/octet-stream",
+          "Cache-Control": "no-store",
+        },
+      });
+    } catch {
+      return NextResponse.json({ detail: "Remote image could not be loaded." }, { status: 502 });
+    }
+  }
+
   const rawPath = request.nextUrl.searchParams.get("path");
 
   if (!rawPath) {

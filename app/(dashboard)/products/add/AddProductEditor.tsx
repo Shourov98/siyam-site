@@ -1035,7 +1035,7 @@ function imageUrlFor(pathValue: string) {
   }
 
   if (pathValue.startsWith("http://") || pathValue.startsWith("https://")) {
-    return pathValue;
+    return `/api/product-ai/image?url=${encodeURIComponent(pathValue)}`;
   }
 
   return `/api/product-ai/image?path=${encodeURIComponent(pathValue)}`;
@@ -2227,7 +2227,9 @@ export default function AddProductEditor({
       .map((value) => String(value ?? "").trim())
       .filter(Boolean)
       .filter((value, index, array) => array.indexOf(value) === index)
-      .join(" ");
+      .join(" ")
+      .slice(0, 200)
+      .trimEnd();
   }
 
   async function buildQueryPricingImageFile(): Promise<File | null> {
@@ -2707,11 +2709,22 @@ export default function AddProductEditor({
         }
 
         let product: ProductListItem | null = null;
-        try {
-          product = await productsApi.getProductById(requestedProductId);
-        } catch {
+        if (/^[a-f\d]{24}$/i.test(requestedProductId)) {
+          try {
+            product = await productsApi.getProductById(requestedProductId);
+          } catch {
+            product = null;
+          }
+        }
+        if (!product) {
           const products = await productsApi.getProducts();
-          product = products.find((item) => item._id === requestedProductId || item.id === requestedProductId || item.shopifyProductId === requestedProductId) ?? null;
+          product =
+            products.find(
+              (item) =>
+                item._id === requestedProductId ||
+                item.id === requestedProductId ||
+                item.shopifyProductId === requestedProductId,
+            ) ?? null;
         }
 
         if (product) {
