@@ -57,6 +57,8 @@ function downloadCsv(rows: InventoryRow[]) {
     "Master Count",
     "Safety Buffer",
     "Available",
+    "eBay Listing ID",
+    "eBay Quantity",
   ];
 
   const lines = rows.map((row) => [
@@ -68,6 +70,8 @@ function downloadCsv(rows: InventoryRow[]) {
     String(row.masterCount),
     String(row.safetyBuffer),
     String(row.available),
+    row.ebayListingId ?? "",
+    row.ebayQuantity === undefined ? "" : String(row.ebayQuantity),
   ]);
 
   const csv = [header, ...lines]
@@ -98,8 +102,10 @@ export default function InventoryPage() {
   const loadInventory = useInventoryPageStore((state) => state.loadInventory);
   const importInventory = useInventoryPageStore((state) => state.importInventory);
   const updateMasterCountDraft = useInventoryPageStore((state) => state.updateMasterCountDraft);
+  const updateEbayQuantityDraft = useInventoryPageStore((state) => state.updateEbayQuantityDraft);
   const updateSafetyBufferDraft = useInventoryPageStore((state) => state.updateSafetyBufferDraft);
   const saveMasterCount = useInventoryPageStore((state) => state.saveMasterCount);
+  const saveEbayQuantity = useInventoryPageStore((state) => state.saveEbayQuantity);
   const saveSafetyBuffer = useInventoryPageStore((state) => state.saveSafetyBuffer);
 
   useEffect(() => {
@@ -126,7 +132,8 @@ export default function InventoryPage() {
       return (
         item.title.toLowerCase().includes(query) ||
         item.sku.toLowerCase().includes(query) ||
-        item.shopifyProductId.toLowerCase().includes(query)
+        item.shopifyProductId.toLowerCase().includes(query) ||
+        item.ebayListingId?.toLowerCase().includes(query)
       );
     });
   }, [items, searchQuery]);
@@ -218,7 +225,7 @@ export default function InventoryPage() {
               <input
                 className="h-11 w-full rounded-xl border border-[#d6dce9] bg-white py-2 pl-10 pr-3 text-sm text-[#243251] outline-none placeholder:text-[#8f9bb1] focus:border-[#98abcf]"
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search by name, SKU, or Shopify ID..."
+                placeholder="Search by name, SKU, Shopify ID, or eBay listing..."
                 type="text"
                 value={searchQuery}
               />
@@ -352,26 +359,30 @@ export default function InventoryPage() {
                               <p className="text-sm font-semibold leading-tight text-[#202b44]">{item.title}</p>
                               <p className="mt-0.5 text-xs text-[#7d89a2]">SKU: {item.sku || "--"}</p>
                               <p className="mt-0.5 text-xs text-[#9aa5bc]">
-                                {item.locationName || "No location"} • {item.shopifyProductId}
+                                {item.locationName || "No location"}
+                                {item.shopifyProductId ? ` • ${item.shopifyProductId}` : ""}
+                                {item.ebayListingId ? ` • eBay ${item.ebayListingId}` : ""}
                               </p>
                             </div>
                           </div>
                         </td>
 
                         <td className="px-4 py-4 text-center">
-                          {canEdit ? (
+                          {!item.shopifyProductId ? (
+                            <EmptyChannelCell />
+                          ) : canEdit ? (
                             <input
                               className="h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none"
                               min={0}
                               onBlur={() => void saveMasterCount(item)}
                               onChange={(event) => updateMasterCountDraft(item.id, event.target.value)}
                               type="number"
-                              value={item.masterCount}
+                              value={item.shopifyQuantity ?? item.masterCount}
                             />
                           ) : (
                             <div className="mx-auto text-sm font-semibold text-[#5a6a86]">{item.masterCount}</div>
                           )}
-                          <p className="mt-1 text-xs text-[#40cacc]">Live Shopify Qty</p>
+                          {item.shopifyProductId ? <p className="mt-1 text-xs text-[#40cacc]">Live Shopify Qty</p> : null}
                         </td>
 
                         <td className="border-l border-[#ffe0bc] px-4 py-4 text-center">
@@ -379,7 +390,30 @@ export default function InventoryPage() {
                         </td>
 
                         <td className="border-l border-[#d2e5ff] px-4 py-4 text-center">
-                          <EmptyChannelCell />
+                          {item.ebayProductId && item.ebayQuantity !== undefined ? (
+                            <>
+                              {canEdit ? (
+                                <input
+                                  className="h-8 w-[84px] rounded-lg border border-[#b9d7f7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none"
+                                  min={0}
+                                  onBlur={() => void saveEbayQuantity(item)}
+                                  onChange={(event) => updateEbayQuantityDraft(item.id, event.target.value)}
+                                  type="number"
+                                  value={item.ebayQuantity}
+                                />
+                              ) : (
+                                <div className="mx-auto text-sm font-semibold text-[#176bb8]">{item.ebayQuantity}</div>
+                              )}
+                              <p className="mt-1 text-xs text-[#2ab8b8]">
+                                {item.ebayStatus === "active" ? "Live eBay Qty" : item.ebayStatus || "eBay inventory"}
+                              </p>
+                              {item.ebaySyncError ? (
+                                <p className="mt-1 text-[10px] text-[#d14b63]">Using saved quantity</p>
+                              ) : null}
+                            </>
+                          ) : (
+                            <EmptyChannelCell />
+                          )}
                         </td>
 
                         <td className="border-l border-[#f5d4e6] px-4 py-4 text-center">
@@ -391,7 +425,9 @@ export default function InventoryPage() {
                         </td>
 
                         <td className="px-4 py-4 text-center">
-                          {canEdit ? (
+                          {!item.shopifyProductId ? (
+                            <div className="text-xs text-[#9aa5bc]">--</div>
+                          ) : canEdit ? (
                             <input
                               className="h-8 w-[84px] rounded-lg border border-[#cfd8e7] bg-white px-2 text-center text-sm text-[#3f4d65] outline-none"
                               min={0}
@@ -443,7 +479,7 @@ export default function InventoryPage() {
 
           {!showInitialLoading && filteredItems.length === 0 ? (
             <div className="border-t border-[#edf1f7] px-4 py-6 text-center text-sm text-[#6f7f9f]">
-              {items.length === 0 ? "No live inventory rows found. Import Shopify products first." : `No inventory rows found for "${searchQuery}".`}
+              {items.length === 0 ? "No live Shopify or eBay inventory rows found." : `No inventory rows found for "${searchQuery}".`}
             </div>
           ) : null}
         </article>

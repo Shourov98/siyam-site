@@ -31,6 +31,21 @@ export type EbayListingStatus = {
   offer?: Record<string, unknown>;
 };
 
+export type EbayInventoryLevel = {
+  productId: string;
+  productAiProductId?: string;
+  title: string;
+  sku: string;
+  inventoryItemId: string;
+  offerId?: string;
+  listingId?: string;
+  status: string;
+  quantity: number;
+  featuredImage?: string;
+  updatedAt?: string;
+  syncError?: string;
+};
+
 export const ebayApi = {
   publishProduct(productId: string) {
     return requestWithAuth<EbayPublishJob>(`/ebay/products/${encodeURIComponent(productId)}/publish`, {
@@ -44,5 +59,16 @@ export const ebayApi = {
 
   getProductStatus(productId: string) {
     return requestWithAuth<EbayListingStatus>(`/ebay/products/${encodeURIComponent(productId)}/status`);
+  },
+
+  getInventory() {
+    return requestWithAuth<EbayInventoryLevel[]>("/ebay/inventory");
+  },
+
+  updateInventory(productId: string, quantity: number) {
+    return requestWithAuth<EbayInventoryLevel>(`/ebay/products/${encodeURIComponent(productId)}/inventory`, {
+      method: "PATCH",
+      body: JSON.stringify({ quantity }),
+    });
   },
 };

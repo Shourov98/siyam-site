@@ -4,11 +4,13 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import { ApiClientError, AUTH_REQUIRED_MESSAGE, isAuthRequiredError } from "@/lib/auth";
+import { ebayApi, type EbayInventoryLevel } from "@/lib/ebay";
 import { productsApi, type InventoryRecord, type ProductListItem, type ShopifyInventoryLevel } from "@/lib/products";
 
 export type InventoryRow = {
   id: string;
   productDocumentId?: string;
+  ebayProductId?: string;
   shopifyProductId: string;
   inventoryItemId: string;
   locationId: string;
@@ -17,6 +19,11 @@ export type InventoryRow = {
   sku: string;
   featuredImage?: string;
   masterCount: number;
+  shopifyQuantity?: number;
+  ebayQuantity?: number;
+  ebayListingId?: string;
+  ebayStatus?: string;
+  ebaySyncError?: string;
   available: number;
   safetyBuffer: number;
   lowStockThreshold: number;
@@ -50,8 +57,10 @@ type InventoryPageState = {
   importInventory: () => Promise<void>;
   updateRowFeedback: (rowId: string, feedback: InventoryRowFeedback) => void;
   updateMasterCountDraft: (rowId: string, value: string) => void;
+  updateEbayQuantityDraft: (rowId: string, value: string) => void;
   updateSafetyBufferDraft: (rowId: string, value: string) => void;
   saveMasterCount: (row: InventoryRow) => Promise<void>;
+  saveEbayQuantity: (row: InventoryRow) => Promise<void>;
   saveSafetyBuffer: (row: InventoryRow) => Promise<void>;
 };
 
@@ -91,7 +100,75 @@ function getShopifyNumericId(value?: string) {
   return match ? Number(match[1]) : 0;
 }
 
-function mapInventoryRows(inventory: InventoryRecord[], products: ProductListItem[], liveLevels: ShopifyInventoryLevel[]) {
+function normalizeSku(value?: string) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function stripInventorySortFields(
+  row: InventoryRow & { sortUpdatedAt: number; sortShopifyId: number },
+): InventoryRow {
+  const inventoryRow: InventoryRow & { sortUpdatedAt?: number; sortShopifyId?: number } = { ...row };
+  delete inventoryRow.sortUpdatedAt;
+  delete inventoryRow.sortShopifyId;
+  return inventoryRow;
+}
+
+function mergeEbayInventory(rows: InventoryRow[], ebayLevels: EbayInventoryLevel[]) {
+  const nextRows: InventoryRow[] = rows.map((row) => ({ ...row, shopifyQuantity: row.masterCount }));
+  const rowIndexBySku = new Map(
+    nextRows
+      .map((row, index) => [normalizeSku(row.sku), index] as const)
+      .filter(([sku]) => Boolean(sku) && sku !== "n/a"),
+  );
+
+  for (const level of ebayLevels) {
+    const quantity = clampNonNegative(level.quantity);
+    const matchingIndex = rowIndexBySku.get(normalizeSku(level.sku));
+
+    if (matchingIndex !== undefined) {
+      nextRows[matchingIndex] = {
+        ...nextRows[matchingIndex],
+        ebayProductId: level.productId,
+        ebayQuantity: quantity,
+        ebayListingId: level.listingId,
+        ebayStatus: level.status,
+        ebaySyncError: level.syncError,
+        featuredImage: nextRows[matchingIndex].featuredImage ?? level.featuredImage,
+      };
+      continue;
+    }
+
+    nextRows.push({
+      id: `ebay:${level.productId}`,
+      productDocumentId: level.productId,
+      ebayProductId: level.productId,
+      shopifyProductId: "",
+      inventoryItemId: level.inventoryItemId,
+      locationId: "",
+      locationName: "eBay Sandbox",
+      title: level.title || "Untitled product",
+      sku: level.sku || "N/A",
+      featuredImage: level.featuredImage,
+      masterCount: quantity,
+      ebayQuantity: quantity,
+      ebayListingId: level.listingId,
+      ebayStatus: level.status,
+      ebaySyncError: level.syncError,
+      available: quantity,
+      safetyBuffer: 0,
+      lowStockThreshold: 5,
+    });
+  }
+
+  return nextRows;
+}
+
+function mapInventoryRows(
+  inventory: InventoryRecord[],
+  products: ProductListItem[],
+  liveLevels: ShopifyInventoryLevel[],
+  ebayLevels: EbayInventoryLevel[],
+) {
   const productByShopifyId = new Map(products.map((product) => [product.shopifyProductId, product]));
   const liveByInventoryKey = new Map(liveLevels.map((level) => [getInventoryKey(level.inventoryItemId, level.locationId), level]));
   const activeInventory = inventory.filter((record) => record.isActive !== false);
@@ -136,7 +213,10 @@ function mapInventoryRows(inventory: InventoryRecord[], products: ProductListIte
       return b.sortShopifyId - a.sortShopifyId;
     });
 
-    return rows.map(({ sortUpdatedAt: _sortUpdatedAt, sortShopifyId: _sortShopifyId, ...row }) => row);
+    return mergeEbayInventory(
+      rows.map(stripInventorySortFields),
+      ebayLevels,
+    );
   }
 
   const rows = activeInventory.map((record) => {
@@ -174,17 +254,21 @@ function mapInventoryRows(inventory: InventoryRecord[], products: ProductListIte
     return b.sortShopifyId - a.sortShopifyId;
   });
 
-  return rows.map(({ sortUpdatedAt: _sortUpdatedAt, sortShopifyId: _sortShopifyId, ...row }) => row);
+  return mergeEbayInventory(
+    rows.map(stripInventorySortFields),
+    ebayLevels,
+  );
 }
 
 async function fetchInventoryData() {
-  const [inventory, products, liveInventory] = await Promise.all([
+  const [inventory, products, liveInventory, ebayInventory] = await Promise.all([
     productsApi.getInventory(),
     productsApi.getProducts(),
     productsApi.getShopifyInventory(),
+    ebayApi.getInventory(),
   ]);
 
-  return mapInventoryRows(inventory, products, liveInventory);
+  return mapInventoryRows(inventory, products, liveInventory, ebayInventory);
 }
 
 const resetInventoryState = () => ({
@@ -290,10 +374,28 @@ export const useInventoryPageStore = create<InventoryPageState>()(
               ? {
                   ...item,
                   masterCount: Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0,
+                  shopifyQuantity: Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0,
                   available: Math.max(0, (Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0) - item.safetyBuffer),
                 }
               : item,
           ),
+        }));
+      },
+      updateEbayQuantityDraft: (rowId, value) => {
+        const numericValue = Number(value);
+        set((state) => ({
+          items: state.items.map((item) => {
+            if (item.id !== rowId) {
+              return item;
+            }
+
+            const ebayQuantity = Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : 0;
+            return {
+              ...item,
+              ebayQuantity,
+              ...(!item.shopifyProductId ? { available: ebayQuantity, masterCount: ebayQuantity } : {}),
+            };
+          }),
         }));
       },
       updateSafetyBufferDraft: (rowId, value) => {
@@ -346,6 +448,31 @@ export const useInventoryPageStore = create<InventoryPageState>()(
           get().updateRowFeedback(row.id, {
             tone: "error",
             message: error instanceof ApiClientError ? error.message : "Could not update Shopify inventory.",
+          });
+        }
+      },
+      async saveEbayQuantity(row) {
+        const { globalEditMode } = get();
+        if (!globalEditMode || !row.ebayProductId || row.ebayQuantity === undefined) {
+          return;
+        }
+
+        get().updateRowFeedback(row.id, {
+          tone: "saving",
+          message: "Updating eBay inventory...",
+        });
+
+        try {
+          await ebayApi.updateInventory(row.ebayProductId, row.ebayQuantity);
+          await get().loadInventory({ forceRefresh: true });
+          get().updateRowFeedback(row.id, {
+            tone: "success",
+            message: "eBay inventory updated.",
+          });
+        } catch (error) {
+          get().updateRowFeedback(row.id, {
+            tone: "error",
+            message: error instanceof ApiClientError ? error.message : "Could not update eBay inventory.",
           });
         }
       },
