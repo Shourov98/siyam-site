@@ -4784,7 +4784,7 @@ export default function AddProductEditor({
                 <div className="rounded-2xl border border-[#51658f]/45 bg-white/6 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                   <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
                     <button
-                      className="h-10 rounded-xl px-3 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-30 cursor-pointer whitespace-nowrap"
+                      className="h-9 rounded-xl px-3 text-xs font-semibold text-white transition hover:bg-white/10 disabled:opacity-30 cursor-pointer whitespace-nowrap"
                       disabled={!hasSavedDraft}
                       onClick={() => loadSavedDraft()}
                       type="button"
@@ -4792,14 +4792,14 @@ export default function AddProductEditor({
                       Load
                     </button>
                     <button
-                      className="h-10 rounded-xl px-3 text-xs font-semibold text-[#dce7fb] transition hover:bg-white/10 cursor-pointer whitespace-nowrap"
+                      className="h-9 rounded-xl px-3 text-xs font-semibold text-[#dce7fb] transition hover:bg-white/10 cursor-pointer whitespace-nowrap"
                       onClick={() => clearSavedDraft()}
                       type="button"
                     >
                       Clear
                     </button>
                     <button
-                      className={`h-10 rounded-xl px-3 text-xs font-semibold transition hover:bg-white/10 disabled:opacity-30 cursor-pointer whitespace-nowrap ${effectiveDraftSaveState === "saved"
+                      className={`h-9 rounded-xl px-3 text-xs font-semibold transition hover:bg-white/10 disabled:opacity-30 cursor-pointer whitespace-nowrap ${effectiveDraftSaveState === "saved"
                           ? "text-[#8ea0bf] opacity-60"
                           : "text-[#ccebdc]"
                         }`}
@@ -4810,7 +4810,7 @@ export default function AddProductEditor({
                       {effectiveDraftSaveState === "saving" ? "Saving..." : effectiveDraftSaveState === "saved" ? "Saved" : "Save"}
                     </button>
                     <button
-                      className="h-10 rounded-xl px-3 text-xs font-semibold text-[#ffd8de] transition hover:bg-[#39151d] disabled:opacity-30 cursor-pointer whitespace-nowrap"
+                      className="h-9 rounded-xl px-3 text-xs font-semibold text-[#ffd8de] transition hover:bg-[#39151d] disabled:opacity-30 cursor-pointer whitespace-nowrap"
                       disabled={isDeletingDraft}
                       onClick={() => void deleteDraft()}
                       type="button"
