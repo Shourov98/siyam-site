@@ -2879,6 +2879,21 @@ export default function AddProductEditor({
     ],
     [draft.images],
   );
+  const shopifyCategorySuggestions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [
+            draft.core.category,
+            draft.core.product_type,
+            draft.shopify.product_type,
+          ]
+            .map((value) => value?.trim())
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).filter((value) => value !== draft.shopify.category?.trim()),
+    [draft.core.category, draft.core.product_type, draft.shopify.category, draft.shopify.product_type],
+  );
 
   const hasSourceImage = Boolean(
     draft.images.source?.absolute_path || draft.images.source?.relative_path,
@@ -5418,21 +5433,28 @@ export default function AddProductEditor({
                         value={draft.shopify.category ?? ""}
                         helperText="Determines tax rates and suggests metafield parameters."
                       />
-                      <div className="mt-3">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2] mb-1.5">Suggestions</p>
-                        <div className="flex flex-wrap gap-2">
-                          {["Shoes in Apparel & Accessories", "Sneakers in Shoes", "Activewear in Clothing", "Apparel & Accessories", "Athletic Shoes"].map((cat) => (
-                            <button
-                              key={cat}
-                              type="button"
-                              onClick={() => setDraft((prev) => ({ ...prev, shopify: { ...prev.shopify, category: cat } }))}
-                              className="rounded-full bg-[#edf2fb] hover:bg-[#dfe9fb] px-3 py-1 text-xs font-semibold text-[#49607f] transition cursor-pointer border-0"
-                            >
-                              {cat}
-                            </button>
-                          ))}
+                      {shopifyCategorySuggestions.length > 0 ? (
+                        <div className="mt-3">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2] mb-1.5">AI Suggestions</p>
+                          <div className="flex flex-wrap gap-2">
+                            {shopifyCategorySuggestions.map((categorySuggestion) => (
+                              <button
+                                key={categorySuggestion}
+                                type="button"
+                                onClick={() =>
+                                  setDraft((prev) => ({
+                                    ...prev,
+                                    shopify: { ...prev.shopify, category: categorySuggestion },
+                                  }))
+                                }
+                                className="rounded-full bg-[#edf2fb] hover:bg-[#dfe9fb] px-3 py-1 text-xs font-semibold text-[#49607f] transition cursor-pointer border-0"
+                              >
+                                {categorySuggestion}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      ) : null}
                     </div>
 
                     {/* Card 4: Category Metafields */}
