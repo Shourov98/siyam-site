@@ -15,6 +15,7 @@ export type ProductListItem = {
   id?: string;
   marketplace?: string;
   shopifyProductId?: string;
+  productAiProductId?: string;
   title: string;
   description?: string;
   handle?: string;
@@ -46,6 +47,7 @@ export type ProductListItem = {
 export type ProductCreatePayload = {
   marketplace?: string;
   shopifyProductId?: string;
+  productAiProductId?: string;
   title: string;
   description?: string;
   handle?: string;

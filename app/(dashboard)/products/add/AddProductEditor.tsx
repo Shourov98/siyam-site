@@ -261,6 +261,8 @@ type SavedDraftSnapshot = {
   variantsByMarket: Record<MarketKey, ApiVariant[]>;
   productId: string | null;
   backendProductId: string | null;
+  ebayListingId?: string | null;
+  ebayListingStatus?: string | null;
   shopifyProductId: string | null;
   sourceTitle: string;
   publishVendor: string;
@@ -1894,6 +1896,7 @@ export default function AddProductEditor({
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const productImageUploadInputRef = useRef<HTMLInputElement>(null);
   const lastSavedDraftRef = useRef<string | null>(null);
+  const hydratedEbayBackendProductIdRef = useRef<string | null>(null);
   const [draft, setDraft] = useState<ApiProduct>(emptyProduct);
   const [variantsByMarket, setVariantsByMarket] = useState<Record<MarketKey, ApiVariant[]>>(sampleVariants);
   const [productId, setProductId] = useState<string | null>(initialProductId);
@@ -1961,6 +1964,53 @@ export default function AddProductEditor({
     tiktok: { size: "", color: "" },
     shopify: { size: "", color: "" },
   });
+
+  useEffect(() => {
+    if (!backendProductId || hydratedEbayBackendProductIdRef.current === backendProductId) {
+      return;
+    }
+
+    hydratedEbayBackendProductIdRef.current = backendProductId;
+    let active = true;
+
+    void productsApi
+      .getProductById(backendProductId)
+      .then(async (product) => {
+        if (!active) {
+          return;
+        }
+
+        const restoredListingId = product.ebayListingId ?? null;
+        const restoredListingStatus = product.ebayStatus ?? null;
+        setEbayListingId(restoredListingId);
+        setEbayListingStatus(restoredListingStatus);
+
+        if (productId && product.productAiProductId !== productId) {
+          await productsApi.updateProduct(backendProductId, { productAiProductId: productId }).catch(() => null);
+        }
+
+        if (typeof window !== "undefined") {
+          const rawSnapshot = window.localStorage.getItem(getStoredDraftKey());
+          if (rawSnapshot) {
+            const snapshot = JSON.parse(rawSnapshot) as SavedDraftSnapshot;
+            if (snapshot.backendProductId === backendProductId) {
+              persistDraftSnapshot({
+                ...snapshot,
+                ebayListingId: restoredListingId,
+                ebayListingStatus: restoredListingStatus,
+              });
+            }
+          }
+        }
+      })
+      .catch(() => {
+        hydratedEbayBackendProductIdRef.current = null;
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [backendProductId, productId]);
 
   const [activeUploadCardKey, setActiveUploadCardKey] = useState<ImageCardKey | null>(null);
   const [imageUploadingMap, setImageUploadingMap] = useState<Record<string, boolean>>({});
@@ -2106,6 +2156,8 @@ export default function AddProductEditor({
       variantsByMarket,
       productId,
       backendProductId,
+      ebayListingId,
+      ebayListingStatus,
       shopifyProductId,
       sourceTitle,
       publishVendor,
@@ -2373,6 +2425,8 @@ export default function AddProductEditor({
       variantsByMarket: snapshot.variantsByMarket,
       productId: snapshot.productId,
       backendProductId: snapshot.backendProductId,
+      ebayListingId: snapshot.ebayListingId ?? null,
+      ebayListingStatus: snapshot.ebayListingStatus ?? null,
       shopifyProductId: snapshot.shopifyProductId,
       sourceTitle: snapshot.sourceTitle,
       publishVendor: snapshot.publishVendor,
@@ -2430,8 +2484,8 @@ export default function AddProductEditor({
     setVariantsByMarket(snapshot.variantsByMarket);
     setProductId(snapshot.productId);
     setBackendProductId(snapshot.backendProductId ?? null);
-    setEbayListingId(null);
-    setEbayListingStatus(null);
+    setEbayListingId(snapshot.ebayListingId ?? null);
+    setEbayListingStatus(snapshot.ebayListingStatus ?? null);
     setShopifyProductId(snapshot.shopifyProductId);
     setSourceTitle(snapshot.sourceTitle);
     setPublishVendor(snapshot.publishVendor);
@@ -2699,9 +2753,14 @@ export default function AddProductEditor({
               return;
             }
 
-            setBackendProductId(null);
-            setEbayListingId(null);
-            setEbayListingStatus(null);
+            const backendProducts = await productsApi.getProducts().catch(() => []);
+            const linkedProduct =
+              backendProducts.find((item) => item.productAiProductId === requestedProductId) ?? null;
+            const linkedProductId = linkedProduct?._id ?? linkedProduct?.id ?? null;
+
+            setBackendProductId(linkedProductId);
+            setEbayListingId(linkedProduct?.ebayListingId ?? null);
+            setEbayListingStatus(linkedProduct?.ebayStatus ?? null);
             setShopifyProductId(null);
             applyRecord(record, `Loaded draft ${record.id.slice(0, 8)} for editing.`);
             return;
@@ -2777,6 +2836,8 @@ export default function AddProductEditor({
         variantsByMarket,
         productId,
         backendProductId,
+        ebayListingId,
+        ebayListingStatus,
         shopifyProductId,
         sourceTitle,
         publishVendor,
@@ -2789,7 +2850,7 @@ export default function AddProductEditor({
         publishTrackInventory,
         savedAt: "",
       }),
-    [backendProductId, draft, variantsByMarket, productId, shopifyProductId, sourceTitle, publishVendor, publishDescription, publishPrice, publishSku, publishStatus, publishStock, publishOnOnlineStore, publishTrackInventory],
+    [backendProductId, draft, ebayListingId, ebayListingStatus, variantsByMarket, productId, shopifyProductId, sourceTitle, publishVendor, publishDescription, publishPrice, publishSku, publishStatus, publishStock, publishOnOnlineStore, publishTrackInventory],
   );
 
   const isDraftSaved =
@@ -2886,6 +2947,8 @@ export default function AddProductEditor({
       variantsByMarket: record.variants,
       productId: record.id,
       backendProductId,
+      ebayListingId,
+      ebayListingStatus,
       shopifyProductId: shopifyProductId,
       sourceTitle: record.product.core.source_title,
       publishVendor: finalVendor,
@@ -3028,6 +3091,8 @@ export default function AddProductEditor({
       variantsByMarket: sampleVariants,
       productId: null,
       backendProductId: productDocumentId,
+      ebayListingId: product.ebayListingId ?? null,
+      ebayListingStatus: product.ebayStatus ?? null,
       shopifyProductId: isShopifyProduct ? product.shopifyProductId ?? null : null,
       sourceTitle: product.title,
       publishVendor: product.vendor ?? "",
@@ -3199,6 +3264,7 @@ export default function AddProductEditor({
 
     return {
       marketplace: "ebay",
+      productAiProductId: productId ?? undefined,
       title,
       description,
       vendor: getPublishVendor() || undefined,
@@ -3371,6 +3437,8 @@ export default function AddProductEditor({
       persistDraftSnapshot({
         ...buildDraftSnapshot(),
         backendProductId: savedProductId,
+        ebayListingId: listingId ?? null,
+        ebayListingStatus: publishState ?? null,
       });
 
       if (completedJob.status === "failed") {
@@ -4042,6 +4110,8 @@ export default function AddProductEditor({
         variantsByMarket,
         productId,
         backendProductId,
+        ebayListingId,
+        ebayListingStatus,
         shopifyProductId,
         sourceTitle,
         publishVendor,
