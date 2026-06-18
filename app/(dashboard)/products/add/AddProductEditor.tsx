@@ -7530,7 +7530,7 @@ export default function AddProductEditor({
               </div>
 
               {/* Channel Filter Dropdown */}
-              <div className="relative mt-3 z-40" ref={filterDropdownRef}>
+              <div className="relative mt-3 z-20" ref={filterDropdownRef}>
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#8093b2] mb-1.5">View Channel / Card</p>
                 <button
                   type="button"
@@ -7559,7 +7559,7 @@ export default function AddProductEditor({
                 </button>
 
                 {isFilterDropdownOpen && (
-                  <div className="absolute left-0 right-0 z-50 mt-1 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                  <div className="absolute left-0 right-0 z-30 mt-1 rounded-lg border border-[#e2e8f0] bg-white p-1.5 shadow-lg shadow-[#0f172a]/8 transition-all duration-150 animate-in fade-in slide-in-from-top-1">
                     {filterOptions.map((opt) => {
                       const isSelected = selectedFilterKey === opt.key;
                       const IconComponent = opt.icon;
