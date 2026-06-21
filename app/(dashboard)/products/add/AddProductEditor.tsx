@@ -2938,9 +2938,23 @@ export default function AddProductEditor({
         mergedImages[k] = draft.images[k];
       }
     });
+    // Ensure the Shopify inventory table always has at least one editable location
+    // row. Saved drafts can come back with empty/undefined stock_locations, which
+    // renders an empty table with no quantity field to edit. Seed a default
+    // location with the known stock so the Available field is always available.
+    const recordStockLocations = record.product.shopify.stock_locations ?? [];
+    const primaryStock = Math.max(0, record.product.shopify.variants?.[0]?.inventoryQuantity ?? 0);
+    const ensuredStockLocations =
+      recordStockLocations.length > 0
+        ? recordStockLocations
+        : [{ name: "Kingston Grove", available: primaryStock, on_hand: primaryStock, unavailable: 0, committed: 0 }];
     const mergedProduct = {
       ...record.product,
       images: mergedImages,
+      shopify: {
+        ...record.product.shopify,
+        stock_locations: ensuredStockLocations,
+      },
     };
     setDraft(mergedProduct);
     setVariantsByMarket(record.variants);
@@ -3044,6 +3058,7 @@ export default function AddProductEditor({
         tags: product.tags ?? [],
         variants: shopifyVariants,
         has_variants: shopifyVariants.length > 1,
+        stock_locations: [{ name: "Kingston Grove", available: stock, on_hand: stock, unavailable: 0, committed: 0 }],
       },
       images: {
         ...emptyProduct.images,
