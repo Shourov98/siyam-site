@@ -32,7 +32,7 @@ function StatusBadge({ status }: { status: ImportStatus }) {
 function imageUrlFor(path: string) {
   if (!path) return "";
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  return path;
+  return `/api/product-ai/image?path=${encodeURIComponent(path)}`;
 }
 
 export default function ImportPage() {
@@ -254,7 +254,7 @@ export default function ImportPage() {
               type="button"
             >
               {isGeneratingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Generate All Data
+              Generate Text For 10
             </button>
             <button
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#f2c2d2] bg-[#fff2f7] px-5 text-sm font-semibold text-[#c23868] disabled:opacity-50"
@@ -359,6 +359,7 @@ export default function ImportPage() {
                       <td className="px-4 py-4 align-top">
                         <div
                           className="group relative flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-[#dde5f1] bg-[#f6f8fc]"
+                          onClick={() => imageInputRefs.current[row.id]?.click()}
                           onDoubleClick={() => imageInputRefs.current[row.id]?.click()}
                           role="button"
                           tabIndex={0}
@@ -366,12 +367,15 @@ export default function ImportPage() {
                           {imageUrl ? (
                             <img alt={row.normalized_title || "Imported product image"} className="h-full w-full object-cover" src={imageUrl} />
                           ) : (
-                            <span className="px-3 text-center text-xs font-medium text-[#8ea0bf]">Double click to upload image</span>
+                            <span className="px-3 text-center text-xs font-medium text-[#8ea0bf]">Click to upload image</span>
                           )}
                           <button
                             className="absolute inset-x-2 bottom-2 inline-flex items-center justify-center rounded-xl bg-[#172544]/90 px-2 py-1 text-[11px] font-semibold text-white opacity-0 transition group-hover:opacity-100"
                             disabled={isBusy}
-                            onClick={() => imageInputRefs.current[row.id]?.click()}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              imageInputRefs.current[row.id]?.click();
+                            }}
                             type="button"
                           >
                             <Upload className="mr-1 h-3.5 w-3.5" />

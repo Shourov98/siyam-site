@@ -236,10 +236,10 @@ export const useImportPageStore = create<ImportPageState>()(
         throw new Error(errorBody?.detail ?? "Could not generate data for imported products.");
       }
 
-      const payload = (await response.json()) as { processed_count?: number; skipped_count?: number; failed_count?: number };
+      const payload = (await response.json()) as { processed_count?: number; skipped_count?: number; failed_count?: number; limit?: number };
       await get().loadPage(get().pagination.page);
       set({
-        pageMessage: `Generated data for ${payload.processed_count ?? 0} product(s). Skipped ${payload.skipped_count ?? 0}, failed ${payload.failed_count ?? 0}.`,
+        pageMessage: `Generated marketplace text for ${payload.processed_count ?? 0} product(s). Skipped ${payload.skipped_count ?? 0}, failed ${payload.failed_count ?? 0}. Max ${payload.limit ?? 10} eligible products per run.`,
       });
     } catch (error) {
       set({
@@ -299,17 +299,62 @@ export const useImportPageStore = create<ImportPageState>()(
     }
   },
   async uploadSourceImage(recordId, file) {
-    const formData = new FormData();
-    formData.append("image", file);
     set({ busyRecordId: recordId });
     try {
-      const response = await fetch(`/api/product-ai/imports/products/${recordId}/source-image`, {
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", file);
+      uploadFormData.append("market", "source");
+      uploadFormData.append("productId", recordId);
+
+      const uploadResponse = await fetch("/api/product-ai/image/upload", {
         method: "POST",
-        body: formData,
+        body: uploadFormData,
       });
-      if (!response.ok) {
-        const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+
+      if (!uploadResponse.ok) {
+        const errorBody = (await uploadResponse.json().catch(() => null)) as { detail?: string } | null;
         throw new Error(errorBody?.detail ?? "Could not upload source image.");
+      }
+
+      const uploadPayload = (await uploadResponse.json()) as { relative_path?: string; absolute_path?: string };
+      const imagePath = uploadPayload.relative_path || uploadPayload.absolute_path || "";
+      if (!imagePath) {
+        throw new Error("Uploaded image path is missing.");
+      }
+
+      const updateResponse = await fetch(`/api/product-ai/imports/products/${recordId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          images: {
+            source: {
+              marketplace: "source",
+              relative_path: uploadPayload.relative_path ?? "",
+              absolute_path: uploadPayload.absolute_path ?? imagePath,
+              prompt: "Original uploaded image saved for audit and downstream editing.",
+              generation_mode: "manual_upload",
+              mime_type: file.type || "image/png",
+              validation: {
+                passed: true,
+                width: null,
+                height: null,
+                format: file.type.split("/")[1]?.toUpperCase() || "PNG",
+                has_alpha: file.type === "image/png" || file.type === "image/webp",
+                file_size_bytes: file.size,
+                expected_width: null,
+                expected_height: null,
+                expected_background: "source",
+                errors: [],
+                mime_type: file.type || "image/png",
+              },
+            },
+          },
+        }),
+      });
+
+      if (!updateResponse.ok) {
+        const errorBody = (await updateResponse.json().catch(() => null)) as { detail?: string } | null;
+        throw new Error(errorBody?.detail ?? "Could not attach source image to the import record.");
       }
 
       await get().loadPage(get().pagination.page);

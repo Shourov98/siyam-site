@@ -182,6 +182,53 @@ type ApiEtsy = {
   seo_keywords: string[];
 };
 
+type ApiResearchEvidence = {
+  source: string;
+  title: string;
+  url?: string | null;
+  price?: number | null;
+  list_price?: number | null;
+  sale_price?: number | null;
+  discount_percent?: number | null;
+  currency: string;
+  relevance_score?: number;
+};
+
+type ApiMarketplaceResearch = {
+  marketplace: string;
+  source_mode: string;
+  search_queries: string[];
+  keyword_signals: string[];
+  price_min: number | null;
+  price_max: number | null;
+  price_avg: number | null;
+  regular_price_avg: number | null;
+  sale_price_avg: number | null;
+  discount_percent_avg: number | null;
+  similar_listings: ApiResearchEvidence[];
+};
+
+type ApiMarketResearchBundle = {
+  amazon: ApiMarketplaceResearch;
+  ebay: ApiMarketplaceResearch;
+  etsy: ApiMarketplaceResearch;
+  tiktok: ApiMarketplaceResearch;
+  shopify: ApiMarketplaceResearch;
+};
+
+type ApiSeoInsights = {
+  primary_keywords: string[];
+  secondary_keywords: string[];
+  title_terms: string[];
+  marketplace_keywords: Record<string, string[]>;
+};
+
+type ApiIntelligence = {
+  research: ApiMarketResearchBundle;
+  seo: ApiSeoInsights;
+  validation?: unknown;
+};
+
 type ApiProduct = {
   core: ApiCore;
   amazon: ApiAmazon;
@@ -190,6 +237,7 @@ type ApiProduct = {
   tiktok: ApiTiktok;
   shopify: ApiShopify;
   images: ApiGeneratedImages;
+  intelligence?: ApiIntelligence | null;
 };
 
 type ApiVariant = {
@@ -210,6 +258,22 @@ type ApiRecord = {
   run_id: string;
   product: ApiProduct;
   variants: Record<MarketKey, ApiVariant[]>;
+};
+
+type ImportApiRecord = {
+  id: string;
+  status: string;
+  linked_product_id?: string | null;
+  product: ApiProduct;
+  variants: Record<MarketKey, ApiVariant[]>;
+};
+
+type ImportPreviewFallback = {
+  id: string;
+  normalized_title: string;
+  category: string;
+  product_type: string;
+  preview_image_path: string;
 };
 
 type ApiSuggestedPriceRange = {
@@ -486,6 +550,247 @@ const RECOMMENDED_OPTIONS = [
   { name: "Toe style", defaults: ["Round toe", "Pointed toe", "Square toe", "Open toe"] },
 ];
 
+// ---------------------------------------------------------------------------
+// Shopify category metafield schemas
+// ---------------------------------------------------------------------------
+// Each entry maps a Shopify category prefix (case-insensitive) to the
+// list of metafields the form should render for products in that
+// category. The category strings are matched against the *start* of
+// ``draft.shopify.category`` (the value the LLM suggested or the user
+// typed). When no prefix matches, ``getMetafieldSchema`` falls back to
+// a small generic schema so the form is never empty.
+//
+// The schemas are intentionally hand-curated for the most common
+// verticals; new verticals can be added without changing the rendering
+// code. The dropdown options are taken from the Shopify Product
+// taxonomy for the corresponding category.
+//
+// IMPORTANT: the ``key`` is what we send to the backend as the
+// ``metafields[key]`` field and is also the key the LLM is told to
+// return in its ``metafields`` JSON list.
+
+type MetafieldDef = {
+  key: string;
+  label: string;
+  type: "select" | "text";
+  options?: string[];
+  help?: string;
+  colorDot?: boolean;
+};
+
+type MetafieldSchema = {
+  id: string;          // stable id used by the picker
+  title: string;       // friendly title shown to the user
+  description: string; // sub-line under the heading
+  fields: MetafieldDef[];
+};
+
+const SHOPIFY_METAFIELD_SCHEMAS: Record<string, MetafieldSchema> = {
+  "Beauty & Personal Care > Hair Care > Hair Masks": {
+    id: "beauty-hair-mask",
+    title: "Beauty — Hair Mask",
+    description: "Shopify metafields for hair masks and deep conditioners.",
+    fields: [
+      { key: "hair_type", label: "Hair Type", type: "select", options: ["All hair types", "Dry", "Oily", "Curly", "Straight", "Wavy", "Color-treated", "Damaged", "Fine", "Thick"] },
+      { key: "hair_concern", label: "Hair Concern", type: "select", options: ["Frizz", "Damage", "Dryness", "Breakage", "Dullness", "Volume", "Scalp care"] },
+      { key: "key_ingredient", label: "Key Ingredient", type: "text", help: "e.g. Argan oil, Keratin, Coconut oil" },
+      { key: "formulation", label: "Formulation", type: "select", options: ["Cream", "Oil", "Mask", "Bal", "Conditioner", "Serum"] },
+      { key: "scent", label: "Scent", type: "text", help: "e.g. Coconut, Vanilla, Unscented" },
+      { key: "free_from", label: "Free From", type: "text", help: "e.g. Sulfates, Parabens, Silicones" },
+      { key: "volume_ml", label: "Volume (ml)", type: "text" },
+    ],
+  },
+  "Beauty & Personal Care > Hair Care > Shampoos": {
+    id: "beauty-shampoo",
+    title: "Beauty — Shampoo",
+    description: "Shopify metafields for shampoos and cleansers.",
+    fields: [
+      { key: "hair_type", label: "Hair Type", type: "select", options: ["All hair types", "Dry", "Oily", "Curly", "Straight", "Wavy", "Color-treated", "Damaged", "Fine", "Thick"] },
+      { key: "hair_concern", label: "Hair Concern", type: "select", options: ["Frizz", "Damage", "Dryness", "Breakage", "Dandruff", "Oily scalp"] },
+      { key: "key_ingredient", label: "Key Ingredient", type: "text" },
+      { key: "scent", label: "Scent", type: "text" },
+      { key: "volume_ml", label: "Volume (ml)", type: "text" },
+    ],
+  },
+  "Beauty & Personal Care > Skin Care": {
+    id: "beauty-skincare",
+    title: "Beauty — Skin Care",
+    description: "Shopify metafields for face and body care.",
+    fields: [
+      { key: "skin_type", label: "Skin Type", type: "select", options: ["All skin types", "Dry", "Oily", "Combination", "Sensitive", "Normal", "Mature"] },
+      { key: "skin_concern", label: "Skin Concern", type: "select", options: ["Acne", "Dryness", "Oiliness", "Sensitivity", "Aging", "Dark spots", "Redness"] },
+      { key: "key_ingredient", label: "Key Ingredient", type: "text" },
+      { key: "formulation", label: "Formulation", type: "select", options: ["Cream", "Lotion", "Gel", "Serum", "Oil", "Balm", "Mist", "Mask"] },
+      { key: "spf", label: "SPF", type: "text" },
+      { key: "volume_ml", label: "Volume (ml)", type: "text" },
+    ],
+  },
+  "Apparel & Accessories > Shoes": {
+    id: "shoes",
+    title: "Apparel — Shoes",
+    description: "Shopify metafields for shoes, sneakers, and boots.",
+    fields: [
+      { key: "color", label: "Color", type: "select", options: ["Red", "Blue", "Black", "White", "Burgundy", "Grey", "Brown", "Green", "Pink", "Yellow"], colorDot: true },
+      { key: "age_group", label: "Age Group", type: "select", options: ["Adults", "Kids", "Toddler", "Infant"] },
+      { key: "closure_type", label: "Closure Type", type: "select", options: ["Lace-up", "Slip-on", "Velcro", "Zipper", "Buckle"] },
+      { key: "heel_height_type", label: "Heel Height", type: "select", options: ["Flat", "Low heel", "Mid heel", "High heel"] },
+      { key: "occasion_style", label: "Occasion", type: "select", options: ["Casual", "Dress", "Athletic", "Formal"] },
+      { key: "target_gender", label: "Target Gender", type: "select", options: ["Unisex", "Male", "Female"] },
+      { key: "toe_style", label: "Toe Style", type: "select", options: ["Round", "Pointed", "Square", "Open"] },
+      { key: "shoe_size", label: "Shoe Size", type: "text", help: "e.g. US 9, EU 42, UK 8" },
+      { key: "shoe_fit", label: "Shoe Fit", type: "select", options: ["Regular fit", "Wide fit", "Narrow fit"] },
+      { key: "footwear_material", label: "Footwear Material", type: "text" },
+      { key: "care_instructions", label: "Care Instructions", type: "text" },
+      { key: "shoe_features", label: "Shoe Features", type: "text" },
+    ],
+  },
+  "Apparel & Accessories": {
+    id: "apparel",
+    title: "Apparel & Accessories",
+    description: "Shopify metafields for clothing and accessories.",
+    fields: [
+      { key: "color", label: "Color", type: "select", options: ["Red", "Blue", "Black", "White", "Burgundy", "Grey", "Brown", "Green", "Pink", "Yellow"], colorDot: true },
+      { key: "size", label: "Size", type: "select", options: ["XS", "S", "M", "L", "XL", "2XL", "3XL", "One size"] },
+      { key: "age_group", label: "Age Group", type: "select", options: ["Adults", "Kids", "Toddler", "Infant"] },
+      { key: "target_gender", label: "Target Gender", type: "select", options: ["Unisex", "Male", "Female"] },
+      { key: "occasion_style", label: "Occasion", type: "select", options: ["Casual", "Formal", "Sports", "Party", "Workwear"] },
+      { key: "material", label: "Material", type: "text" },
+      { key: "care_instructions", label: "Care Instructions", type: "text" },
+      { key: "country_of_origin", label: "Country of Origin", type: "text" },
+    ],
+  },
+  "Electronics": {
+    id: "electronics",
+    title: "Electronics",
+    description: "Shopify metafields for electronics and gadgets.",
+    fields: [
+      { key: "color", label: "Color", type: "select", options: ["Black", "White", "Silver", "Grey", "Blue", "Red"], colorDot: true },
+      { key: "brand", label: "Brand", type: "text" },
+      { key: "model_number", label: "Model Number", type: "text" },
+      { key: "connectivity", label: "Connectivity", type: "select", options: ["Bluetooth", "Wi-Fi", "USB-C", "USB-A", "3.5mm", "Wired", "Wireless"] },
+      { key: "power_source", label: "Power Source", type: "select", options: ["Battery", "Rechargeable battery", "AC adapter", "Solar", "USB"] },
+      { key: "battery_life_hours", label: "Battery Life (hours)", type: "text" },
+      { key: "warranty_months", label: "Warranty (months)", type: "text" },
+      { key: "compatibility", label: "Compatibility", type: "text" },
+    ],
+  },
+  "Home & Kitchen": {
+    id: "home-kitchen",
+    title: "Home & Kitchen",
+    description: "Shopify metafields for home goods and kitchenware.",
+    fields: [
+      { key: "color", label: "Color", type: "select", options: ["Black", "White", "Silver", "Grey", "Beige", "Blue", "Red", "Green"], colorDot: true },
+      { key: "material", label: "Material", type: "text" },
+      { key: "capacity", label: "Capacity", type: "text" },
+      { key: "capacity_unit", label: "Capacity Unit", type: "select", options: ["ml", "L", "oz", "cups", "kg", "lb", "g"] },
+      { key: "dimensions_cm", label: "Dimensions (cm)", type: "text" },
+      { key: "weight_g", label: "Weight (g)", type: "text" },
+      { key: "dishwasher_safe", label: "Dishwasher Safe", type: "select", options: ["Yes", "No"] },
+      { key: "microwave_safe", label: "Microwave Safe", type: "select", options: ["Yes", "No"] },
+      { key: "care_instructions", label: "Care Instructions", type: "text" },
+    ],
+  },
+  "Sports & Outdoors": {
+    id: "sports",
+    title: "Sports & Outdoors",
+    description: "Shopify metafields for sports equipment and outdoor gear.",
+    fields: [
+      { key: "color", label: "Color", type: "select", options: ["Black", "White", "Red", "Blue", "Green", "Yellow", "Grey", "Orange", "Pink"], colorDot: true },
+      { key: "material", label: "Material", type: "text" },
+      { key: "size", label: "Size", type: "select", options: ["XS", "S", "M", "L", "XL", "2XL", "One size"] },
+      { key: "activity", label: "Activity", type: "select", options: ["Yoga", "Running", "Cycling", "Hiking", "Swimming", "Gym", "Camping", "Climbing"] },
+      { key: "weight_capacity_kg", label: "Weight Capacity (kg)", type: "text" },
+      { key: "water_resistance", label: "Water Resistance", type: "select", options: ["None", "Splash-resistant", "Water-resistant", "Waterproof"] },
+      { key: "care_instructions", label: "Care Instructions", type: "text" },
+    ],
+  },
+  "Toys & Games": {
+    id: "toys",
+    title: "Toys & Games",
+    description: "Shopify metafields for toys, games, and puzzles.",
+    fields: [
+      { key: "age_group", label: "Age Group", type: "select", options: ["0-2 years", "3-5 years", "6-8 years", "9-12 years", "13+ years", "Adults"] },
+      { key: "target_gender", label: "Target Gender", type: "select", options: ["Unisex", "Male", "Female"] },
+      { key: "material", label: "Material", type: "text" },
+      { key: "piece_count", label: "Piece Count", type: "text" },
+      { key: "battery_required", label: "Battery Required", type: "select", options: ["Yes", "No"] },
+      { key: "safety_warning", label: "Safety Warning", type: "text" },
+    ],
+  },
+  "Pet Supplies": {
+    id: "pet",
+    title: "Pet Supplies",
+    description: "Shopify metafields for pet food, toys, and accessories.",
+    fields: [
+      { key: "pet_type", label: "Pet Type", type: "select", options: ["Dog", "Cat", "Bird", "Fish", "Small animal", "Reptile"] },
+      { key: "pet_size", label: "Pet Size", type: "select", options: ["X-Small", "Small", "Medium", "Large", "X-Large"] },
+      { key: "life_stage", label: "Life Stage", type: "select", options: ["Puppy/Kitten", "Adult", "Senior", "All life stages"] },
+      { key: "material", label: "Material", type: "text" },
+      { key: "weight_g", label: "Weight (g)", type: "text" },
+      { key: "special_diet", label: "Special Diet", type: "text" },
+    ],
+  },
+  "Books": {
+    id: "books",
+    title: "Books",
+    description: "Shopify metafields for books and printed media.",
+    fields: [
+      { key: "author", label: "Author", type: "text" },
+      { key: "isbn", label: "ISBN", type: "text" },
+      { key: "format", label: "Format", type: "select", options: ["Paperback", "Hardcover", "eBook", "Audiobook"] },
+      { key: "language", label: "Language", type: "select", options: ["English", "Spanish", "French", "German", "Japanese", "Chinese", "Other"] },
+      { key: "page_count", label: "Page Count", type: "text" },
+      { key: "publisher", label: "Publisher", type: "text" },
+    ],
+  },
+};
+
+// Generic fallback when no Shopify category matches.
+const GENERIC_METAFIELD_SCHEMA: MetafieldSchema = {
+  id: "generic",
+  title: "Category metafields",
+  description: "Common attributes for any product. Set the Shopify category above to unlock category-specific fields.",
+  fields: [
+    { key: "color", label: "Color", type: "text", help: "Comma-separated colors (e.g. Red, Black)" },
+    { key: "material", label: "Material", type: "text" },
+    { key: "size", label: "Size", type: "text" },
+    { key: "brand", label: "Brand", type: "text" },
+    { key: "country_of_origin", label: "Country of Origin", type: "text" },
+    { key: "care_instructions", label: "Care Instructions", type: "text" },
+    { key: "warranty_months", label: "Warranty (months)", type: "text" },
+  ],
+};
+
+/**
+ * Return the metafield schema for the given Shopify category string.
+ *
+ * Matches the *start* of the category path so a more specific value like
+ * "Beauty & Personal Care > Hair Care > Hair Masks" still resolves to
+ * the broader "Beauty & Personal Care" schema when no exact entry
+ * exists. Falls back to a generic schema when nothing matches.
+ */
+function getMetafieldSchema(category: string | null | undefined): MetafieldSchema {
+  const normalized = (category ?? "").trim().toLowerCase();
+  if (!normalized) return GENERIC_METAFIELD_SCHEMA;
+
+  // Try exact-prefix matches from longest to shortest
+  const keys = Object.keys(SHOPIFY_METAFIELD_SCHEMAS).sort(
+    (a, b) => b.length - a.length,
+  );
+  for (const key of keys) {
+    if (normalized.startsWith(key.toLowerCase())) {
+      return SHOPIFY_METAFIELD_SCHEMAS[key];
+    }
+  }
+  return GENERIC_METAFIELD_SCHEMA;
+}
+
+/** Build a flat array of metafield keys for a category, used by the LLM
+ *  prompt and by the "Add Additional Details" section. */
+function getMetafieldKeysForCategory(category: string | null | undefined): string[] {
+  return getMetafieldSchema(category).fields.map((f) => f.key);
+}
+
 const emptyActionState: MarketActionState = {
   amazon: false,
   ebay: false,
@@ -758,10 +1063,12 @@ function withMissingEbayDraftDefaults(draft: ApiProduct, publishVendor: string) 
   }
 
   const nextEbay = {
-    ...ebayDraft,
-    title: ebayDraft.title.trim() || coreTitle,
-    marketplace_id: ebayDraft.marketplace_id?.trim() || ebayMarketplaceDefaultId,
-    currency: ebayDraft.currency?.trim() || ebayMarketplaceDefaultCurrency,
+    ...draft.ebay,
+    title: safeTrim(draft.ebay.title) || coreTitle,
+    marketplace_id:
+      safeTrim(draft.ebay.marketplace_id) || ebayMarketplaceDefaultId,
+    currency:
+      safeTrim(draft.ebay.currency) || ebayMarketplaceDefaultCurrency,
     item_specifics: nextSpecifics,
   };
 
@@ -1043,6 +1350,23 @@ function imageUrlFor(pathValue: string) {
   return `/api/product-ai/image?path=${encodeURIComponent(pathValue)}`;
 }
 
+async function fetchSourceImageAsFile(pathValue: string, fallbackName = "source.png"): Promise<File | null> {
+  if (!pathValue) return null;
+  const url = imageUrlFor(pathValue);
+  if (!url) return null;
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    const mime = blob.type || "image/png";
+    const ext = mime === "image/jpeg" ? "jpg" : mime === "image/webp" ? "webp" : "png";
+    const baseName = fallbackName.replace(/\.[^.]+$/, "");
+    return new File([blob], `${baseName}.${ext}`, { type: mime });
+  } catch {
+    return null;
+  }
+}
+
 function isPublicHttpUrl(pathValue: string) {
   return pathValue.startsWith("http://") || pathValue.startsWith("https://");
 }
@@ -1054,6 +1378,320 @@ function getEbaySandboxListingUrl(listingId?: string | null) {
   }
 
   return `${ebaySandboxListingBaseUrl}${encodeURIComponent(trimmedListingId)}`;
+}
+
+function safeTrim(value: string | null | undefined) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readImportPreviewFallback(recordId: string): ImportPreviewFallback | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem("commandctr-import-page");
+    if (!raw) {
+      return null;
+    }
+
+    const payload = JSON.parse(raw) as {
+      state?: { rows?: ImportPreviewFallback[] };
+      rows?: ImportPreviewFallback[];
+    };
+    const rows = Array.isArray(payload.state?.rows)
+      ? payload.state.rows
+      : Array.isArray(payload.rows)
+        ? payload.rows
+        : [];
+
+    return rows.find((row) => row?.id === recordId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isNonEmptyArray<T>(value: T[] | undefined | null): value is T[] {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function isNonEmptyRecord(value: Record<string, unknown> | undefined | null): boolean {
+  if (!value) return false;
+  return Object.values(value).some((v) => {
+    if (typeof v === "string") return v.trim().length > 0;
+    if (Array.isArray(v)) return v.length > 0;
+    if (v && typeof v === "object") return Object.keys(v).length > 0;
+    return v !== null && v !== undefined && v !== "";
+  });
+}
+
+/**
+ * Merge a freshly generated ApiRecord (e.g. from /api/product-ai/products/generate/text)
+ * into the existing imported draft. Strategy:
+ *   - For each scalar field (title, description, etc.): keep the imported value if
+ *     non-empty, otherwise use the new generated value.
+ *   - For each array / object field: same rule (keep existing if it already has content,
+ *     otherwise replace with the new one).
+ *   - For images: preserve imported images (e.g. source, transparent_cutout, marketplace
+ *     variants that may already have files) and only fill empty slots from the new
+ *     response. This keeps user-uploaded assets intact.
+ */
+function mergeGeneratedRecordIntoDraft(
+  generated: ApiRecord,
+  current: ApiProduct,
+): ApiProduct {
+  // ─── core ───────────────────────────────────────────────────────────
+  const genCore = generated.product.core;
+  const curCore = current.core;
+  const mergedCore: ApiCore = {
+    ...curCore,
+    normalized_title: isNonEmptyString(curCore.normalized_title)
+      ? curCore.normalized_title
+      : genCore.normalized_title,
+    category: isNonEmptyString(curCore.category) ? curCore.category : genCore.category,
+    product_type: isNonEmptyString(curCore.product_type)
+      ? curCore.product_type
+      : genCore.product_type,
+    product_summary: isNonEmptyString(curCore.product_summary)
+      ? curCore.product_summary
+      : genCore.product_summary,
+    features: isNonEmptyArray(curCore.features) ? curCore.features : genCore.features,
+    attributes: { ...genCore.attributes, ...curCore.attributes },
+    source_title: isNonEmptyString(curCore.source_title)
+      ? curCore.source_title
+      : genCore.source_title,
+    vision_confidence: curCore.vision_confidence || genCore.vision_confidence,
+  };
+
+  // ─── amazon ─────────────────────────────────────────────────────────
+  const mergedAmazon: ApiAmazon = {
+    title: current.amazon.title || generated.product.amazon.title,
+    bullet_points: isNonEmptyArray(current.amazon.bullet_points)
+      ? current.amazon.bullet_points
+      : generated.product.amazon.bullet_points,
+    description: current.amazon.description || generated.product.amazon.description,
+    backend_search_terms: isNonEmptyArray(current.amazon.backend_search_terms)
+      ? current.amazon.backend_search_terms
+      : generated.product.amazon.backend_search_terms,
+    structured_attributes: isNonEmptyRecord(current.amazon.structured_attributes as Record<string, unknown>)
+      ? current.amazon.structured_attributes
+      : generated.product.amazon.structured_attributes,
+  };
+
+  // ─── ebay ───────────────────────────────────────────────────────────
+  const mergedEbay: ApiEbay = {
+    title: current.ebay.title || generated.product.ebay.title,
+    item_specifics: isNonEmptyRecord(current.ebay.item_specifics as Record<string, unknown>)
+      ? current.ebay.item_specifics
+      : generated.product.ebay.item_specifics,
+    condition: current.ebay.condition || generated.product.ebay.condition,
+    marketplace_id: current.ebay.marketplace_id || generated.product.ebay.marketplace_id,
+    currency: current.ebay.currency || generated.product.ebay.currency,
+    category_id: current.ebay.category_id || generated.product.ebay.category_id,
+    description_override:
+      current.ebay.description_override || generated.product.ebay.description_override,
+    listing_notes: current.ebay.listing_notes || generated.product.ebay.listing_notes,
+  };
+
+  // ─── etsy ───────────────────────────────────────────────────────────
+  const mergedEtsy: ApiEtsy = {
+    title: current.etsy.title || generated.product.etsy.title,
+    description: current.etsy.description || generated.product.etsy.description,
+    tags: isNonEmptyArray(current.etsy.tags) ? current.etsy.tags : generated.product.etsy.tags,
+    materials: isNonEmptyArray(current.etsy.materials)
+      ? current.etsy.materials
+      : generated.product.etsy.materials,
+    occasion: current.etsy.occasion || generated.product.etsy.occasion,
+    seo_keywords: isNonEmptyArray(current.etsy.seo_keywords)
+      ? current.etsy.seo_keywords
+      : generated.product.etsy.seo_keywords,
+  };
+
+  // ─── tiktok ─────────────────────────────────────────────────────────
+  const mergedTiktok: ApiTiktok = {
+    title: current.tiktok.title || generated.product.tiktok.title,
+    social_description:
+      current.tiktok.social_description || generated.product.tiktok.social_description,
+    hashtags: isNonEmptyArray(current.tiktok.hashtags)
+      ? current.tiktok.hashtags
+      : generated.product.tiktok.hashtags,
+  };
+
+  // ─── shopify ────────────────────────────────────────────────────────
+  const curShopify = current.shopify;
+  const genShopify = generated.product.shopify;
+  const mergedShopify: ApiShopify = {
+    ...curShopify,
+    title: curShopify.title || genShopify.title,
+    body_html: curShopify.body_html || genShopify.body_html,
+    tags: isNonEmptyArray(curShopify.tags) ? curShopify.tags : genShopify.tags,
+    product_type: curShopify.product_type || genShopify.product_type,
+    seo_title: curShopify.seo_title || genShopify.seo_title,
+    seo_description: curShopify.seo_description || genShopify.seo_description,
+    metafields: isNonEmptyRecord(curShopify.metafields as Record<string, unknown>)
+      ? { ...genShopify.metafields, ...curShopify.metafields }
+      : genShopify.metafields,
+    category: curShopify.category || genShopify.category,
+    has_variants: curShopify.has_variants || genShopify.has_variants,
+  };
+
+  // ─── images: preserve current; only fill empty slots from generated ──
+  const imageKeys: ImageCardKey[] = [
+    "source",
+    "transparent_cutout",
+    "amazon",
+    "ebay",
+    "etsy",
+    "tiktok",
+    "shopify",
+  ];
+  const mergedImages: ApiGeneratedImages = { ...current.images };
+  imageKeys.forEach((k) => {
+    const curImg = current.images[k];
+    const genImg = generated.product.images[k];
+    if (!curImg?.absolute_path && genImg?.absolute_path) {
+      mergedImages[k] = genImg;
+    } else if (curImg && !curImg.absolute_path && genImg) {
+      // If we have a placeholder but no file, take the generated variant fully
+      mergedImages[k] = genImg;
+    }
+  });
+
+  return {
+    core: mergedCore,
+    amazon: mergedAmazon,
+    ebay: mergedEbay,
+    etsy: mergedEtsy,
+    tiktok: mergedTiktok,
+    shopify: mergedShopify,
+    images: mergedImages,
+    intelligence: generated.product.intelligence ?? current.intelligence ?? null,
+  };
+}
+
+/**
+ * Convert the ``intelligence.research`` block from a generated ApiRecord into
+ * the ApiProductPricingSnapshot shape used by the UI's pricing panels.
+ */
+function researchToPricingSnapshot(
+  generated: ApiRecord,
+  productIdFallback: string,
+): ApiProductPricingSnapshot | null {
+  const intelligence = generated.product.intelligence;
+  if (!intelligence?.research) {
+    return null;
+  }
+
+  const marketKeys: MarketKey[] = ["amazon", "ebay", "etsy", "tiktok", "shopify"];
+  const generatedAt = new Date().toISOString();
+  const markets = marketKeys
+    .map((key): ApiMarketplacePricingSnapshot | null => {
+      const research = intelligence.research[key];
+      if (!research) return null;
+
+      const priceMin = research.price_min ?? null;
+      const priceMax = research.price_max ?? null;
+      const priceAvg = research.price_avg ?? null;
+      const recommended = priceAvg ?? priceMin ?? priceMax ?? null;
+      const currency = research.similar_listings?.[0]?.currency ?? "USD";
+
+      const range =
+        priceMin && priceMax
+          ? {
+              minimum: priceMin,
+              maximum: priceMax,
+              recommended: recommended ?? (priceMin + priceMax) / 2,
+              currency,
+              source: "market_research",
+            }
+          : null;
+
+      const similarListings = (research.similar_listings ?? []).map((listing) => ({
+        source: listing.source,
+        title: listing.title,
+        url: listing.url ?? null,
+        price: listing.price ?? listing.sale_price ?? null,
+        currency: listing.currency,
+      }));
+
+      return {
+        marketplace: key,
+        source_mode: research.source_mode ?? "heuristic",
+        search_queries: research.search_queries ?? [],
+        comparable_count: (research.similar_listings ?? []).length,
+        recommended_price: recommended,
+        currency,
+        suggested_price_range: range,
+        market_signal: "",
+        analysis_summary: "",
+        similar_listings: similarListings,
+      };
+    })
+    .filter((m): m is ApiMarketplacePricingSnapshot => m !== null);
+
+  if (markets.length === 0) {
+    return null;
+  }
+
+  return {
+    product_id: generated.id || productIdFallback,
+    generated_at: generatedAt,
+    markets,
+  };
+}
+
+function mergeImportRecordFallback(
+  record: ImportApiRecord,
+  fallback: ImportPreviewFallback | null,
+): ImportApiRecord {
+  if (!fallback) {
+    return record;
+  }
+
+  const previewPath = fallback.preview_image_path.trim();
+
+  return {
+    ...record,
+    product: {
+      ...record.product,
+      core: {
+        ...record.product.core,
+        source_title: record.product.core.source_title || fallback.normalized_title,
+        normalized_title:
+          record.product.core.normalized_title || fallback.normalized_title,
+        category: record.product.core.category || fallback.category,
+        product_type: record.product.core.product_type || fallback.product_type,
+      },
+      images: {
+        ...record.product.images,
+        source:
+          record.product.images.source.absolute_path || !previewPath
+            ? record.product.images.source
+            : {
+                ...record.product.images.source,
+                absolute_path: previewPath,
+                relative_path:
+                  record.product.images.source.relative_path || previewPath,
+                generation_mode:
+                  record.product.images.source.generation_mode ||
+                  "source_passthrough",
+              },
+        shopify:
+          record.product.images.shopify.absolute_path || !previewPath
+            ? record.product.images.shopify
+            : {
+                ...record.product.images.shopify,
+                absolute_path: previewPath,
+                relative_path:
+                  record.product.images.shopify.relative_path || previewPath,
+              },
+      },
+    },
+  };
 }
 
 function cartesianProduct(arrays: string[][]): string[][] {
@@ -1117,13 +1755,22 @@ function MarketTabLink({
   market,
   activeMarket,
   productId,
+  importRecordId = null,
+  isImportMode = false,
+  readOnly = false,
 }: {
   market: MarketKey;
   activeMarket: MarketKey;
   productId: string | null;
+  importRecordId?: string | null;
+  isImportMode?: boolean;
+  readOnly?: boolean;
 }) {
   const active = market === activeMarket;
   const suffix = productId ? `&productId=${productId}` : "";
+  const href = isImportMode && importRecordId
+    ? `${readOnly ? `/import/view/${importRecordId}` : `/import/${importRecordId}`}?market=${market}`
+    : `/products/add?market=${market}${suffix}`;
   const IconComponent = marketIcons[market];
   const styles = marketTabStyles[market];
   return (
@@ -1131,7 +1778,7 @@ function MarketTabLink({
       className={`group inline-flex items-center gap-2 rounded-full px-4.5 py-2 text-xs font-bold transition-all duration-300 ${
         active ? styles.active : styles.inactive
       }`}
-      href={`/products/add?market=${market}${suffix}`}
+      href={href}
       scroll={false}
     >
       <IconComponent
@@ -1884,13 +2531,17 @@ function generateMockASIN() {
 export default function AddProductEditor({
   activeMarket,
   initialProductId,
+  initialImportRecordId = null,
   initialSourceHint,
   localDraftSeed,
+  readOnly = false,
 }: {
   activeMarket: MarketKey;
   initialProductId: string | null;
+  initialImportRecordId?: string | null;
   initialSourceHint: "shopify" | "product_ai" | "commandctr" | null;
   localDraftSeed: LocalDraftSeed | null;
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -1899,8 +2550,16 @@ export default function AddProductEditor({
   const hydratedEbayBackendProductIdRef = useRef<string | null>(null);
   const [draft, setDraft] = useState<ApiProduct>(emptyProduct);
   const [variantsByMarket, setVariantsByMarket] = useState<Record<MarketKey, ApiVariant[]>>(sampleVariants);
+<<<<<<< Updated upstream
   const [productId, setProductId] = useState<string | null>(initialProductId);
   const [backendProductId, setBackendProductId] = useState<string | null>(null);
+=======
+  const [productId, setProductId] = useState<string | null>(initialSourceHint === "product_ai" ? initialProductId : null);
+  const [backendProductId, setBackendProductId] = useState<string | null>(
+    initialSourceHint === "shopify" || initialSourceHint === "commandctr" ? initialProductId : null,
+  );
+  const [importRecordId, setImportRecordId] = useState<string | null>(initialImportRecordId);
+>>>>>>> Stashed changes
   const [statusMessage, setStatusMessage] = useState("Choose an image and generate a product draft.");
   const [sourceTitle, setSourceTitle] = useState(emptyProduct.core.source_title);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -1956,6 +2615,8 @@ export default function AddProductEditor({
   const [publishFieldErrors, setPublishFieldErrors] = useState<PublishFieldErrors>(emptyPublishFieldErrors);
   const [isUploadingToAll, setIsUploadingToAll] = useState(false);
   const [restoredLocalDraftProductId, setRestoredLocalDraftProductId] = useState<string | null | undefined>(undefined);
+  const isImportMode = Boolean(importRecordId || initialImportRecordId);
+  const currentImportRecordId = importRecordId || initialImportRecordId;
   const [hasInitializedDraftStorage, setHasInitializedDraftStorage] = useState(false);
   const [variantInputs, setVariantInputs] = useState<Record<MarketKey, { size: string; color: string }>>({
     amazon: { size: "", color: "" },
@@ -2552,7 +3213,10 @@ export default function AddProductEditor({
     setRestoredLocalDraftProductId(undefined);
     clearSelectedImageSelection();
     setStatusMessage(message);
-    router.replace(`/products/add?market=${activeMarket}`, { scroll: false });
+    router.replace(
+      isImportMode ? "/import" : `/products/add?market=${activeMarket}`,
+      { scroll: false },
+    );
   }
 
   function clearSavedDraft() {
@@ -2675,6 +3339,11 @@ export default function AddProductEditor({
   }, []);
 
   useEffect(() => {
+    if (isImportMode) {
+      setHasInitializedDraftStorage(true);
+      return;
+    }
+
     if (typeof window === "undefined") {
       return;
     }
@@ -2714,19 +3383,123 @@ export default function AddProductEditor({
         setHasInitializedDraftStorage(true);
       }, 0);
     }
-  }, [initialProductId]);
+  }, [initialProductId, isImportMode]);
 
   useEffect(() => {
-    if (!hasInitializedDraftStorage || initialProductId || hasSavedDraft || !localDraftSeed) {
+    if (isImportMode || !hasInitializedDraftStorage || initialProductId || hasSavedDraft || !localDraftSeed) {
       return;
     }
 
     window.setTimeout(() => {
       applyLocalDraftSeed(localDraftSeed);
     }, 0);
-  }, [applyLocalDraftSeed, hasInitializedDraftStorage, hasSavedDraft, initialProductId, localDraftSeed]);
+  }, [applyLocalDraftSeed, hasInitializedDraftStorage, hasSavedDraft, initialProductId, isImportMode, localDraftSeed]);
 
   useEffect(() => {
+    if (initialImportRecordId) {
+      let active = true;
+
+      async function loadImportRecord() {
+        setIsLoadingProduct(true);
+        const recordId = initialImportRecordId;
+        if (!recordId) {
+          setIsLoadingProduct(false);
+          return;
+        }
+        const previewFallback = readImportPreviewFallback(recordId);
+
+        if (previewFallback) {
+          setSourceTitle((current) => current || previewFallback.normalized_title);
+          setDraft((prev) => ({
+            ...prev,
+            core: {
+              ...prev.core,
+              source_title: prev.core.source_title || previewFallback.normalized_title,
+              normalized_title:
+                prev.core.normalized_title || previewFallback.normalized_title,
+              category: prev.core.category || previewFallback.category,
+              product_type: prev.core.product_type || previewFallback.product_type,
+            },
+            images: {
+              ...prev.images,
+              source:
+                prev.images.source.absolute_path || !previewFallback.preview_image_path
+                  ? prev.images.source
+                  : {
+                      ...prev.images.source,
+                      absolute_path: previewFallback.preview_image_path,
+                      relative_path:
+                        prev.images.source.relative_path ||
+                        previewFallback.preview_image_path,
+                      generation_mode:
+                        prev.images.source.generation_mode || "source_passthrough",
+                    },
+              shopify:
+                prev.images.shopify.absolute_path || !previewFallback.preview_image_path
+                  ? prev.images.shopify
+                  : {
+                      ...prev.images.shopify,
+                      absolute_path: previewFallback.preview_image_path,
+                      relative_path:
+                        prev.images.shopify.relative_path ||
+                        previewFallback.preview_image_path,
+                    },
+            },
+          }));
+        }
+
+        try {
+          const response = await fetch(
+            `/api/product-ai/imports/products/${recordId}`,
+            { cache: "no-store" },
+          );
+
+          if (!response.ok) {
+            const errorBody = (await response.json().catch(() => null)) as {
+              detail?: string;
+            } | null;
+            throw new Error(
+              errorBody?.detail ?? "Could not load the imported product.",
+            );
+          }
+
+          const record = mergeImportRecordFallback(
+            (await response.json()) as ImportApiRecord,
+            previewFallback,
+          );
+          if (!active) {
+            return;
+          }
+
+          applyImportRecord(
+            record,
+            readOnly
+              ? "Imported product loaded."
+              : `Loaded imported draft ${record.id.slice(0, 8)} for editing.`,
+          );
+        } catch (error) {
+          if (!active) {
+            return;
+          }
+
+          setStatusMessage(
+            error instanceof Error
+              ? error.message
+              : "Failed to load the imported product.",
+          );
+        } finally {
+          if (active) {
+            setIsLoadingProduct(false);
+          }
+        }
+      }
+
+      void loadImportRecord();
+      return () => {
+        active = false;
+      };
+    }
+
     if (!initialProductId) {
       return;
     }
@@ -2814,7 +3587,39 @@ export default function AddProductEditor({
     return () => {
       active = false;
     };
-  }, [initialProductId, initialSourceHint, restoredLocalDraftProductId]);
+  }, [initialImportRecordId, initialProductId, initialSourceHint, readOnly, restoredLocalDraftProductId]);
+
+  useEffect(() => {
+    if (isImportMode || typeof window === "undefined") {
+      return;
+    }
+
+    if (!hasInitializedDraftStorage) {
+      return;
+    }
+
+    const snapshot: SavedDraftSnapshot = {
+      draft,
+      variantsByMarket,
+      productId,
+      backendProductId,
+      shopifyProductId,
+      sourceTitle,
+      publishVendor,
+      publishDescription,
+      publishPrice,
+      publishSku,
+      publishStatus,
+      publishStock,
+      publishOnOnlineStore,
+      publishTrackInventory,
+      savedAt: new Date().toISOString(),
+    };
+    window.localStorage.setItem(getStoredDraftKey(), JSON.stringify(snapshot));
+    window.setTimeout(() => {
+      setHasSavedDraft(true);
+    }, 0);
+  }, [backendProductId, draft, hasInitializedDraftStorage, isImportMode, productId, publishDescription, publishPrice, publishSku, publishStatus, publishVendor, shopifyProductId, sourceTitle, variantsByMarket, publishStock, publishOnOnlineStore, publishTrackInventory]);
 
   const selectedImagePreviewUrl = useMemo(
     () => (selectedImage ? URL.createObjectURL(selectedImage) : null),
@@ -2991,6 +3796,82 @@ export default function AddProductEditor({
       savedAt: new Date().toISOString(),
     };
     lastSavedDraftRef.current = buildComparableDraftSignature(savedSnapshot);
+    setDraftSaveState("saved");
+    setStatusMessage(message);
+  }
+
+  function applyImportRecord(record: ImportApiRecord, message: string) {
+    setImportRecordId(record.id);
+    const mergedImages = { ...record.product.images };
+    const keys: ImageCardKey[] = ["source", "transparent_cutout", "amazon", "ebay", "etsy", "tiktok", "shopify"];
+    keys.forEach((k) => {
+      if (!mergedImages[k]?.absolute_path && draft.images[k]?.absolute_path) {
+        mergedImages[k] = draft.images[k];
+      }
+    });
+    const mergedProduct = {
+      ...record.product,
+      images: mergedImages,
+    };
+    setDraft(mergedProduct);
+    setVariantsByMarket(record.variants);
+    setSourceTitle(record.product.core.source_title);
+    setPublishVendor((current) => current || record.product.core.attributes.brand || "");
+    setPublishPrice((current) => current || record.product.core.attributes.price || "");
+    setPublishDescription((current) => current || record.product.shopify.body_html || record.product.core.product_summary || "");
+    setPublishSku((current) => current || record.id.slice(0, 12).toUpperCase());
+    clearPricingSnapshot();
+    setDraftSaveState("saved");
+    setStatusMessage(message);
+  }
+
+  /**
+   * Apply a generated ApiRecord on top of the existing imported draft WITHOUT
+   * replacing any non-empty imported values. This is the "merge" semantic used
+   * by the "Generate Text Only" button in import mode: keep the CSV-imported
+   * data the user already has, fill in any empty fields with the new generated
+   * values, and surface pricing intelligence (from
+   * ``product.intelligence.research``) into the pricing snapshot.
+   */
+  function applyGeneratedRecordMerging(generated: ApiRecord, message: string) {
+    const merged = mergeGeneratedRecordIntoDraft(generated, draft);
+    setDraft(merged);
+    // Variants from the freshly generated record take priority only if the
+    // imported draft had no variants yet (rare, but keeps idempotency).
+    const hasAnyVariant = (Object.keys(generated.variants) as MarketKey[]).some(
+      (key) => (generated.variants[key] ?? []).length > 0,
+    );
+    if (hasAnyVariant) {
+      setVariantsByMarket((current) => {
+        const empty = (Object.keys(current) as MarketKey[]).every(
+          (key) => (current[key] ?? []).length === 0,
+        );
+        return empty ? generated.variants : current;
+      });
+    }
+    setSourceTitle((current) => current || merged.core.source_title);
+    setPublishVendor((current) => current || merged.core.attributes.brand || "");
+    setPublishPrice((current) => current || merged.core.attributes.price || "");
+    setPublishDescription(
+      (current) =>
+        current ||
+        merged.shopify.body_html ||
+        merged.core.product_summary ||
+        "",
+    );
+    setPublishSku(
+      (current) => current || generated.id.slice(0, 12).toUpperCase(),
+    );
+    const pricing = researchToPricingSnapshot(generated, generated.id);
+    if (pricing) {
+      setPricingSnapshot(pricing);
+      const activePricing =
+        pricing.markets.find((entry) => entry.marketplace === activeMarket) ??
+        pricing.markets[0];
+      if (activePricing?.recommended_price) {
+        syncPublishPriceFromPricing(activePricing);
+      }
+    }
     setDraftSaveState("saved");
     setStatusMessage(message);
   }
@@ -3285,12 +4166,16 @@ export default function AddProductEditor({
     const stock = getSanitizedPublishStock();
     const publicImages = getPublicPublishImageUrls();
     const allImagePaths = getAllCandidateImagePaths();
-    const title = draft.ebay.title.trim() || getPublishTitle();
-    const description = draft.ebay.description_override.trim() || getPublishDescription();
+    const title = safeTrim(draft.ebay.title) || getPublishTitle();
+    const description =
+      safeTrim(draft.ebay.description_override) || getPublishDescription();
     const ebayItemSpecifics = buildEbayItemSpecifics();
     const normalizedCondition = normalizeEbayCondition(draft.ebay.condition);
-    const currencyHint = draft.ebay.currency.trim() || ebayMarketplaceDefaultCurrency;
-    const categoryId = draft.ebay.category_id.trim() || undefined;
+    const currencyHint =
+      safeTrim(draft.ebay.currency) || ebayMarketplaceDefaultCurrency;
+    const marketplaceId =
+      safeTrim(draft.ebay.marketplace_id) || ebayMarketplaceDefaultId;
+    const categoryId = safeTrim(draft.ebay.category_id) || undefined;
 
     return {
       marketplace: "ebay",
@@ -3316,7 +4201,7 @@ export default function AddProductEditor({
       ebayCondition: isAllowedEbayCondition(normalizedCondition) ? normalizedCondition : undefined,
       ebayCategoryId: categoryId,
       ebayItemSpecifics: Object.keys(ebayItemSpecifics).length > 0 ? ebayItemSpecifics : undefined,
-      ebayListingNotes: draft.ebay.listing_notes.trim() || undefined,
+      ebayListingNotes: safeTrim(draft.ebay.listing_notes) || undefined,
       ebayDescriptionOverride: description || undefined,
       ebayCurrency: currencyHint,
     };
@@ -3358,7 +4243,7 @@ export default function AddProductEditor({
   }
 
   async function uploadToEbay(mode: "active" | "draft") {
-    const title = draft.ebay.title.trim() || getPublishTitle();
+    const title = safeTrim(draft.ebay.title) || getPublishTitle();
     const trimmedPrice = publishPrice.trim();
     const trimmedSku = publishSku.trim();
     const description = getPublishDescription();
@@ -3905,6 +4790,11 @@ export default function AddProductEditor({
     successMessage = "AI draft generated and connected to the add-product page.",
     forcedImage?: File
   ) {
+    if (isImportMode) {
+      await generateTextOnly();
+      return true;
+    }
+
     const finalImage = forcedImage || selectedImage;
     if (!finalImage) {
       setStatusMessage("Upload a product image before generating.");
@@ -3937,7 +4827,9 @@ export default function AddProductEditor({
       setShopifyProductId(null);
       clearPricingSnapshot();
       applyRecord(record, "AI text draft generated. Marketplace sections are now generating in parallel.");
-      router.replace(`/products/add?market=${activeMarket}&productId=${generatedProductId}`, { scroll: false });
+      if (!isImportMode) {
+        router.replace(`/products/add?market=${activeMarket}&productId=${generatedProductId}`, { scroll: false });
+      }
       clearSelectedImageSelection();
       await generateMarketplaceSectionsInParallel(generatedProductId, ["amazon", "ebay", "etsy", "tiktok", "shopify"], successMessage);
       return true;
@@ -3972,7 +4864,9 @@ export default function AddProductEditor({
             imageMimeType: finalImage.type || "image/png",
           });
           clearSelectedImageSelection();
-          router.replace(`/products/add?market=${activeMarket}`, { scroll: false });
+          if (!isImportMode) {
+            router.replace(`/products/add?market=${activeMarket}`, { scroll: false });
+          }
           return false;
         } catch (fallbackError) {
           setStatusMessage(fallbackError instanceof Error ? fallbackError.message : message);
@@ -3988,6 +4882,64 @@ export default function AddProductEditor({
   }
 
   async function generateTextOnly() {
+    if (isImportMode) {
+      if (!currentImportRecordId) {
+        setStatusMessage("Import record is missing.");
+        return;
+      }
+
+      // Title to feed the LLM: prefer the imported source_title, fall back to
+      // the currently edited sourceTitle state, otherwise the normalized title.
+      const titleForLlm =
+        draft.core.source_title.trim() ||
+        sourceTitle.trim() ||
+        draft.core.normalized_title.trim() ||
+        "Imported product";
+
+      // Resolve a usable image file. The import flow may not have a freshly
+      // selected image; we have to fetch the imported source image through the
+      // local image proxy and turn it into a File for the multipart upload.
+      const sourcePath = draft.images.source?.absolute_path || "";
+      const sourceImageFile = sourcePath
+        ? await fetchSourceImageAsFile(sourcePath, "imported_source.png")
+        : null;
+
+      if (!sourceImageFile) {
+        setStatusMessage(
+          "Imported source image could not be loaded for text generation. Try re-uploading the product image.",
+        );
+        return;
+      }
+
+      setIsGenerating(true);
+      try {
+        const formData = new FormData();
+        formData.append("title", titleForLlm);
+        formData.append("image", sourceImageFile);
+
+        const response = await fetch("/api/product-ai/products/generate/text", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(errorBody?.detail ?? "Text-only generation failed.");
+        }
+
+        const record = (await response.json()) as ApiRecord;
+        applyGeneratedRecordMerging(
+          record,
+          "AI text added on top of imported data. Imported fields are kept; empty fields are filled in.",
+        );
+      } catch (error) {
+        setStatusMessage(error instanceof Error ? error.message : "Text-only generation failed.");
+      } finally {
+        setIsGenerating(false);
+      }
+      return;
+    }
+
     if (!sourceTitle.trim()) {
       setStatusMessage("Add a source title before generating.");
       return;
@@ -4019,7 +4971,13 @@ export default function AddProductEditor({
       clearPricingSnapshot();
       applyRecord(record, "AI text draft generated and ready for marketplace images.");
       clearSelectedImageSelection();
+<<<<<<< Updated upstream
       router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
+=======
+      if (!isImportMode) {
+        router.replace(`/products/add?market=${activeMarket}&productId=${record.id}&source=product_ai`, { scroll: false });
+      }
+>>>>>>> Stashed changes
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Text-only generation failed.");
     } finally {
@@ -4062,7 +5020,13 @@ export default function AddProductEditor({
       clearPricingSnapshot();
       applyRecord(record, successMessage);
       clearSelectedImageSelection();
+<<<<<<< Updated upstream
       router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
+=======
+      if (!isImportMode) {
+        router.replace(`/products/add?market=${activeMarket}&productId=${record.id}&source=product_ai`, { scroll: false });
+      }
+>>>>>>> Stashed changes
       return true;
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} content and image.`);
@@ -4159,6 +5123,42 @@ export default function AddProductEditor({
     persistDraftSnapshot(getSnapshotWithImages());
     setDraftSaveState("saving");
 
+    if (isImportMode && currentImportRecordId) {
+      setIsSaving(true);
+      try {
+        const response = await fetch(`/api/product-ai/imports/products/${currentImportRecordId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            core: buildCoreDraftForSave(),
+            amazon: nextDraft.amazon,
+            ebay: nextDraft.ebay,
+            etsy: nextDraft.etsy,
+            tiktok: nextDraft.tiktok,
+            shopify: nextDraft.shopify,
+            images: nextDraft.images,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(errorBody?.detail ?? "Import draft save failed.");
+        }
+
+        const record = (await response.json()) as ImportApiRecord;
+        applyImportRecord(record, "Import draft saved.");
+        setDraftSaveState("saved");
+      } catch (error) {
+        setDraftSaveState("idle");
+        setStatusMessage(error instanceof Error ? error.message : "Import draft save failed.");
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
     if (!productId) {
       setDraft(nextDraft);
       setDraftSaveState("saved");
@@ -4209,6 +5209,21 @@ export default function AddProductEditor({
 
     setIsDeletingDraft(true);
     try {
+      if (isImportMode && currentImportRecordId) {
+        const response = await fetch(`/api/product-ai/imports/products/${currentImportRecordId}`, {
+          method: "DELETE",
+        });
+
+        if (!response.ok && response.status !== 404 && response.status !== 405) {
+          const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(errorBody?.detail ?? "Import delete failed.");
+        }
+
+        resetDraftEditor("Import draft deleted.");
+        router.replace("/import", { scroll: false });
+        return;
+      }
+
       if (savedProductId) {
         const response = await fetch(`/api/product-ai/products/${savedProductId}`, {
           method: "DELETE",
@@ -4234,6 +5249,33 @@ export default function AddProductEditor({
   }
 
   async function optimizeMarketplace(market: MarketKey) {
+    if (isImportMode) {
+      if (!currentImportRecordId) {
+        setStatusMessage("Import record is missing.");
+        return;
+      }
+
+      setMarketRegenerating((prev) => ({ ...prev, [market]: true }));
+      try {
+        const response = await fetch(`/api/product-ai/imports/products/${currentImportRecordId}/marketplaces/${market}/optimize`, {
+          method: "POST",
+        });
+
+        if (!response.ok) {
+          const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(errorBody?.detail ?? `Could not optimize ${marketLabels[market]}.`);
+        }
+
+        const record = (await response.json()) as ImportApiRecord;
+        applyImportRecord(record, `${marketLabels[market]} product data optimized.`);
+      } catch (error) {
+        setStatusMessage(error instanceof Error ? error.message : `Could not optimize ${marketLabels[market]}.`);
+      } finally {
+        setMarketRegenerating((prev) => ({ ...prev, [market]: false }));
+      }
+      return;
+    }
+
     if (!productId) {
       setStatusMessage("Generate a product before optimizing marketplace content.");
       return;
@@ -4378,6 +5420,62 @@ export default function AddProductEditor({
   }
 
   async function uploadSelectedSourceImage(file: File, successMessage: string) {
+    if (isImportMode) {
+      const sourceRecordId = currentImportRecordId;
+      if (!sourceRecordId) {
+        setStatusMessage("Import record is missing.");
+        return false;
+      }
+
+      setIsUploadingSourceImage(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("market", "source");
+        formData.append("productId", sourceRecordId);
+
+        const response = await fetch("/api/product-ai/image/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(errorBody?.detail ?? "Could not upload the source image.");
+        }
+
+        const result = (await response.json()) as { relative_path: string; absolute_path: string };
+        const nextImages = {
+          ...draft.images,
+          source: {
+            ...draft.images.source,
+            relative_path: result.relative_path,
+            absolute_path: result.absolute_path,
+            generation_mode: "manual_upload",
+            mime_type: file.type || "image/png",
+            validation: {
+              ...draft.images.source.validation,
+              passed: true,
+              file_size_bytes: file.size,
+              format: file.type.split("/")[1]?.toUpperCase() || "PNG",
+              mime_type: file.type || "image/png",
+              errors: [],
+            },
+          },
+        };
+
+        await saveDraft(nextImages);
+        clearSelectedImageSelection();
+        setStatusMessage(successMessage);
+        return true;
+      } catch (error) {
+        setStatusMessage(error instanceof Error ? error.message : "Could not upload the source image.");
+        return false;
+      } finally {
+        setIsUploadingSourceImage(false);
+      }
+    }
+
     if (!productId) {
       setStatusMessage("Generate or load a product draft before uploading a source image.");
       return false;
@@ -4423,7 +5521,9 @@ export default function AddProductEditor({
 
     await uploadSelectedSourceImage(
       selectedImage,
-      "Source image uploaded. Transparent cutout was refreshed and marketplace images are ready for on-demand generation.",
+      isImportMode
+        ? "Source image uploaded to the import record."
+        : "Source image uploaded. Transparent cutout was refreshed and marketplace images are ready for on-demand generation.",
     );
   }
 
@@ -4536,6 +5636,78 @@ export default function AddProductEditor({
   }
 
   async function generateAllMarketplaceImages() {
+    if (isImportMode) {
+      if (!currentImportRecordId) {
+        setStatusMessage("Import record is missing.");
+        return;
+      }
+
+      if (selectedImage) {
+        const formData = new FormData();
+        formData.append("image", selectedImage);
+
+        setIsUploadingSourceImage(true);
+        try {
+          const response = await fetch(`/api/product-ai/imports/products/${currentImportRecordId}/source-image`, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+            throw new Error(errorBody?.detail ?? "Could not generate marketplace images for this import.");
+          }
+
+          const record = (await response.json()) as ImportApiRecord;
+          applyImportRecord(record, "All marketplace images generated for this import record.");
+          clearSelectedImageSelection();
+          return;
+        } catch (error) {
+          setStatusMessage(error instanceof Error ? error.message : "Could not generate marketplace images for this import.");
+          return;
+        } finally {
+          setIsUploadingSourceImage(false);
+        }
+      }
+
+      if (!hasSourceImage) {
+        setStatusMessage("Upload a source image first, then generate marketplace images.");
+        return;
+      }
+
+      setMarketImageGenerating({
+        amazon: true,
+        ebay: true,
+        etsy: true,
+        tiktok: true,
+        shopify: true,
+      });
+      try {
+        let latestRecord: ImportApiRecord | null = null;
+        for (const market of ["amazon", "ebay", "etsy", "tiktok", "shopify"] as MarketKey[]) {
+          const response = await fetch(`/api/product-ai/imports/products/${currentImportRecordId}/marketplaces/${market}/regenerate`, {
+            method: "POST",
+          });
+
+          if (!response.ok) {
+            const errorBody = (await response.json().catch(() => null)) as { detail?: string } | null;
+            throw new Error(errorBody?.detail ?? `Could not generate the ${marketLabels[market]} image.`);
+          }
+
+          latestRecord = (await response.json()) as ImportApiRecord;
+        }
+
+        if (latestRecord) {
+          applyImportRecord(latestRecord, "All marketplace images generated for this import record.");
+        }
+      } catch (error) {
+        setStatusMessage(error instanceof Error ? error.message : "Could not generate marketplace images for this import.");
+      } finally {
+        setMarketImageGenerating(emptyActionState);
+      }
+      return;
+    }
+
     if (!productId) {
       await generateProduct("All marketplace content and image generations complete.");
       return;
@@ -4698,6 +5870,11 @@ export default function AddProductEditor({
   }
 
   async function regenerateMarketplaceImage(market: MarketKey) {
+    if (isImportMode) {
+      setStatusMessage("Use Generate All in the Images panel to create marketplace images for imports.");
+      return;
+    }
+
     if (!productId) {
       await generateMarketplaceDraft(market);
       return;
@@ -4755,6 +5932,14 @@ export default function AddProductEditor({
     statusMessage.toLowerCase().includes("missing") ||
     statusMessage.toLowerCase().includes("failed") ||
     statusMessage.toLowerCase().includes("could not");
+  const editorContextLabel = isImportMode ? "Import Products" : "Products";
+  const editorTitle = isImportMode
+    ? readOnly
+      ? "View Imported Product"
+      : "Edit Imported Product"
+    : "Add Product";
+  const backHref = isImportMode ? "/import" : "/products";
+  const displayId = importRecordId || initialImportRecordId || productId;
 
   function getDisplayStatusMessage(message: string) {
     const normalized = message.trim();
@@ -4833,18 +6018,18 @@ export default function AddProductEditor({
             <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
               <div className="flex min-w-0 flex-wrap items-center gap-3">
                 <Link
-                  href="/products"
+                  href={backHref}
                   className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#5e739f] bg-white/6 px-3 text-sm font-semibold text-white hover:bg-white/12 transition-colors cursor-pointer"
                 >
                   &larr; Back
                 </Link>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9eb1d4]">Products &nbsp;&gt;&nbsp; Add Product</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9eb1d4]">{editorContextLabel} &nbsp;&gt;&nbsp; {editorTitle}</p>
                   <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-                    <h1 className="text-[1.85rem] font-bold leading-none tracking-[-0.03em] text-white">Add Product</h1>
-                    {productId ? (
+                    <h1 className="text-[1.85rem] font-bold leading-none tracking-[-0.03em] text-white">{editorTitle}</h1>
+                    {displayId ? (
                       <span className="rounded-full border border-[#5b7099] bg-white/8 px-2.5 py-1 text-[11px] font-semibold text-[#dce7fb]">
-                        ID: {productId.slice(0, 8)}
+                        ID: {displayId.slice(0, 8)}
                       </span>
                     ) : null}
                   </div>
@@ -4965,7 +6150,7 @@ export default function AddProductEditor({
                   type="button"
                 >
                   {isGenerating ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  {isGenerating ? "Generating..." : "Generate AI"}
+                  {isGenerating ? "Generating..." : isImportMode ? "Generate Text" : "Generate AI"}
                 </button>
               </div>
             </div>
@@ -5078,7 +6263,15 @@ export default function AddProductEditor({
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {marketOrder.map((marketKey) => (
-                    <MarketTabLink activeMarket={activeMarket} key={marketKey} market={marketKey} productId={productId} />
+                    <MarketTabLink
+                      activeMarket={activeMarket}
+                      importRecordId={currentImportRecordId}
+                      isImportMode={isImportMode}
+                      key={marketKey}
+                      market={marketKey}
+                      productId={productId}
+                      readOnly={readOnly}
+                    />
                   ))}
                   <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block" />
                   <button
@@ -5392,14 +6585,16 @@ export default function AddProductEditor({
                                 className="max-h-full max-w-full object-contain"
                               />
                               <div className="absolute inset-0 bg-[#0f172a]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                                <button
-                                  type="button"
-                                  onClick={() => void regenerateMarketplaceImage("shopify")}
-                                  className="h-8 rounded-lg bg-white/20 hover:bg-white/30 text-white px-3 text-xs font-semibold backdrop-blur-xs transition flex items-center gap-1 cursor-pointer border-0"
-                                >
-                                  <RefreshCcw className="h-3.5 w-3.5" />
-                                  <span>Regenerate</span>
-                                </button>
+                                {!isImportMode ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void regenerateMarketplaceImage("shopify")}
+                                    className="h-8 rounded-lg bg-white/20 hover:bg-white/30 text-white px-3 text-xs font-semibold backdrop-blur-xs transition flex items-center gap-1 cursor-pointer border-0"
+                                  >
+                                    <RefreshCcw className="h-3.5 w-3.5" />
+                                    <span>Regenerate</span>
+                                  </button>
+                                ) : null}
                                 <button
                                   type="button"
                                   onClick={() => void clearMarketplaceImage("shopify")}
@@ -5472,160 +6667,177 @@ export default function AddProductEditor({
                       ) : null}
                     </div>
 
-                    {/* Card 4: Category Metafields */}
-                    <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
-                      <div className="flex items-center justify-between border-b border-[#eef2f6] pb-3 mb-4">
-                        <div>
-                          <h3 className="text-sm font-bold text-[#1f2c44]">Category Metafields</h3>
-                          <p className="text-xs text-[#8ea0bf] mt-0.5">Shopify specific attributes for shoes and apparel products.</p>
-                        </div>
-                        <span className="rounded-full bg-[#f1f5f9] px-2.5 py-0.5 text-[10px] font-semibold text-slate-600 border border-slate-200">
-                          Active Category: {draft.shopify.category || "Shoes"}
-                        </span>
-                      </div>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <CustomDropdownSelector
-                          label="Color"
-                          value={draft.shopify.metafields?.color ?? ""}
-                          options={["Red", "Blue", "Black", "White", "Burgundy", "Grey"]}
-                          onChange={(val) => setDraft((prev) => ({
-                            ...prev,
-                            shopify: {
-                              ...prev.shopify,
-                              metafields: { ...prev.shopify.metafields, color: val }
-                            }
-                          }))}
-                          placeholder="Select Color"
-                          colorDot={true}
-                        />
+                    {/* Card 4: Category Metafields (dynamic per active category) */}
+                    {(() => {
+                      const metafieldSchema = getMetafieldSchema(draft.shopify.category);
+                      const knownKeys = new Set(metafieldSchema.fields.map((f) => f.key));
+                      const activeCategory = (draft.shopify.category ?? "").trim();
+                      const isGeneric = metafieldSchema.id === "generic";
+                      return (
+                        <div className="rounded-2xl border border-[#dbe2ee] bg-white p-5 shadow-xs">
+                          <div className="flex items-center justify-between border-b border-[#eef2f6] pb-3 mb-4">
+                            <div>
+                              <h3 className="text-sm font-bold text-[#1f2c44]">{metafieldSchema.title}</h3>
+                              <p className="text-xs text-[#8ea0bf] mt-0.5">
+                                {isGeneric && !activeCategory
+                                  ? "Set the Shopify category above to unlock category-specific metafields."
+                                  : metafieldSchema.description}
+                              </p>
+                            </div>
+                            <span className="rounded-full bg-[#f1f5f9] px-2.5 py-0.5 text-[10px] font-semibold text-slate-600 border border-slate-200">
+                              {isGeneric ? "Generic schema" : `Active Category: ${activeCategory}`}
+                            </span>
+                          </div>
 
-                        <CustomDropdownSelector
-                          label="Age Group"
-                          value={draft.shopify.metafields?.age_group ?? ""}
-                          options={["Adults", "Kids", "Toddler", "Infant"]}
-                          onChange={(val) => setDraft((prev) => ({
-                            ...prev,
-                            shopify: {
-                              ...prev.shopify,
-                              metafields: { ...prev.shopify.metafields, age_group: val }
-                            }
-                          }))}
-                          placeholder="Select Age Group"
-                        />
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            {metafieldSchema.fields.map((field) => {
+                              if (field.type === "select" && field.options && field.options.length > 0) {
+                                return (
+                                  <CustomDropdownSelector
+                                    key={field.key}
+                                    label={field.label}
+                                    value={draft.shopify.metafields?.[field.key] ?? ""}
+                                    options={field.options}
+                                    onChange={(val) => setDraft((prev) => ({
+                                      ...prev,
+                                      shopify: {
+                                        ...prev.shopify,
+                                        metafields: { ...(prev.shopify.metafields ?? {}), [field.key]: val },
+                                      },
+                                    }))}
+                                    placeholder={`Select ${field.label}`}
+                                    colorDot={field.colorDot === true}
+                                  />
+                                );
+                              }
+                              // text input
+                              return (
+                                <div
+                                  key={field.key}
+                                  className="flex flex-col rounded-xl border border-[#dbe2ee] bg-[#f8fbff] p-3 focus-within:border-[#2b7cf5] focus-within:bg-white transition-all"
+                                >
+                                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] mb-1 select-none">
+                                    {field.label}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={draft.shopify.metafields?.[field.key] ?? ""}
+                                    onChange={(e) => setDraft((prev) => ({
+                                      ...prev,
+                                      shopify: {
+                                        ...prev.shopify,
+                                        metafields: { ...(prev.shopify.metafields ?? {}), [field.key]: e.target.value },
+                                      },
+                                    }))}
+                                    placeholder={field.help ?? `Enter ${field.label.toLowerCase()}`}
+                                    className="w-full bg-transparent text-xs font-semibold outline-none border-0 text-[#31415e] placeholder:text-[#aab8d6]"
+                                  />
+                                  {field.help ? (
+                                    <span className="text-[10px] text-[#aab8d6] mt-1">{field.help}</span>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
 
-                        <CustomDropdownSelector
-                          label="Closure Type"
-                          value={draft.shopify.metafields?.closure_type ?? ""}
-                          options={["Lace-up", "Slip-on", "Velcro", "Zipper", "Buckle"]}
-                          onChange={(val) => setDraft((prev) => ({
-                            ...prev,
-                            shopify: {
-                              ...prev.shopify,
-                              metafields: { ...prev.shopify.metafields, closure_type: val }
-                            }
-                          }))}
-                          placeholder="Select Closure Type"
-                        />
-
-                        <CustomDropdownSelector
-                          label="Heel Height Type"
-                          value={draft.shopify.metafields?.heel_height_type ?? ""}
-                          options={["Flat", "Low heel", "Mid heel", "High heel"]}
-                          onChange={(val) => setDraft((prev) => ({
-                            ...prev,
-                            shopify: {
-                              ...prev.shopify,
-                              metafields: { ...prev.shopify.metafields, heel_height_type: val }
-                            }
-                          }))}
-                          placeholder="Select Heel Height"
-                        />
-
-                        <CustomDropdownSelector
-                          label="Occasion Style"
-                          value={draft.shopify.metafields?.occasion_style ?? ""}
-                          options={["Casual", "Dress", "Athletic", "Formal"]}
-                          onChange={(val) => setDraft((prev) => ({
-                            ...prev,
-                            shopify: {
-                              ...prev.shopify,
-                              metafields: { ...prev.shopify.metafields, occasion_style: val }
-                            }
-                          }))}
-                          placeholder="Select Occasion"
-                        />
-
-                        <CustomDropdownSelector
-                          label="Target Gender"
-                          value={draft.shopify.metafields?.target_gender ?? ""}
-                          options={["Unisex", "Male", "Female"]}
-                          onChange={(val) => setDraft((prev) => ({
-                            ...prev,
-                            shopify: {
-                              ...prev.shopify,
-                              metafields: { ...prev.shopify.metafields, target_gender: val }
-                            }
-                          }))}
-                          placeholder="Select Gender"
-                        />
-
-                        <CustomDropdownSelector
-                          label="Toe Style"
-                          value={draft.shopify.metafields?.toe_style ?? ""}
-                          options={["Round", "Pointed", "Square"]}
-                          onChange={(val) => setDraft((prev) => ({
-                            ...prev,
-                            shopify: {
-                              ...prev.shopify,
-                              metafields: { ...prev.shopify.metafields, toe_style: val }
-                            }
-                          }))}
-                          placeholder="Select Toe Style"
-                        />
-                      </div>
-
-                      <div className="mt-4 border-t border-[#eef2f6] pt-3.5">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2] mb-2">Add Additional Details</p>
-                        <div className="flex flex-wrap gap-2">
-                          {["Shoe size", "Shoe fit", "Care instructions", "Footwear material", "Shoe features"].map((detail) => {
-                            const key = detail.toLowerCase().replace(" ", "_");
-                            const exists = Boolean(draft.shopify.metafields?.[key]);
-                            return (
-                              <button
-                                key={detail}
-                                type="button"
-                                onClick={() => {
-                                  if (exists) {
-                                    setDraft((prev) => {
-                                      const copy = { ...prev.shopify.metafields };
-                                      delete copy[key];
-                                      return { ...prev, shopify: { ...prev.shopify, metafields: copy } };
-                                    });
-                                  } else {
-                                    const val = prompt(`Enter ${detail} value:`);
-                                    if (val) {
-                                      setDraft((prev) => ({
-                                        ...prev,
-                                        shopify: {
-                                          ...prev.shopify,
-                                          metafields: { ...prev.shopify.metafields, [key]: val }
-                                        }
-                                      }));
-                                    }
-                                  }
-                                }}
-                                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition cursor-pointer border-solid ${exists
-                                    ? "bg-[#172544] border-[#172544] text-white"
-                                    : "bg-white border-[#d5dcea] text-[#4a5d7d] hover:bg-[#f8fbff]"
-                                  }`}
-                              >
-                                <span>{exists ? `✓ ${detail}` : `+ ${detail}`}</span>
-                              </button>
+                          {/* Extra metafields that don't fit the resolved schema:
+                              show anything in the metafields dict that isn't already
+                              a known field, so the user can still edit LLM-provided
+                              keys we don't have a UI for. */}
+                          {(() => {
+                            const extras = Object.entries(draft.shopify.metafields ?? {}).filter(
+                              ([key]) => !knownKeys.has(key) && String(key).trim(),
                             );
-                          })}
+                            if (extras.length === 0) return null;
+                            return (
+                              <div className="mt-4 border-t border-[#eef2f6] pt-3.5">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2] mb-2">Custom metafields (from AI or import)</p>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  {extras.map(([key, value]) => (
+                                    <div
+                                      key={key}
+                                      className="flex flex-col rounded-xl border border-[#dbe2ee] bg-white p-3 focus-within:border-[#2b7cf5] transition-all"
+                                    >
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#8093b2] select-none">
+                                          {key.replace(/_/g, " ")}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setDraft((prev) => {
+                                            const copy = { ...(prev.shopify.metafields ?? {}) };
+                                            delete copy[key];
+                                            return { ...prev, shopify: { ...prev.shopify, metafields: copy } };
+                                          })}
+                                          className="text-[10px] font-semibold text-[#aab8d6] hover:text-[#cf4b4b] cursor-pointer border-0 bg-transparent"
+                                          aria-label={`Remove ${key} metafield`}
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={String(value ?? "")}
+                                        onChange={(e) => setDraft((prev) => ({
+                                          ...prev,
+                                          shopify: {
+                                            ...prev.shopify,
+                                            metafields: { ...(prev.shopify.metafields ?? {}), [key]: e.target.value },
+                                          },
+                                        }))}
+                                        className="w-full bg-transparent text-xs font-semibold outline-none border-0 text-[#31415e]"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          <div className="mt-4 border-t border-[#eef2f6] pt-3.5">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-[#8093b2] mb-2">Add Additional Details</p>
+                            <div className="flex flex-wrap gap-2">
+                              {metafieldSchema.fields.map((field) => {
+                                const exists = Boolean(draft.shopify.metafields?.[field.key]);
+                                return (
+                                  <button
+                                    key={field.key}
+                                    type="button"
+                                    onClick={() => {
+                                      if (exists) {
+                                        setDraft((prev) => {
+                                          const copy = { ...(prev.shopify.metafields ?? {}) };
+                                          delete copy[field.key];
+                                          return { ...prev, shopify: { ...prev.shopify, metafields: copy } };
+                                        });
+                                      } else {
+                                        const val = window.prompt(`Enter ${field.label} value:`);
+                                        if (val) {
+                                          setDraft((prev) => ({
+                                            ...prev,
+                                            shopify: {
+                                              ...prev.shopify,
+                                              metafields: { ...(prev.shopify.metafields ?? {}), [field.key]: val },
+                                            },
+                                          }));
+                                        }
+                                      }
+                                    }}
+                                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition cursor-pointer border-solid ${
+                                      exists
+                                        ? "bg-[#172544] border-[#172544] text-white"
+                                        : "bg-white border-[#d5dcea] text-[#4a5d7d] hover:bg-[#f8fbff]"
+                                    }`}
+                                  >
+                                    <span>{exists ? `✓ ${field.label}` : `+ ${field.label}`}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
 
                     {/* Card 5: Pricing */}
                     <div className={`rounded-2xl border p-5 shadow-xs transition-colors duration-300 ${
@@ -7907,7 +9119,7 @@ export default function AddProductEditor({
                           {/* Row 1: Primary Actions */}
                           <div className="flex gap-2 w-full">
                             {/* Generate/Regenerate for markets */}
-                            {key !== "source" ? (
+                            {key !== "source" && !isImportMode ? (
                               <button
                                 className="flex-1 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#d5dcea] bg-white text-xs font-bold text-[#4a5d7d] hover:bg-[#f8fbff] disabled:cursor-not-allowed disabled:opacity-40 transition-all duration-200 px-3 whitespace-nowrap"
                                 disabled={isBusy || isUploadingSourceImage || isGenerating}
