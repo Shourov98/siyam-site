@@ -131,14 +131,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       // Return the path formatted for the image proxy
       const relativePath = filename;
       
-      const RENDER_OUTPUT_ROOT_PREFIX = "/opt/render/project/src/output/";
-      const absolutePath = process.env.PRODUCT_AI_AGENT_OUTPUT_ROOT 
-        ? path.join(process.env.PRODUCT_AI_AGENT_OUTPUT_ROOT, filename)
-        : path.join(RENDER_OUTPUT_ROOT_PREFIX, filename);
-
       return NextResponse.json({
         relative_path: relativePath,
-        absolute_path: absolutePath,
+        absolute_path: targetPath,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Image upload failed.";

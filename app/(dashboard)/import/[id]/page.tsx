@@ -1,4 +1,4 @@
-import ImportProductEditor from "./ImportProductEditor";
+import AddProductEditor from "../../products/add/AddProductEditor";
 
 type MarketKey = "amazon" | "ebay" | "etsy" | "tiktok" | "shopify";
 
@@ -14,5 +14,13 @@ export default async function ImportEditPage({ params, searchParams }: ImportEdi
   const resolvedSearchParams = await searchParams;
   const market = resolvedSearchParams.market;
   const activeMarket: MarketKey = marketOrder.includes(market as MarketKey) ? (market as MarketKey) : "shopify";
-  return <ImportProductEditor activeMarket={activeMarket} importId={id} />;
+  return (
+    <AddProductEditor
+      activeMarket={activeMarket}
+      initialImportRecordId={id}
+      initialProductId={null}
+      initialSourceHint={null}
+      localDraftSeed={null}
+    />
+  );
 }

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -8,6 +9,10 @@ const RENDER_OUTPUT_ROOT_PREFIX = "/opt/render/project/src/output/";
 
 function getAllowedRoot() {
   return path.resolve(process.env.PRODUCT_AI_AGENT_OUTPUT_ROOT ?? DEFAULT_OUTPUT_ROOT);
+}
+
+function getAllowedTempRoots() {
+  return [path.resolve(os.tmpdir())];
 }
 
 function mapKnownAbsoluteOutputPath(rawPath: string, allowedRoot: string) {
@@ -97,8 +102,12 @@ export async function GET(request: NextRequest) {
 
   const allowedRoot = getAllowedRoot();
   const resolvedPath = resolveRequestedPath(rawPath, allowedRoot);
+  const isWithinOutputRoot = resolvedPath.startsWith(allowedRoot);
+  const isWithinTempRoot = getAllowedTempRoots().some((tempRoot) =>
+    resolvedPath.startsWith(tempRoot),
+  );
 
-  if (!resolvedPath.startsWith(allowedRoot)) {
+  if (!isWithinOutputRoot && !isWithinTempRoot) {
     return NextResponse.json({ detail: "Image path is outside the allowed output directory." }, { status: 403 });
   }
 
