@@ -2550,16 +2550,11 @@ export default function AddProductEditor({
   const hydratedEbayBackendProductIdRef = useRef<string | null>(null);
   const [draft, setDraft] = useState<ApiProduct>(emptyProduct);
   const [variantsByMarket, setVariantsByMarket] = useState<Record<MarketKey, ApiVariant[]>>(sampleVariants);
-<<<<<<< Updated upstream
-  const [productId, setProductId] = useState<string | null>(initialProductId);
-  const [backendProductId, setBackendProductId] = useState<string | null>(null);
-=======
   const [productId, setProductId] = useState<string | null>(initialSourceHint === "product_ai" ? initialProductId : null);
   const [backendProductId, setBackendProductId] = useState<string | null>(
     initialSourceHint === "shopify" || initialSourceHint === "commandctr" ? initialProductId : null,
   );
   const [importRecordId, setImportRecordId] = useState<string | null>(initialImportRecordId);
->>>>>>> Stashed changes
   const [statusMessage, setStatusMessage] = useState("Choose an image and generate a product draft.");
   const [sourceTitle, setSourceTitle] = useState(emptyProduct.core.source_title);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -4971,13 +4966,9 @@ export default function AddProductEditor({
       clearPricingSnapshot();
       applyRecord(record, "AI text draft generated and ready for marketplace images.");
       clearSelectedImageSelection();
-<<<<<<< Updated upstream
-      router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
-=======
       if (!isImportMode) {
         router.replace(`/products/add?market=${activeMarket}&productId=${record.id}&source=product_ai`, { scroll: false });
       }
->>>>>>> Stashed changes
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Text-only generation failed.");
     } finally {
@@ -5020,13 +5011,9 @@ export default function AddProductEditor({
       clearPricingSnapshot();
       applyRecord(record, successMessage);
       clearSelectedImageSelection();
-<<<<<<< Updated upstream
-      router.replace(`/products/add?market=${activeMarket}&productId=${record.id}`, { scroll: false });
-=======
       if (!isImportMode) {
         router.replace(`/products/add?market=${activeMarket}&productId=${record.id}&source=product_ai`, { scroll: false });
       }
->>>>>>> Stashed changes
       return true;
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : `Could not generate the ${marketLabels[market]} content and image.`);
